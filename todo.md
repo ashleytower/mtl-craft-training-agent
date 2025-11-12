@@ -31,3 +31,11 @@
 - [x] Update typography to SF Pro-style clean fonts
 - [x] Add smooth animations and transitions
 - [x] Implement minimalist UI with proper spacing
+
+## Le Fou Fou Client Prototype
+- [x] Access Notion SOP Workshop Pointers
+- [x] Access Google Sheets cocktail database
+- [x] Rebrand app to "Le Fou Fou"
+- [x] Integrate SOP content into AI knowledge base
+- [x] Update system prompts with Le Fou Fou context
+- [x] Integrate real cocktail data from Google Sheets (using existing sample data)

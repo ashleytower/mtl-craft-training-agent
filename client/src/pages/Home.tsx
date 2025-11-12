@@ -213,8 +213,8 @@ export default function Home() {
       {/* Header */}
       <header className="bg-white border-b border-neutral-200">
         <div className="container mx-auto px-6 py-4">
-          <h1 className="text-xl font-semibold text-neutral-900">Bar Training Assistant</h1>
-          <p className="text-sm text-neutral-500">AI-powered bartending guidance</p>
+          <h1 className="text-xl font-semibold text-neutral-900">Le Fou Fou</h1>
+          <p className="text-sm text-neutral-500">AI-powered cocktail training assistant</p>
         </div>
       </header>
 
