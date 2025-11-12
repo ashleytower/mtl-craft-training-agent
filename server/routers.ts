@@ -7,7 +7,11 @@ import {
   createConversation,
   getUserConversations,
   getConversationMessages,
-  addMessage
+  addMessage,
+  searchCocktails,
+  getCocktailById,
+  getCocktailIngredients,
+  getAllCocktails
 } from "./db";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
@@ -67,6 +71,29 @@ export const appRouter = router({
       }),
   }),
 
+  // Cocktail knowledge base
+  cocktails: router({
+    search: publicProcedure
+      .input(z.object({ query: z.string() }))
+      .query(async ({ input }) => {
+        return searchCocktails(input.query);
+      }),
+    
+    getById: publicProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => {
+        const cocktail = await getCocktailById(input.id);
+        if (!cocktail) return null;
+        
+        const ingredientsList = await getCocktailIngredients(input.id);
+        return { ...cocktail, ingredients: ingredientsList };
+      }),
+    
+    getAll: publicProcedure.query(async () => {
+      return getAllCocktails();
+    }),
+  }),
+
   // Simple chat with LLM
   chat: router({
     // Create a new conversation
@@ -94,7 +121,7 @@ export const appRouter = router({
         return getConversationMessages(input.conversationId);
       }),
 
-    // Send a message and get AI response
+    // Send a message and get AI response with recipe detection
     sendMessage: publicProcedure
       .input(z.object({
         conversationId: z.number().optional(),
@@ -132,6 +159,34 @@ export const appRouter = router({
           }));
         }
 
+        // Check if user is asking about specific cocktails
+        const allCocktails = await getAllCocktails();
+        const mentionedCocktails = allCocktails.filter(cocktail => 
+          input.message.toLowerCase().includes(cocktail.name.toLowerCase()) ||
+          (cocktail.nameEnglish && input.message.toLowerCase().includes(cocktail.nameEnglish.toLowerCase()))
+        );
+
+        // Build context with cocktail information if mentioned
+        let contextInfo = "";
+        if (mentionedCocktails.length > 0) {
+          contextInfo = "\n\nRelevant cocktail information:\n";
+          for (const cocktail of mentionedCocktails) {
+            const ingredients = await getCocktailIngredients(cocktail.id);
+            const ingredientsList = ingredients
+              .filter(i => i.withAlcohol)
+              .map(i => `${i.amount} ${i.unit} ${i.ingredient}`)
+              .join(", ");
+            
+            contextInfo += `\n**${cocktail.nameEnglish || cocktail.name}**\n`;
+            contextInfo += `Description: ${cocktail.descriptionEnglish || 'N/A'}\n`;
+            contextInfo += `Ingredients: ${ingredientsList}\n`;
+            contextInfo += `Method: ${cocktail.method}\n`;
+            if (cocktail.funFacts) {
+              contextInfo += `Fun Facts: ${cocktail.funFacts}\n`;
+            }
+          }
+        }
+
         // Generate AI response using LLM
         const systemPrompt = `You are a knowledgeable bar training assistant for Mtl Craft Cocktails. You help bartenders and staff with:
 - Cocktail recipes and preparation methods
@@ -139,7 +194,7 @@ export const appRouter = router({
 - Bar service planning and calculations
 - Ingredient information and substitutions
 
-Be friendly, professional, and concise. Provide helpful guidance based on your knowledge of bartending and bar service.`;
+Be friendly, professional, and concise. Provide helpful guidance based on your knowledge of bartending and bar service.${contextInfo}`;
 
         const response = await invokeLLM({
           messages: [
@@ -163,9 +218,30 @@ Be friendly, professional, and concise. Provide helpful guidance based on your k
           });
         }
 
+        // Return response with recipe data if cocktails were mentioned
         return {
           conversationId,
           message: assistantMessage,
+          recipes: mentionedCocktails.length > 0 ? await Promise.all(
+            mentionedCocktails.map(async (cocktail) => {
+              const ingredients = await getCocktailIngredients(cocktail.id);
+              return {
+                id: cocktail.id,
+                name: cocktail.nameEnglish || cocktail.name,
+                description: cocktail.descriptionEnglish || '',
+                method: cocktail.method,
+                glassType: cocktail.glassType,
+                funFacts: cocktail.funFacts,
+                ingredients: ingredients
+                  .filter(i => i.withAlcohol)
+                  .map(i => ({
+                    amount: i.amount,
+                    unit: i.unit,
+                    ingredient: i.ingredient,
+                  })),
+              };
+            })
+          ) : undefined,
         };
       }),
   }),

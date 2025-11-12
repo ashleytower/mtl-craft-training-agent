@@ -22,3 +22,12 @@
 - [ ] Connect Google Sheets for knowledge base
 - [ ] Build RAG system for retrieving bar training information
 - [ ] Enhance LLM responses with context from knowledge base
+
+## New Features - Speech-to-Speech & Recipe Display
+- [x] Add text-to-speech for AI responses (speech output)
+- [x] Add text input field alongside voice recording
+- [x] Implement recipe card display when cocktails are mentioned
+- [x] Redesign with Apple-inspired neutral colors (grays, whites, blacks)
+- [x] Update typography to SF Pro-style clean fonts
+- [x] Add smooth animations and transitions
+- [x] Implement minimalist UI with proper spacing
