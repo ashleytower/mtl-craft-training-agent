@@ -1,0 +1,24 @@
+# Bar Training Voice Agent - TODO
+
+## Completed
+- [x] Design database schema for cocktail recipes
+- [x] Design database schema for packing checklists
+- [x] Design database schema for workshop planning data
+- [x] Seed database with cocktail recipes from knowledge base
+- [x] Seed database with packing checklist items
+- [x] Create voice transcription endpoint using Whisper API
+- [x] Build chat history management
+- [x] Implement LLM integration for intelligent responses
+
+## Current Sprint - Voice Agent MVP
+- [x] Build voice recording UI with microphone controls
+- [x] Implement audio upload to storage
+- [x] Create voice chat interface
+- [x] Add loading states for transcription and response
+- [x] Test complete voice interaction flow
+- [x] Add mobile responsiveness
+
+## Future - RAG Integration
+- [ ] Connect Google Sheets for knowledge base
+- [ ] Build RAG system for retrieving bar training information
+- [ ] Enhance LLM responses with context from knowledge base

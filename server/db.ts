@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { eq, desc, like, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { InsertUser, users, cocktails, ingredients, packingItems, conversations, messages, InsertConversation, InsertMessage } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,90 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// Cocktail queries
+export async function searchCocktails(query: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  const searchPattern = `%${query}%`;
+  return db.select().from(cocktails).where(
+    or(
+      like(cocktails.name, searchPattern),
+      like(cocktails.nameEnglish, searchPattern),
+      like(cocktails.descriptionEnglish, searchPattern),
+      like(cocktails.descriptionFrench, searchPattern)
+    )
+  );
+}
+
+export async function getCocktailById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  
+  const result = await db.select().from(cocktails).where(eq(cocktails.id, id)).limit(1);
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getCocktailIngredients(cocktailId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(ingredients).where(eq(ingredients.cocktailId, cocktailId));
+}
+
+export async function getAllCocktails() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(cocktails);
+}
+
+// Packing items queries
+export async function getPackingItemsByCategory(category: string) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(packingItems).where(eq(packingItems.category, category));
+}
+
+export async function getAllPackingItems() {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(packingItems);
+}
+
+// Conversation queries
+export async function createConversation(data: InsertConversation) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(conversations).values(data);
+  return result[0].insertId;
+}
+
+export async function getUserConversations(userId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(conversations)
+    .where(eq(conversations.userId, userId))
+    .orderBy(desc(conversations.updatedAt));
+}
+
+export async function getConversationMessages(conversationId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  
+  return db.select().from(messages)
+    .where(eq(messages.conversationId, conversationId))
+    .orderBy(messages.createdAt);
+}
+
+export async function addMessage(data: InsertMessage) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  
+  const result = await db.insert(messages).values(data);
+  return result[0].insertId;
+}
