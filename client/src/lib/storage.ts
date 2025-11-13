@@ -11,7 +11,15 @@ export async function storagePut(
 ): Promise<{ url: string; key: string }> {
   // Convert data to base64 for transmission
   const buffer = data instanceof Uint8Array ? data : new Uint8Array(data);
-  const base64 = btoa(String.fromCharCode.apply(null, Array.from(buffer)));
+  
+  // Use chunked encoding to avoid stack overflow on large files
+  let base64 = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < buffer.length; i += chunkSize) {
+    const chunk = buffer.slice(i, i + chunkSize);
+    base64 += String.fromCharCode.apply(null, Array.from(chunk));
+  }
+  base64 = btoa(base64);
 
   // Call tRPC endpoint
   const response = await fetch('/api/trpc/storage.upload', {

@@ -2,7 +2,7 @@ export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 export const APP_TITLE = import.meta.env.VITE_APP_TITLE || "Le Fou Fou";
 
-export const APP_LOGO = "https://placehold.co/128x128/1F2937/FFFFFF?text=LFF";
+export const APP_LOGO = "https://images.tastet.ca/_/rs:fit:300:200:false:0/plain/local:///2024/11/fou-fou-logo.png";
 
 // Generate login URL at runtime so redirect URI reflects the current origin.
 export const getLoginUrl = () => {

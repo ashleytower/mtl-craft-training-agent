@@ -8,14 +8,17 @@ import {
   getUserConversations,
   getConversationMessages,
   addMessage,
-  searchCocktails,
-  getCocktailById,
-  getCocktailIngredients,
-  getAllCocktails
 } from "./db";
+import { 
+  getCocktails,
+  getIngredients,
+  getPreparationSteps,
+  searchCocktailsByName
+} from "./googleSheets";
 import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
+import { textToSpeech } from "./elevenLabs";
 
 export const appRouter = router({
   system: systemRouter,
@@ -47,9 +50,7 @@ export const appRouter = router({
         
         return result;
       }),
-  }),
-
-  // Voice transcription
+  }),  // Voice transcription and TTS
   voice: router({
     transcribe: publicProcedure
       .input(z.object({
@@ -57,40 +58,89 @@ export const appRouter = router({
         language: z.string().optional(),
       }))
       .mutation(async ({ input }) => {
-        const result = await transcribeAudio({
-          audioUrl: input.audioUrl,
-          language: input.language,
+        try {
+          console.log('[Transcription] Starting transcription for:', input.audioUrl);
+          
+          const result = await transcribeAudio({
+            audioUrl: input.audioUrl,
+            language: input.language,
+          });
+          
+          console.log('[Transcription] Result:', JSON.stringify(result).substring(0, 200));
+          
+          // Check if result has error
+          if (!result || typeof result !== 'object') {
+            console.error('[Transcription] Invalid result type:', typeof result);
+            throw new Error('Invalid transcription response');
+          }
+          
+          if ('error' in result) {
+            console.error('[Transcription] Error in result:', result.error, result.code, result.details);
+            throw new Error(`${result.error}${result.details ? ': ' + result.details : ''}`);
+          }
+          
+          // Check if result has text property
+          if (!('text' in result) || typeof result.text !== 'string') {
+            console.error('[Transcription] Missing or invalid text property');
+            throw new Error('Invalid transcription response: missing text');
+          }
+          
+          console.log('[Transcription] Success! Text length:', result.text.length);
+          return { text: result.text };
+        } catch (error) {
+          console.error('[Transcription Error]', error);
+          throw new Error(`Transcription failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }),
+    
+    // Generate speech from text using ElevenLabs
+    generateSpeech: publicProcedure
+      .input(z.object({
+        text: z.string(),
+        language: z.enum(['en', 'fr']).optional(),
+      }))
+      .mutation(async ({ input }) => {
+        const audioBuffer = await textToSpeech({
+          text: input.text,
+          language: input.language || 'en',
         });
         
-        // Check if it's an error response
-        if ('error' in result) {
-          throw new Error(result.error);
-        }
+        // Upload to storage and return URL
+        const timestamp = Date.now();
+        const audioKey = `tts-audio/speech-${timestamp}.mp3`;
         
-        return { text: result.text };
+        const { url } = await storagePut(
+          audioKey,
+          audioBuffer,
+          'audio/mpeg'
+        );
+        
+        return { audioUrl: url };
       }),
   }),
 
-  // Cocktail knowledge base
+  // Cocktail knowledge base (Google Sheets)
   cocktails: router({
     search: publicProcedure
       .input(z.object({ query: z.string() }))
       .query(async ({ input }) => {
-        return searchCocktails(input.query);
+        return searchCocktailsByName(input.query);
       }),
     
     getById: publicProcedure
-      .input(z.object({ id: z.number() }))
+      .input(z.object({ id: z.string() }))
       .query(async ({ input }) => {
-        const cocktail = await getCocktailById(input.id);
+        const allCocktails = await getCocktails();
+        const cocktail = allCocktails.find(c => c.id === input.id);
         if (!cocktail) return null;
         
-        const ingredientsList = await getCocktailIngredients(input.id);
-        return { ...cocktail, ingredients: ingredientsList };
+        const ingredientsList = await getIngredients(cocktail.name);
+        const preparationSteps = await getPreparationSteps(cocktail.name, 'en');
+        return { ...cocktail, ingredients: ingredientsList, preparation: preparationSteps };
       }),
     
     getAll: publicProcedure.query(async () => {
-      return getAllCocktails();
+      return getCocktails();
     }),
   }),
 
@@ -127,6 +177,7 @@ export const appRouter = router({
         conversationId: z.number().optional(),
         message: z.string(),
         audioUrl: z.string().optional(),
+        language: z.enum(['en', 'fr']).optional(),
       }))
       .mutation(async ({ input, ctx }) => {
         // Store user message
@@ -159,11 +210,11 @@ export const appRouter = router({
           }));
         }
 
-        // Check if user is asking about specific cocktails
-        const allCocktails = await getAllCocktails();
+        // Check if user is asking about specific cocktails from Google Sheets
+        const allCocktails = await getCocktails();
         const mentionedCocktails = allCocktails.filter(cocktail => 
           input.message.toLowerCase().includes(cocktail.name.toLowerCase()) ||
-          (cocktail.nameEnglish && input.message.toLowerCase().includes(cocktail.nameEnglish.toLowerCase()))
+          input.message.toLowerCase().includes(cocktail.nom.toLowerCase())
         );
 
         // Build context with cocktail information if mentioned
@@ -171,21 +222,32 @@ export const appRouter = router({
         if (mentionedCocktails.length > 0) {
           contextInfo = "\n\nRelevant cocktail information:\n";
           for (const cocktail of mentionedCocktails) {
-            const ingredients = await getCocktailIngredients(cocktail.id);
+            const ingredients = await getIngredients(cocktail.name);
+            const useLanguage = input.language || 'en';
+            const preparationText = await getPreparationSteps(cocktail.name, useLanguage);
+            
             const ingredientsList = ingredients
-              .filter(i => i.withAlcohol)
-              .map(i => `${i.amount} ${i.unit} ${i.ingredient}`)
+              .map(i => `${i.amount || ''} ${i.unit || ''} ${i.ingredient}`.trim())
               .join(", ");
             
-            contextInfo += `\n**${cocktail.nameEnglish || cocktail.name}**\n`;
-            contextInfo += `Description: ${cocktail.descriptionEnglish || 'N/A'}\n`;
+            const displayName = useLanguage === 'fr' ? cocktail.nom : cocktail.name;
+            const displayDescription = useLanguage === 'fr' ? cocktail.descriptionFR : cocktail.descriptionEN;
+            
+            contextInfo += `\n**${displayName}**\n`;
+            contextInfo += `Description: ${displayDescription || 'N/A'}\n`;
             contextInfo += `Ingredients: ${ingredientsList}\n`;
-            contextInfo += `Method: ${cocktail.method}\n`;
+            contextInfo += `Preparation: ${preparationText}\n`;
             if (cocktail.funFacts) {
               contextInfo += `Fun Facts: ${cocktail.funFacts}\n`;
             }
           }
         }
+
+        // Determine response language
+        const userLanguage = input.language || 'en';
+        const languageInstruction = userLanguage === 'fr' 
+          ? 'IMPORTANT: Respond in French (français). Use French terminology and expressions.'
+          : 'IMPORTANT: Respond in English.';
 
         // Generate AI response using LLM
         const systemPrompt = `You are a knowledgeable cocktail training assistant for Le Fou Fou by Mtl Craft Cocktails. You help bartenders and staff with:
@@ -193,6 +255,8 @@ export const appRouter = router({
 - Workshop techniques and pro tips
 - House-made syrups and ingredients
 - Bar tools and equipment guidance
+
+${languageInstruction}
 
 KEY TRAINING POINTS:
 - Always start with least expensive ingredients first, add alcohol last
@@ -235,25 +299,31 @@ Be friendly, professional, enthusiastic, and concise. Provide helpful guidance w
         }
 
         // Return response with recipe data if cocktails were mentioned
+        const useLanguage = input.language || 'en';
         return {
           conversationId,
           message: assistantMessage,
           recipes: mentionedCocktails.length > 0 ? await Promise.all(
             mentionedCocktails.map(async (cocktail) => {
-              const ingredients = await getCocktailIngredients(cocktail.id);
+              const ingredients = await getIngredients(cocktail.id);
+              const preparationText = await getPreparationSteps(cocktail.name, useLanguage);
+              
+              const displayName = useLanguage === 'fr' ? cocktail.nom : cocktail.name;
+              const displayDescription = useLanguage === 'fr' ? cocktail.descriptionFR : cocktail.descriptionEN;
+              
               return {
                 id: cocktail.id,
-                name: cocktail.nameEnglish || cocktail.name,
-                description: cocktail.descriptionEnglish || '',
-                method: cocktail.method,
-                glassType: cocktail.glassType,
+                name: displayName,
+                description: displayDescription,
+                method: preparationText,
+                glassType: cocktail.glassware,
                 funFacts: cocktail.funFacts,
                 ingredients: ingredients
-                  .filter(i => i.withAlcohol)
-                  .map(i => ({
-                    amount: i.amount,
+                  .filter((i: any) => i.type === 'Alcohol')
+                  .map((i: any) => ({
+                    amount: i.quantity,
                     unit: i.unit,
-                    ingredient: i.ingredient,
+                    ingredient: i.ingredientName,
                   })),
               };
             })
