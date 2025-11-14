@@ -104,3 +104,8 @@
 - [x] Implement modern tab bar with proper spacing and touch targets
 - [x] Add smooth transitions and active states
 - [x] Ensure all components follow unified design system
+
+## System Prompt Update
+- [x] Replace current prompt with improved structured format
+- [x] Remove workshop references (that's for Mtl Craft, not Le Fou Fou app)
+- [x] Test new prompt with sample questions
