@@ -19,6 +19,8 @@ import { invokeLLM } from "./_core/llm";
 import { transcribeAudio } from "./_core/voiceTranscription";
 import { storagePut } from "./storage";
 import { textToSpeech } from "./elevenLabs";
+import fs from "fs/promises";
+import path from "path";
 
 export const appRouter = router({
   system: systemRouter,
@@ -141,6 +143,20 @@ export const appRouter = router({
     
     getAll: publicProcedure.query(async () => {
       return getCocktails();
+    }),
+  }),
+
+  // SOPs
+  sops: router({
+    get: publicProcedure.query(async () => {
+      try {
+        const sopPath = path.join(process.cwd(), "knowledge-base-sop.md");
+        const content = await fs.readFile(sopPath, "utf-8");
+        return { content };
+      } catch (error) {
+        console.error("Error reading SOP file:", error);
+        throw new Error("Failed to load SOPs");
+      }
     }),
   }),
 

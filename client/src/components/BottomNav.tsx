@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
-import { Sparkles, TrendingUp, Zap, Mic } from "lucide-react";
+import { Sparkles, TrendingUp, Zap, Mic, BookOpen, Menu } from "lucide-react";
+import { Link } from "wouter";
 
 interface BottomNavProps {
   onSignatures: () => void;
@@ -93,6 +94,22 @@ export function BottomNav({
             onClick={onQuickTips}
             disabled={disabled}
           />
+          <Link href="/sops">
+            <NavItem
+              icon={<BookOpen className="w-5 h-5" />}
+              label="SOPs"
+              onClick={() => {}}
+              disabled={disabled}
+            />
+          </Link>
+          <Link href="/menus">
+            <NavItem
+              icon={<Menu className="w-5 h-5" />}
+              label="Menus"
+              onClick={() => {}}
+              disabled={disabled}
+            />
+          </Link>
           <NavItem
             icon={<Mic className="w-6 h-6" />}
             label={translations.voiceMode}
