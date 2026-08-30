@@ -11,6 +11,7 @@ import type { Express, Request, Response } from "express";
 import { hermesIdentityFromRequest } from "./_core/hermesService";
 import * as beverage from "./beverageClient";
 import { scaleFormula, type NormalizedFormula } from "./beverageScaling";
+import { methodForAgent, type StoredMethod } from "@shared/method";
 
 type ApprovedFormula = {
   id: string;
@@ -20,6 +21,7 @@ type ApprovedFormula = {
   product_category: string | null;
   intended_yield_value: string | null;
   intended_yield_unit: string | null;
+  process_json: StoredMethod;
   components: Array<{
     line_number: number;
     ingredient_name: string;
@@ -79,6 +81,9 @@ export function registerHermesRoutes(app: Express) {
           product_category: f.product_category,
           yield: f.intended_yield_value,
           yield_unit: f.intended_yield_unit,
+          // Always present, even when empty, so "how do I make it" is
+          // answerable from the same call that answers "what is in it".
+          method: methodForAgent(f.process_json),
           components: f.components,
         })),
       });
@@ -111,6 +116,7 @@ export function registerHermesRoutes(app: Express) {
         product_category: string;
         draft_status: string;
         original_recipe_json: { ingredients?: unknown[] } | null;
+        method_source_text: string | null;
       }>;
       const rows = drafts
         .filter(d => !search || d.name.toLowerCase().includes(search))
@@ -119,6 +125,9 @@ export function registerHermesRoutes(app: Express) {
           product_category: d.product_category,
           draft_status: d.draft_status,
           has_ingredients: (d.original_recipe_json?.ingredients ?? []).length > 0,
+          // Whether one exists, not what it says. An unapproved method is no
+          // safer to follow than an unapproved quantity.
+          has_method: Boolean(d.method_source_text),
           approved: false,
         }));
       res.json({ count: rows.length, search: search || null, drafts: rows });
@@ -189,6 +198,9 @@ export function registerHermesRoutes(app: Express) {
       const result = scaleFormula(toNormalized(matches[0]), scaleRequest);
       res.json({
         ...result,
+        // Scaling is when someone is about to make the thing, so the method
+        // belongs in this response rather than behind another call.
+        method: methodForAgent(matches[0].process_json),
         factor: {
           ...result.factor,
           measurable: measurable(result.factor.decimal, result.factor.decimalIsExact),

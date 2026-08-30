@@ -67,6 +67,8 @@ export type FormulaDraft = {
   draft_status: string;
   intended_yield_value: string | null;
   intended_yield_unit: string | null;
+  /** Freeform method text from the intake. Cocktails carry it; syrups never do. */
+  method_source_text: string | null;
   original_recipe_json: unknown;
 };
 
@@ -105,6 +107,15 @@ export function listPendingFormulaVersions(identity: OperatorIdentity) {
   );
 }
 
+/**
+ * A preparation step as the operator confirmed it. `section` is the heading it
+ * sits under ("TO BATCH"), or null when the method has no headings.
+ */
+export type ProcessStepInput = {
+  section?: string | null;
+  text: string;
+};
+
 export function createFormulaVersion(
   identity: OperatorIdentity,
   input: {
@@ -114,20 +125,27 @@ export function createFormulaVersion(
     yieldValue?: string;
     yieldUnit?: string;
     components: FormulaComponentInput[];
+    processSteps?: ProcessStepInput[];
   }
 ) {
-  return callRpc<{ id: string; lifecycle_status: string; version_number: number }>(
-    "beverage_create_formula_version",
-    {
-      ...operatorArgs(identity),
-      p_formula_draft_id: input.formulaDraftId,
-      p_formula_key: input.formulaKey,
-      p_name: input.name,
-      p_yield_value: input.yieldValue ?? null,
-      p_yield_unit: input.yieldUnit ?? null,
-      p_components: input.components,
-    }
-  );
+  return callRpc<{
+    id: string;
+    lifecycle_status: string;
+    version_number: number;
+    method_source: "operator" | "notion_draft" | "none";
+  }>("beverage_create_formula_version", {
+    ...operatorArgs(identity),
+    p_formula_draft_id: input.formulaDraftId,
+    p_formula_key: input.formulaKey,
+    p_name: input.name,
+    p_yield_value: input.yieldValue ?? null,
+    p_yield_unit: input.yieldUnit ?? null,
+    p_components: input.components,
+    // Omitted rather than empty: the database reads "no steps supplied" as
+    // "carry the intake text through unreviewed", which is not the same as
+    // "the operator cleared the method".
+    p_process_steps: input.processSteps?.length ? input.processSteps : null,
+  });
 }
 
 export function approveFormulaVersion(

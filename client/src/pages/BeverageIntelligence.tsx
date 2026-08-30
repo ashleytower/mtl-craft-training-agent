@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, Plus, Trash2, TriangleAlert } from "lucide-react";
 import { toast } from "sonner";
 
 import { cleanFormulaName } from "@shared/formulaName";
+import { parseMethodDraft, type MethodStep } from "@shared/method";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,8 @@ type FormulaDraft = {
   intended_yield_value: string | null;
   intended_yield_unit: string | null;
   source_url: string | null;
+  /** Freeform method text from the intake. Cocktails carry it; syrups never do. */
+  method_source_text: string | null;
   original_recipe_json: { ingredients?: DraftIngredient[] } | null;
 };
 
@@ -162,6 +165,7 @@ export default function BeverageIntelligence() {
   const [yieldValue, setYieldValue] = useState("");
   const [yieldUnit, setYieldUnit] = useState("L");
   const [components, setComponents] = useState<ComponentDraft[]>([]);
+  const [methodSteps, setMethodSteps] = useState<MethodStep[]>([]);
   const [rationale, setRationale] = useState<Record<string, string>>({});
 
   const [scaleTarget, setScaleTarget] = useState<string>("");
@@ -218,6 +222,9 @@ export default function BeverageIntelligence() {
     setYieldValue("");
     setYieldUnit(draft.intended_yield_unit ?? "L");
     setComponents(usableIngredients(draft));
+    // Prefilled for a cocktail, empty for a syrup — the Notion syrup collection
+    // carries no method at all, so that is the normal case, not a failure.
+    setMethodSteps(parseMethodDraft(draft.method_source_text));
   }
 
   function submitVersion() {
@@ -238,6 +245,14 @@ export default function BeverageIntelligence() {
         quantity: c.quantity.trim(),
         unit: c.unit.trim(),
       })),
+      // Blank rows are dropped here rather than sent, so an operator who adds a
+      // step and changes their mind is not refused by the database.
+      processSteps: methodSteps
+        .filter(step => step.text.trim() !== "")
+        .map(step => ({
+          section: step.section?.trim() || null,
+          text: step.text.trim(),
+        })),
     });
   }
 
@@ -703,6 +718,66 @@ export default function BeverageIntelligence() {
                 }
               >
                 <Plus className="w-4 h-4 mr-1" /> Add component
+              </Button>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Preparation method</Label>
+              <p className="text-xs text-muted-foreground">
+                {normalizing?.method_source_text
+                  ? "Prefilled from the recipe intake. Correct it before creating the version — these steps are what gets approved."
+                  : "Nothing came from the intake for this one. Type the method if you know it; leaving it blank records no method rather than a guessed one."}
+              </p>
+              {methodSteps.map((step, index) => (
+                <div key={index} className="grid gap-2 sm:grid-cols-[1fr_3fr_auto]">
+                  <Input
+                    value={step.section ?? ""}
+                    placeholder="Section"
+                    onChange={e =>
+                      setMethodSteps(prev =>
+                        prev.map((m, i) =>
+                          i === index
+                            ? { ...m, section: e.target.value || null }
+                            : m
+                        )
+                      )
+                    }
+                  />
+                  <Input
+                    value={step.text}
+                    placeholder={`Step ${index + 1}`}
+                    onChange={e =>
+                      setMethodSteps(prev =>
+                        prev.map((m, i) =>
+                          i === index ? { ...m, text: e.target.value } : m
+                        )
+                      )
+                    }
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setMethodSteps(prev => prev.filter((_, i) => i !== index))
+                    }
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setMethodSteps(prev => [
+                    ...prev,
+                    // A new step inherits the last section, so continuing
+                    // "TO BATCH" does not mean retyping the heading.
+                    { section: prev[prev.length - 1]?.section ?? null, text: "" },
+                  ])
+                }
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add step
               </Button>
             </div>
           </div>

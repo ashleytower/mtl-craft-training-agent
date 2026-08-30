@@ -22,6 +22,16 @@ const componentInput = z.object({
   notes: z.string().trim().optional(),
 });
 
+/**
+ * One preparation step. A blank step is rejected here rather than silently
+ * dropped, so an operator who leaves a row empty is told, instead of finding
+ * the step missing from an approved formula later.
+ */
+const processStepInput = z.object({
+  section: z.string().trim().min(1).nullish(),
+  text: z.string().trim().min(1, "a preparation step cannot be empty"),
+});
+
 const scaleRequest = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("multiplier"), multiplier: decimalString }),
   z.object({ mode: z.literal("targetYield"), targetYieldValue: decimalString }),
@@ -115,6 +125,10 @@ export const beverageRouter = router({
         components: z
           .array(componentInput)
           .min(1, "at least one normalized component is required"),
+        // Optional, and optional for a real reason: a syrup has no method in
+        // the intake at all, so requiring one here would block the category
+        // this workbench exists to serve.
+        processSteps: z.array(processStepInput).optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
