@@ -105,3 +105,10 @@ temp/
 *.db
 *.sqlite
 *.sqlite3
+
+# Graphify code map — a build artifact, regenerate with `graphify update .`
+graphify-out/
+
+# Supabase CLI local state (project ref, pooler url, version probes).
+# `supabase link` writes this; it is per-machine, not project configuration.
+supabase/.temp/

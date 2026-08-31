@@ -1,3 +1,15 @@
+-- CAPTURED FROM THE LIVE DATABASE — NOT A MIGRATION TO RUN
+-- project: ctyxnhcljruyciebkwef   schema: beverage
+-- supabase_migrations.schema_migrations version: 20260830215312
+-- name: 110_formula_version_process
+-- captured: 2026-08-31 01:20:13.416757+00
+--
+-- This is a historical record of SQL that was ALREADY APPLIED to production.
+-- It is reproduced verbatim so the history is reviewable in git. Do not execute
+-- it, do not replay it, and do not add it to any migration runner: re-running it
+-- would either fail or double-apply. New changes get a new migration file in
+-- db/migrations/.
+
 -- 110: carry the preparation method into the formula version.
 --
 -- `formula_versions.process_json` has existed since the schema was created and
@@ -13,24 +25,9 @@
 --                  price); it holds no procedure at all. For a syrup the method
 --                  can only come from the operator typing it at normalize time.
 --
--- The two sets are DISJOINT, which decides which path actually runs today:
--- 0 drafts have both a method and resolved ingredients. Cocktails carry method
--- but no ingredients, so they cannot be versioned at all (the function requires
--- at least one component); syrups carry ingredients but no method. So the
--- 'notion_draft' inheritance branch below, and the backfill, are correct but
--- DORMANT — they start mattering the day cocktail ingredients get resolved.
--- Every version created today takes the operator-typed or the empty path.
---
--- CORRECTION (2026-08-31): the note that stood here was wrong on both counts.
--- It claimed migrations 097-109 were applied with no source file anywhere and
--- should be recovered via pg_get_functiondef. In fact 097-104 are CRM
--- migrations that have always had files in the CRM repository, and the beverage
--- migrations are recoverable verbatim from supabase_migrations.schema_migrations,
--- which carries tables, constraints, grants and backfills that a function dump
--- cannot see. They are recovered in db/baseline/recovered-migrations/.
--- See db/baseline/DRIFT.md. Corrected here rather than left standing because
--- the original wording sent a reader off to do recovery work that was already
--- done and could not have worked the way it described.
+-- NOTE: migrations 097-109 were applied to this database without a source file
+-- in any repository. This is the first one committed to git. The others should
+-- be recovered from pg_get_functiondef and backfilled into this directory.
 
 -- ---------------------------------------------------------------------------
 -- process_json contract

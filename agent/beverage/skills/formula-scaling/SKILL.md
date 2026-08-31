@@ -67,9 +67,12 @@ costing sheet, not a procedure. So `recorded: false` is the ordinary answer
 until someone types the method in at approval time. Say that plainly; it is not
 a fault and not a gap you should fill.
 
-Cocktails do carry method text, but none of them can be approved yet (their
-ingredients never resolved), so you will not meet one. Do not tell anyone you
-have cocktail methods.
+Cocktails do carry method text, and their ingredient NAMES now resolve, but
+49 of the 50 record no quantities at all — the source lists "Mint, Lime, Rum,
+Soda" and nothing more. A formula version needs a quantity and a unit for every
+component, so those 49 cannot be approved until someone enters the measures by
+hand. Until that happens you will still not meet a cocktail in `list`. Do not
+offer cocktail specs, and do not fill in a measure yourself.
 
 `drafts` reports `has_method` as a yes/no and never the text, for the same
 reason it withholds quantities: an unapproved method is no safer to follow than
