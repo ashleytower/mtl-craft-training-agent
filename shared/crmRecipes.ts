@@ -40,6 +40,12 @@ export type CrmRecipe = {
  */
 const NOT_AN_INGREDIENT = new Set(["glass"]);
 
+/**
+ * Words that describe presentation rather than a measure. A measured row whose
+ * unit is one of these disagrees with its own type.
+ */
+const PRESENTATION_UNITS = new Set(["glass", "garnish"]);
+
 /** Case- and accent-insensitive, never fuzzy. Mirrors the resolver's rule. */
 function normalise(name: string): string {
   return name
@@ -97,17 +103,16 @@ export function crmRecipeToIngredients(recipe: CrmRecipe): ParsedIngredient[] {
         issues.push({ code: "unit_not_recognised", unit });
       }
 
-      // A measured row whose unit says "garnish" or "glass" disagrees with
-      // itself. Which field is right is a question for a person — the CRM types
-      // one such ingredient as a juice while typing it a garnish everywhere
-      // else — so the row is kept as typed and the disagreement is reported
-      // rather than resolved here.
-      const rowType = (row.type ?? "").trim().toLowerCase();
-      if (role === "ingredient" && unit && NOT_AN_INGREDIENT.has(unit.toLowerCase())) {
-        issues.push({ code: "type_unit_mismatch", type: rowType, unit });
-      }
-      if (role === "ingredient" && unit && unit.toLowerCase() === "garnish") {
-        issues.push({ code: "type_unit_mismatch", type: rowType, unit });
+      // A measured row whose unit describes presentation disagrees with itself.
+      // Which field is right is a question for a person — the CRM types one such
+      // ingredient as a juice while typing it a garnish in 38 other rows — so
+      // the row is kept as typed and the disagreement is reported, not resolved.
+      if (role === "ingredient" && unit && PRESENTATION_UNITS.has(unit.toLowerCase())) {
+        issues.push({
+          code: "type_unit_mismatch",
+          type: (row.type ?? "").trim().toLowerCase(),
+          unit,
+        });
       }
 
       return {
