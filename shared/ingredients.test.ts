@@ -611,6 +611,23 @@ describe("resolveDraftIngredients — review findings", () => {
     expect(r.blockedReason).toMatch(/cannot be used yet\.? (It has|They have|—)/);
   });
 
+  it("agrees the noun with the total, not just the verb with the count", () => {
+    // A one-ingredient draft is ordinary — Butterfly Pea has exactly one — and
+    // "1 of 1 ingredients" is the kind of wrong that makes a reader distrust
+    // the rest of the sentence.
+    const r = resolveDraftIngredients(
+      {
+        product_category: "syrup_or_related_product",
+        original_recipe_json: {
+          ingredients: [{ ingredient_name: "Water", quantity_normalized: "", unit_name: "" }],
+        },
+      },
+      CATALOG
+    );
+    expect(r.blockedReason).toContain("1 of 1 ingredient cannot be used yet");
+    expect(r.blockedReason).not.toContain("1 of 1 ingredients");
+  });
+
   it("KNOWN LIMIT: a real unit word starting an ingredient name is taken as the unit", () => {
     // "1 Cup Cordial" resolves to 1 cup of "Cordial". The parser cannot tell
     // that "Cup" belongs to the name without an ingredient dictionary, and
