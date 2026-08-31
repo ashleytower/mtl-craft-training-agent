@@ -73,17 +73,23 @@ function citationFor(result: beverage.KnowledgeResult): string {
   if (result.kind === "chunk") {
     const lessonNumber = locator.lesson_number;
     const lessonTitle = locator.lesson_title;
-    const timestamp = locator.timestamp;
     const course = locator.course_title ?? "Art of Drink course";
     const lesson =
       lessonNumber && lessonTitle
         ? `lesson ${lessonNumber} "${lessonTitle}"`
         : (lessonTitle ?? result.source_title);
-    return [
-      `${course}, ${lesson}`,
-      timestamp ? ` at ${timestamp}` : "",
-      url ? ` — ${url}` : "",
-    ].join("");
+
+    // A caption chunk has a clock; a page-text chunk does not and must never be
+    // given one. Two lessons had no caption track, so their body is prose on a
+    // page — cited by section and paragraph, which a reader can actually check.
+    const where =
+      locator.retrieval_type === "page_text_only"
+        ? ` (lesson page, ${locator.page_reference ?? "no paragraph recorded"})`
+        : locator.timestamp
+          ? ` at ${locator.timestamp}`
+          : "";
+
+    return `${course}, ${lesson}${where}${url ? ` — ${url}` : ""}`;
   }
 
   const publisher = result.publisher ? `${result.publisher}, ` : "";

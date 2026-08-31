@@ -22,13 +22,20 @@ import {
   courseSource,
   externalSources,
   lessonChunkPayloads,
+  lessonSourceKey,
   lessonSources,
   parseJsonl,
   parseLessonManifest,
   sourceEmbeddingText,
   type CourseChunkRecord,
   type ExternalSourceRecord,
+  type SourcePayload,
 } from "../server/knowledgeCorpus";
+import {
+  extractLessonPage,
+  pageChunkPayloads,
+  pageLessonSource,
+} from "../server/knowledgeLessonPages";
 import { embedToLiteral, embeddingConfig } from "../server/knowledgeEmbedding";
 import * as beverage from "../server/beverageClient";
 import type { OperatorIdentity } from "../server/_core/supabaseAuth";
@@ -45,6 +52,12 @@ function readCorpusFile(name: string): string {
     );
   }
   return readFileSync(path, "utf8");
+}
+
+/** Optional corpus file: absent is a normal state, not a failure. */
+function readCorpusFileIfPresent(name: string): string | null {
+  const path = resolve(process.cwd(), CORPUS_DIR, name);
+  return existsSync(path) ? readFileSync(path, "utf8") : null;
 }
 
 /**
@@ -92,9 +105,37 @@ async function main() {
   const externals = externalSources(external);
   const chunksBySource = lessonChunkPayloads(chunks);
 
+  // Lessons whose player exposed no caption track. Their saved page is the only
+  // authorised text we have, and it is cited by section and paragraph — never
+  // by an invented timestamp. See server/knowledgeLessonPages.ts.
+  const courseTitle = chunks[0]?.course_title ?? "Flavour & Beverage Development Course";
+  const captioned = new Set(chunks.map(c => c.lesson_id));
+  const pageLessons: SourcePayload[] = [];
+
+  for (const lesson of manifest) {
+    if (captioned.has(lesson.lesson_id)) continue;
+    const html = readCorpusFileIfPresent(
+      `batch1/authorized_lesson_pages/lesson_${lesson.lesson_id}.html`
+    );
+    if (!html) continue;
+
+    const page = extractLessonPage(html, lesson.lesson_id);
+    const pageChunks = pageChunkPayloads(page, lesson, courseTitle);
+    if (pageChunks.length === 0) {
+      console.log(
+        `  lesson ${lesson.lesson_number} (${lesson.lesson_id}): page saved but no ` +
+          `readable body — skipped rather than ingested empty`
+      );
+      continue;
+    }
+    pageLessons.push(pageLessonSource(page, lesson, courseTitle, pageChunks.length));
+    chunksBySource.set(lessonSourceKey(lesson.lesson_id), pageChunks);
+  }
+
   console.log(
-    `corpus: ${manifest.length} manifest rows, ${chunks.length} chunks across ` +
-      `${chunksBySource.size} lessons, ${externals.length} external sources`
+    `corpus: ${manifest.length} manifest rows, ${chunks.length} caption chunks across ` +
+      `${captioned.size} lessons, ${pageLessons.length} page-text lessons, ` +
+      `${externals.length} external sources`
   );
 
   if (dryRun) {
@@ -114,7 +155,7 @@ async function main() {
   // exact AND of every term in the question, so "how do I make clear ice at
   // home" found none of the three clear-ice sources while "clear ice" found all
   // three. See db/migrations/112.
-  const allSources = [course, ...lessons, ...externals];
+  const allSources = [course, ...lessons, ...pageLessons, ...externals];
   const sourcesWithEmbeddings = [];
   for (const source of allSources) {
     sourcesWithEmbeddings.push({
