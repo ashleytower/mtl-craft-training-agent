@@ -9,6 +9,8 @@ formula version, because that is a signed-in person's decision.
 Usage:
   beverage.py list
   beverage.py drafts --search strawberry
+  beverage.py knowledge --query "why did my syrup go cloudy"
+  beverage.py coverage
   beverage.py scale --formula "Blood Orange Cordial" --mode multiplier --value 2.5
   beverage.py scale --formula "Jalapeno Syrup" --mode target-yield --value 25
   beverage.py scale --formula "Jalapeno Syrup" --mode have \
@@ -114,6 +116,29 @@ def cmd_method(args):
     }, indent=2))
 
 
+def cmd_knowledge(args):
+    """Technique and theory from the governed corpus. Never a formula.
+
+    Every result arrives with a finished `citation` built by the service from
+    the stored lesson and timestamp. Read it as given — do not compose your own
+    and do not adjust a timestamp to look tidier.
+    """
+    base, token = _config()
+    import urllib.parse
+    path = f"{base}/api/hermes/knowledge?q=" + urllib.parse.quote(args.query)
+    if args.limit:
+        path += f"&limit={int(args.limit)}"
+    result = _call(path, token)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_coverage(_args):
+    """What the corpus actually holds, per source and per course lesson."""
+    base, token = _config()
+    result = _call(f"{base}/api/hermes/knowledge/coverage", token)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
 def cmd_scale(args):
     base, token = _config()
 
@@ -162,6 +187,16 @@ def main():
         "drafts", help="List UNAPPROVED drafts by name (no quantities)")
     drafts.add_argument("--search", help="Filter draft names")
     drafts.set_defaults(func=cmd_drafts)
+
+    knowledge = sub.add_parser(
+        "knowledge", help="Search the governed knowledge corpus (technique, not formulas)")
+    knowledge.add_argument("--query", required=True, help="A plain-language question")
+    knowledge.add_argument("--limit", help="Passages to return (default 6, max 25)")
+    knowledge.set_defaults(func=cmd_knowledge)
+
+    sub.add_parser(
+        "coverage", help="What the corpus holds, and which course lessons are missing"
+    ).set_defaults(func=cmd_coverage)
 
     scale = sub.add_parser("scale", help="Scale an approved formula")
     method = sub.add_parser("method", help="How an approved formula is made")

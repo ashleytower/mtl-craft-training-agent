@@ -125,10 +125,20 @@ Do not "fix" the missing policies. They are absent on purpose.
 
 ## 7. What this repository tracks today
 
+Updated 2026-08-31 by the knowledge-retrieval work.
+
 | | in git | applied to the database |
 |---|---|---|
-| beverage migrations | 1 (`db/migrations/110_formula_version_process.sql`) | 15 |
+| beverage migrations | 4 (`db/migrations/110`, `111`, `112`, `113`) | 18 |
 | recovered for the record | 15 (`db/baseline/recovered-migrations/`) | — |
+
+111-113 were written as files first and applied from those files, so unlike
+110 there is no comment-only drift between git and the database. They continue
+the shared number line described in §2; the CRM's highest file was still 104 at
+the time, checked before numbering. The baseline files in §8 were captured
+before them and therefore describe 27 tables, not the 28 that now exist —
+`beverage.knowledge_chunks` is the addition, and `knowledge_sources` gained an
+`embedding` column. See `docs/BRIX_KNOWLEDGE.md`.
 
 The recovered files are a historical record, clearly labelled, and must never be
 executed or added to a migration runner. Replaying them would fail or

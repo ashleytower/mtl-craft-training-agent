@@ -198,6 +198,147 @@ export function approveFormulaVersion(
   });
 }
 
+/**
+ * A retrieved passage or a cited source, exactly as the search RPC returns it.
+ *
+ * `kind` decides what may be said out loud. A `chunk` is course material we
+ * hold in full and may quote with its lesson and timestamp; a `source` is
+ * somebody else's public work where `body` is a governed summary and the only
+ * honest move is to cite it. Nothing here is a formula and nothing here is
+ * approved — `boundary` on the response says so on every call.
+ */
+export type KnowledgeResult = {
+  kind: "chunk" | "source";
+  ref: string;
+  source_key: string;
+  source_title: string;
+  publisher: string | null;
+  authority_tier: string;
+  operational_status: string;
+  citation_required: boolean;
+  body: string;
+  locator: Record<string, unknown>;
+  review_status: string;
+  text_rank: number;
+  vector_similarity: number | null;
+  score: number;
+};
+
+export type KnowledgeSearch = {
+  query: string;
+  /** `hybrid` when an embedding reached the database, `text_only` when not. */
+  search_mode: "hybrid" | "text_only";
+  count: number;
+  results: KnowledgeResult[];
+  boundary: string;
+};
+
+/**
+ * Search the governed corpus. Read-only, and structurally unable to be
+ * anything else: the RPC touches no formula table.
+ *
+ * `embedding` is a pgvector literal or null. Null is a normal state, not an
+ * error — see `knowledgeEmbedding.ts`.
+ */
+export function searchKnowledge(
+  identity: OperatorIdentity,
+  input: { query: string; embedding: string | null; limit?: number }
+) {
+  return callRpc<KnowledgeSearch>("beverage_search_knowledge", {
+    ...operatorArgs(identity),
+    p_query: input.query,
+    p_embedding: input.embedding,
+    p_limit: input.limit ?? 6,
+  });
+}
+
+export type KnowledgeCoverage = {
+  sources: Array<{
+    source_key: string;
+    title: string;
+    authority_tier: string;
+    operational_status: string;
+    chunks: number;
+    embedded: number;
+  }>;
+  course_lessons: Array<{
+    lesson_number: string;
+    lesson_id: string;
+    lesson_title: string;
+    lesson_type: string;
+    ingested: boolean;
+  }>;
+};
+
+/**
+ * What the corpus actually contains, per source and per course lesson.
+ *
+ * This exists so "which lessons can you answer from?" is answered from the
+ * database rather than from a document that goes stale the next time captions
+ * are collected. 12 of the course's 39 items have captions today; the honest
+ * answer to a question about the other 27 is that they were never collected,
+ * and that answer has to come from data to stay true.
+ */
+export function knowledgeCoverage(identity: OperatorIdentity) {
+  return callRpc<KnowledgeCoverage>(
+    "beverage_knowledge_coverage",
+    operatorArgs(identity)
+  );
+}
+
+export function ingestKnowledgeSources(
+  identity: OperatorIdentity,
+  sources: unknown[]
+) {
+  return callRpc<{ inserted: number; updated: number }>(
+    "beverage_ingest_knowledge_sources",
+    { ...operatorArgs(identity), p_sources: sources }
+  );
+}
+
+/**
+ * Sources that carry a summary but no embedding, with the exact text to embed.
+ *
+ * The text comes from the database rather than being assembled here on purpose:
+ * two callers composing "title, summary, topics" slightly differently would put
+ * two incompatible vector spaces in one column and nothing would notice.
+ */
+export function knowledgeSourcesPendingEmbedding(identity: OperatorIdentity) {
+  return callRpc<Array<{ source_key: string; embed_text: string }>>(
+    "beverage_knowledge_sources_pending_embedding",
+    operatorArgs(identity)
+  );
+}
+
+/** Write one source's embedding. Changes nothing else about the row. */
+export function setSourceEmbedding(
+  identity: OperatorIdentity,
+  input: { sourceKey: string; embedding: string }
+) {
+  return callRpc<{ source_key: string; embedded: boolean }>(
+    "beverage_set_source_embedding",
+    {
+      ...operatorArgs(identity),
+      p_source_key: input.sourceKey,
+      p_embedding: input.embedding,
+    }
+  );
+}
+
+export function ingestKnowledgeChunks(
+  identity: OperatorIdentity,
+  input: { sourceKey: string; chunks: unknown[] }
+) {
+  return callRpc<{ source_key: string; chunks: number; embedded: number }>(
+    "beverage_ingest_knowledge_chunks",
+    {
+      ...operatorArgs(identity),
+      p_source_key: input.sourceKey,
+      p_chunks: input.chunks,
+    }
+  );
+}
+
 export function recordCalculationPlan(
   identity: OperatorIdentity,
   input: {

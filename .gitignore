@@ -112,3 +112,10 @@ graphify-out/
 # Supabase CLI local state (project ref, pooler url, version probes).
 # `supabase link` writes this; it is per-machine, not project configuration.
 supabase/.temp/
+
+# Recovered Art of Drink course corpus. Tier B, rights_status `authorized_private`:
+# Ashley's own enrolled course, not ours to redistribute — and a private repo is
+# still the wrong home for a verbatim copy of somebody's paid course. The
+# database is the store of record; docs/BRIX_KNOWLEDGE.md says how to recover
+# these files again.
+data/knowledge/
