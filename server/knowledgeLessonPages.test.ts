@@ -64,6 +64,35 @@ describe("extractLessonPage", () => {
     expect(extractLessonPage("<html><body>login</body></html>", "6066").blocks).toEqual([]);
   });
 
+  // A `<(p|li|h)>(.*?)</\1>` match closes on the FIRST </li>, which is the
+  // inner one — so "Sub 1" was welded onto the outer item and the text after
+  // the nested list vanished from the corpus without a trace.
+  it("flattens a nested list and keeps the text trailing it", () => {
+    const html = page(
+      "<li>Item A<ul><li>Sub 1</li><li>Sub 2</li></ul>trailing text</li>"
+    );
+    expect(extractLessonPage(html, "6066").blocks.map(b => b.text)).toEqual([
+      "Item A",
+      "Sub 1",
+      "Sub 2",
+      "trailing text",
+    ]);
+  });
+
+  it("does not leak the unterminated tag the body is sliced inside", () => {
+    // The body ends at the nav-button marker, which is mid-tag: `<div class="`.
+    for (const block of extractLessonPage(page("<p>Body.</p>"), "6066").blocks) {
+      expect(block.text).not.toMatch(/<|div class/);
+    }
+  });
+
+  it("keeps an opening single quote opening", () => {
+    const html = page("<p>&#8216;proof of concept&#8217; and it&#8217;s fine</p>");
+    expect(extractLessonPage(html, "6066").blocks[0].text).toBe(
+      "‘proof of concept’ and it’s fine"
+    );
+  });
+
   it("drops empty and whitespace-only blocks", () => {
     const html = page("<p></p><p>   </p><p>Kept.</p>");
     expect(extractLessonPage(html, "6066").blocks).toHaveLength(1);

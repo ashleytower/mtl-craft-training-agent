@@ -44,7 +44,11 @@ const BODY_END = "masterstudy-nav-button";
 
 const ENTITIES: Array<[RegExp, string]> = [
   [/&nbsp;/g, " "],
-  [/&#8216;|&#8217;|&#0?39;|&apos;/g, "’"],
+  // U+2018 opens, U+2019 closes. Folding both to U+2019 turned ‘like this’
+  // into ’like this’ — a corrupted byte in text this system treats as verbatim
+  // and quotable. The apostrophe forms below genuinely share the closing glyph.
+  [/&#8216;/g, "‘"],
+  [/&#8217;|&#0?39;|&apos;/g, "’"],
   [/&#8220;|&#8221;|&quot;/g, '"'],
   [/&#8211;/g, "–"],
   [/&#8212;/g, "—"],
@@ -73,16 +77,67 @@ export function extractLessonPage(html: string, lessonId: string): LessonPage {
   const end = html.indexOf(BODY_END, start);
   const body = html.slice(start, end === -1 ? undefined : end);
 
+  return { lessonId, blocks: scanBlocks(body) };
+}
+
+/**
+ * Walk the body emitting one block per paragraph, list item or heading.
+ *
+ * This was a `<(p|li|h[2-4])>(.*?)</\1>` match, which is wrong for nested
+ * lists: the backreference closes on the FIRST `</li>` it meets, which is the
+ * inner one. Given
+ *
+ *   <li>Item A<ul><li>Sub 1</li><li>Sub 2</li></ul>trailing text</li>
+ *
+ * it produced ["Item A Sub 1", "Sub 2"] — "Sub 1" silently welded onto the
+ * outer item, and "trailing text" dropped from the corpus entirely. Neither
+ * lesson collected so far uses sub-bullets, so nothing is currently corrupted,
+ * but a technical course will use them and losing text without a trace is the
+ * one failure this corpus cannot absorb.
+ *
+ * So: scan the block-level tags in order and attribute the text between them to
+ * whichever block is open. Nested lists flatten into sequential items, and text
+ * trailing a nested list still lands. `<ul>`/`<ol>` themselves are containers
+ * with no text of their own and need no handling beyond being stripped.
+ */
+function scanBlocks(body: string): PageBlock[] {
   const blocks: PageBlock[] = [];
-  for (const match of body.matchAll(/<(p|li|h[2-4])\b[^>]*>([\s\S]*?)<\/\1>/gi)) {
-    const tag = match[1].toLowerCase();
-    const text = decodeEntities(match[2].replace(/<[^>]+>/g, " "))
+  const tags = /<(\/?)(p|li|h[2-4])\b[^>]*>/gi;
+
+  let openKind: PageBlock["kind"] | null = null;
+  let textStart = 0;
+
+  const flush = (end: number) => {
+    const raw = body.slice(textStart, end);
+    const text = decodeEntities(
+      raw
+        .replace(/<[^>]+>/g, " ")
+        // The body is sliced at the nav-button marker, which lands INSIDE that
+        // tag, so the last fragment is an unterminated `<div class="`. Strip a
+        // trailing incomplete tag or it reads as lesson prose.
+        .replace(/<[^>]*$/, " ")
+    )
       .replace(/\s+/g, " ")
       .trim();
-    if (!text) continue;
-    blocks.push({ kind: tag.startsWith("h") ? "heading" : "text", text });
+    // Text found outside any open block is still the lesson's prose — it is
+    // attributed as text rather than discarded. Only headings are a distinct
+    // kind, and a heading is never open at that point.
+    if (text) blocks.push({ kind: openKind ?? "text", text });
+  };
+
+  for (const match of body.matchAll(tags)) {
+    const isClose = match[1] === "/";
+    const kind: PageBlock["kind"] = match[2].toLowerCase().startsWith("h")
+      ? "heading"
+      : "text";
+
+    flush(match.index);
+    openKind = isClose ? null : kind;
+    textStart = match.index + match[0].length;
   }
-  return { lessonId, blocks };
+  flush(body.length);
+
+  return blocks;
 }
 
 /**

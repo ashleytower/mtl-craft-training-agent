@@ -15,7 +15,7 @@ Updated 2026-08-31 after the knowledge-retrieval work. Knowledge detail lives in
 | | |
 |---|---|
 | commit | see `git log` — PR #9, *Simplifier findings fixed* |
-| tests | **208 passing**, 11 files |
+| tests | **211 passing**, 11 files |
 | typecheck | `tsc --noEmit` clean |
 | build | `npm run build` clean |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
@@ -231,7 +231,14 @@ findings, both fixed in migration 114, plus three nits all fixed:
   being dead plumbing; the TS/SQL embed-text duplication is cross-referenced in
   both files and format-pinned by a test.
 
-The review also checked and cleared: limit clamping, score normalization,
+A second review round covered the page-text module (written after the first
+started) and found two more latent defects, both fixed: a nested `<ul>` inside
+an `<li>` silently dropped text, and `&#8216;`/`&#8217;` both decoded to a
+closing quote. Migrations 111 and 112 also gained `-- SUPERSEDED by …` pointers
+above every function body a later migration replaced — comment-only, SQL
+verified identical, recorded in `db/baseline/DRIFT.md` §7.
+
+The reviews also checked and cleared: limit clamping, score normalization,
 `formatClock`, the RLS/SECURITY DEFINER boundary, and the 111-vs-112 migration
 duplication (which is the project's documented fix-forward convention working
 as intended). It found no missed reuse and no over-engineering.

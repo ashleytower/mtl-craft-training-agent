@@ -135,7 +135,19 @@ Updated 2026-08-31 by the knowledge-retrieval work.
 111-114 were written as files first and applied from those files, so unlike
 110 there is largely no comment-only drift between git and the database.
 
-**One deliberate comment-only exception, 2026-08-31.** `113` gained a
+**Deliberate comment-only exceptions, 2026-08-31.** `111` and `112` gained a
+one-line `-- SUPERSEDED by …` pointer above each function body that a later
+migration replaced (`beverage_search_knowledge` and
+`beverage_ingest_knowledge_sources` are now defined three times, 111 → 112 →
+114; `beverage_knowledge_coverage` twice, 111 → 112). SQL verified identical in
+both — comments stripped and diffed, zero statements differ; 7 and 6 comment
+lines added. Taken under §4b because this is not hypothetical confusion: `111`
+is the largest and most prominently named of the three, and a reader opening it
+to understand current search behaviour gets the pre-114 body with no signal it
+was replaced. The 45.8%-of-results defect 114 fixed was found in exactly that
+body.
+
+`113` also gained a
 `KEEP IN SYNC WITH` cross-reference pointing at `sourceEmbeddingText` in
 `server/knowledgeCorpus.ts`. The SQL is byte-identical — verified by stripping
 comments and diffing, zero statements differ; only 6 comment lines were added.
