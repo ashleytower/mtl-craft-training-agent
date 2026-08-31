@@ -30,9 +30,11 @@ agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
 
 | | |
 |---|---|
-| `beverage.knowledge_sources` | **44** — all `pending_review` / `reference_only`, none approved |
+| `beverage.knowledge_sources` | **50** — all `pending_review` / `reference_only`, none approved |
 | `beverage.knowledge_chunks` | **167** — 158 caption + 9 page-text, all embedded |
-| course coverage | **14 of 39** items; 25 never collected |
+| course CONTENT coverage | **14 of 39** — 12 captions + 2 page-text |
+| course register-only | **4** — the quizzes; no knowledge to hold |
+| course NOT COLLECTED | **21** — 19 videos + 2 text lessons. The real gap. |
 | approved formulas | still **1** (`Jalapeno v1`) — unchanged, and a human step |
 
 ---

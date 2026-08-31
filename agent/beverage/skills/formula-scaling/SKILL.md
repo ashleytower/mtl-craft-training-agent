@@ -97,16 +97,26 @@ an unapproved number.
 `knowledge --query "<a plain-language question>"` searches the governed corpus
 and returns passages with citations. Optional `--limit` (default 6, max 25).
 
-What is actually in it, measured:
+What is actually in it — run `coverage` for the live numbers rather than
+trusting this paragraph:
 
 - **158 time-coded passages** from 12 lessons of the Art of Drink "Flavour &
   Beverage Development" course Ashley is enrolled in. These are `quotable` —
   the text is the real transcript and you may read it out, attributed.
-- **29 cite-only sources**: Kevin Kos, Jeffrey Morgenthaler's calculators,
+- **9 page-text passages** from 2 lessons whose player exposed no captions.
+  Also `quotable`, but cited by section and paragraph, never by a timestamp.
+- **35 cite-only sources**: Kevin Kos, Jeffrey Morgenthaler's calculators,
   clear-ice methods, two FDA references (water activity, acidified foods),
-  Serious Eats, and the two Notion intake registers. For these, `text` is a
+  Serious Eats, the two Notion intake registers, and six documents the course
+  lessons LINK (Perfumer & Flavorist articles, the FEMA GRAS list, a USDA
+  publication, the course supplier list). For all of these, `text` is a
   governed summary and there is **no fuller text behind it**. Cite it, relay the
   summary, link it — do not elaborate as if you had read the original.
+
+Two of those six were never actually read — the USDA scan has no text layer and
+the course supplier PDF returns 403. Their `source_metadata` carries
+`summary_grounded_in_document: false` and their summaries say so outright. Do
+not describe their contents.
 
 Each result carries:
 
@@ -131,20 +141,32 @@ in text-only mode rather than concluding the corpus is empty.
 answer from general bartending knowledge, and never present your own knowledge
 as MTL Craft practice or as course content.
 
-## `coverage` — what is and is not in the corpus
+## `coverage` — content coverage is NOT manifest coverage
 
-`coverage` takes no arguments. It returns every source with its chunk count, and
-the course's full 39-item manifest with an `ingested` flag per lesson.
+`coverage` takes no arguments. It reports the two separately, and you must never
+conflate them:
 
-**12 of the course's 39 items have captions. 27 do not** — they were never
-collected, not hidden. That includes What is Flavour?, Terpenes, Essences,
-Extracts, Tincture, Mineral Salts, Bitterness, Equipment and Ingredients, and
-all four quizzes. If someone asks about one of those, run `coverage` and tell
-them the lesson exists in the course but was never collected. Do not guess at
-its content from the lesson title.
+- `items_total` — rows in the 39-item manifest. **All 39 have always existed.**
+  This number says nothing about what can be answered.
+- `items_with_content` — items that actually carry retrievable material. **This
+  is the real coverage number.**
+- `items_register_only` — items with no knowledge to hold. Today that is the
+  four quizzes; the course's own guidance is that a quiz is course metadata, not
+  material to answer from. Counting one as a gap would misreport it, and
+  inventing content for one to move the number would be worse.
+- `items_not_collected` — the genuine gap.
 
-Run `coverage` rather than reciting that list — the moment someone collects
-lesson 13, this paragraph is stale and the tool is not.
+Each lesson carries `content_kind`: `captions`, `page_text`, `register_only` or
+`none`.
+
+**Never say the course is complete because every manifest row exists.** If asked
+how much of the course is covered, run `coverage` and give
+`items_with_content` of `items_total`, then name the gap. If someone asks about
+an item whose `content_kind` is `none`, say it exists in the course but was
+never collected — and do not guess at its content from the title.
+
+Run `coverage` rather than reciting numbers; the moment someone collects another
+lesson, any number written here is stale and the tool is not.
 
 ## What this agent does NOT know
 
