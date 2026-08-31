@@ -206,7 +206,8 @@ export function registerHermesRoutes(app: Express) {
       res.status(400).json({ error: "q is required" });
       return;
     }
-    const limit = Number.parseInt(String(req.query.limit ?? "6"), 10);
+    const parsedLimit = Number.parseInt(String(req.query.limit ?? "6"), 10);
+    const limit = Number.isNaN(parsedLimit) ? 6 : parsedLimit;
 
     try {
       // Null when the local embedding service is down; the RPC then ranks by
@@ -215,7 +216,7 @@ export function registerHermesRoutes(app: Express) {
       const found = await beverage.searchKnowledge(identity, {
         query,
         embedding,
-        limit: Number.isNaN(limit) ? 6 : limit,
+        limit,
       });
 
       res.json({
@@ -232,7 +233,11 @@ export function registerHermesRoutes(app: Express) {
           // only to be dropped here. Forwarded so the field means something.
           citation_required: result.citation_required,
           authority_tier: result.authority_tier,
-          review_status: result.review_status,
+          // Only a chunk has a review vocabulary (pending_review / reviewed /
+          // rejected). For a source the RPC echoes operational_status into this
+          // field, which reads as a review state and is not one — so it is not
+          // forwarded. `operational_status` below carries the real answer.
+          review_status: result.kind === "chunk" ? result.review_status : null,
           operational_status: result.operational_status,
           source_key: result.source_key,
           text: result.body,

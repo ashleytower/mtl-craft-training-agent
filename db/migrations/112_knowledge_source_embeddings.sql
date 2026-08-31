@@ -36,6 +36,9 @@ alter table beverage.knowledge_sources
 -- Ingest accepts the source embedding
 -- ---------------------------------------------------------------------------
 
+-- SUPERSEDED by 114_search_excludes_bookkeeping_sources.sql, which adds
+-- citation_required to the on-conflict update. This body is the record of
+-- what 112 applied.
 create or replace function public.beverage_ingest_knowledge_sources(
   p_external_subject text,
   p_display_name text,
@@ -122,6 +125,9 @@ $$;
 -- Search treats both kinds alike
 -- ---------------------------------------------------------------------------
 
+-- SUPERSEDED by 114_search_excludes_bookkeeping_sources.sql, which stops
+-- bookkeeping rows competing in source_hits. This body is the record of what
+-- 112 applied; it is NOT current search behaviour.
 create or replace function public.beverage_search_knowledge(
   p_external_subject text,
   p_display_name text,

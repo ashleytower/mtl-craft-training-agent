@@ -225,6 +225,27 @@ would never land. `rights_status` and `operational_status` are excluded
 deliberately and documented; this one was an oversight. No wrong data resulted —
 all 44 rows are `true` — but the idempotency contract was broken for one column.
 
+### A second review round, on the page-text module
+
+The page-text work landed after the first review started, so a second pass
+covered it. Two more real defects, both latent rather than active:
+
+- **A nested `<ul>` inside an `<li>` silently dropped text.** The block regex
+  `<(p|li|h[2-4])>(.*?)</\1>` closes on the FIRST `</li>`, which is the inner
+  one. Given `<li>Item A<ul><li>Sub 1</li><li>Sub 2</li></ul>trailing text</li>`
+  it produced `["Item A Sub 1", "Sub 2"]` — "Sub 1" welded onto the outer item
+  and "trailing text" gone from the corpus without a trace. Neither collected
+  lesson uses sub-bullets so nothing was corrupted, but a technical course will.
+  Replaced with a scanner that walks block tags in order; nested lists flatten
+  into sequential items and trailing text lands. Verified the two real pages
+  still produce identical block counts (15 paragraphs / 5 headings, 5 / 1).
+- **`&#8216;` and `&#8217;` both decoded to `’`**, so `‘like this’` became
+  `’like this’` — a corrupted byte in text the system treats as verbatim.
+
+Plus: `review_status` is no longer forwarded for cite-only sources, where the
+RPC echoes `operational_status` into it and it reads as a review state it is
+not.
+
 ### The defect 111 shipped with
 
 111 gave chunks and sources different reach. Chunks were pulled in wholesale
@@ -247,7 +268,7 @@ sources return first.
 | check | result |
 |---|---|
 | `tsc --noEmit` | clean |
-| `vitest run` | **208 passing**, 11 files (was 151/8) |
+| `vitest run` | **211 passing**, 11 files (was 151/8) |
 | ingest idempotency | second run `0 inserted, 37 updated`; third identical |
 | citation accuracy | spot-checked against `lesson_4801.en-auto.vtt` cue `00:02:15.120` — exact |
 | recipe boundary | knowledge route returns no MTL Craft measure; formula route unchanged |

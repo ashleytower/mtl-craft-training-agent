@@ -117,6 +117,9 @@ create trigger knowledge_chunks_touch_updated_at
 -- the column constraints written in 20260825190958 — an unknown tier is
 -- rejected by the database, not normalised by the caller.
 
+-- SUPERSEDED by 114_search_excludes_bookkeeping_sources.sql (via 112).
+-- This body is the historical record of what 111 applied. Do not read it as
+-- current behaviour.
 create or replace function public.beverage_ingest_knowledge_sources(
   p_external_subject text,
   p_display_name text,
@@ -294,6 +297,8 @@ $$;
 -- `blocked_rights` sources are excluded outright. A chunk whose review_status
 -- is 'rejected' is excluded too — a person looked at it and said no.
 
+-- SUPERSEDED by 114_search_excludes_bookkeeping_sources.sql (via 112).
+-- 114 excludes bookkeeping rows from source_hits; this body does not.
 create or replace function public.beverage_search_knowledge(
   p_external_subject text,
   p_display_name text,
@@ -438,6 +443,8 @@ $$;
 -- answer would be prose in a document, which drifts the moment more captions
 -- are collected.
 
+-- SUPERSEDED by 112_knowledge_source_embeddings.sql, which adds
+-- summary_embedded. This body is the historical record.
 create or replace function public.beverage_knowledge_coverage(
   p_external_subject text,
   p_display_name text,
