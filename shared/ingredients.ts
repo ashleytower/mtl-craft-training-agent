@@ -320,11 +320,6 @@ function dedupe(items: ParsedIngredient[]): { items: ParsedIngredient[]; dropped
   return { items: kept, dropped: items.length - kept.length };
 }
 
-/** "1 of 4 ingredients has" / "3 of 4 ingredients have". */
-function agree(n: number): string {
-  return n === 1 ? "ingredients has" : "ingredients have";
-}
-
 export function resolveDraftIngredients(
   draft: DraftLike,
   catalog: CatalogEntry[] = []
@@ -380,31 +375,36 @@ export function resolveDraftIngredients(
     blockedReason = "This draft records no ingredient list, so there is nothing to version yet.";
   } else if (blocking.length > 0) {
     blocked = true;
-    // One sentence per distinct problem. Lumping them together produced
-    // "no quantity in the source" for a row whose source plainly said "1/3",
-    // which sends someone to re-read a source that was never the problem.
-    const parts: string[] = [];
+    // Lead with how many INGREDIENTS are stuck, then say why. The reasons are
+    // attributes of that set and one ingredient can carry two of them, so
+    // counting them separately made two bad rows read as four. When there is
+    // only one reason its count is already the leading number, so it is dropped
+    // rather than repeated.
+    const reasons: Array<{ n: number; phrase: string }> = [];
     if (noQuantity.length > 0) {
-      parts.push(
-        `${noQuantity.length} of ${measurable.length} ${agree(noQuantity.length)} ` +
-          `no quantity in the source — the source does not record one.`
-      );
+      reasons.push({ n: noQuantity.length, phrase: "no quantity in the source" });
     }
     if (noUnit.length > 0) {
-      parts.push(
-        `${noUnit.length} ${noUnit.length === 1 ? "has a quantity but" : "have a quantity but"} no unit.`
-      );
+      reasons.push({ n: noUnit.length, phrase: "a quantity but no unit" });
     }
     if (notExact.length > 0) {
-      parts.push(
-        `${notExact.length} ${notExact.length === 1 ? "has a quantity" : "have quantities"} ` +
-          `with no exact decimal form.`
-      );
+      reasons.push({ n: notExact.length, phrase: "a quantity that has no exact decimal form" });
     }
     if (zero.length > 0) {
-      parts.push(`${zero.length} ${zero.length === 1 ? "is" : "are"} recorded as zero.`);
+      reasons.push({ n: zero.length, phrase: "a quantity of zero" });
     }
-    blockedReason = `${parts.join(" ")} Fix each before creating a version.`;
+
+    const lead = `${blocking.length} of ${measurable.length} ingredients cannot be used yet`;
+    const fix = blocking.length === 1 ? "Fix it" : "Fix each";
+    if (reasons.length === 1) {
+      const subject = blocking.length === 1 ? "It has" : "They have";
+      blockedReason = `${lead}. ${subject} ${reasons[0].phrase}. ${fix} before creating a version.`;
+    } else {
+      const listed = reasons.map(r => `${r.n} with ${r.phrase}`).join("; ");
+      blockedReason =
+        `${lead} — ${listed}, and these can overlap on one ingredient. ` +
+        `${fix} before creating a version.`;
+    }
   }
 
   return {

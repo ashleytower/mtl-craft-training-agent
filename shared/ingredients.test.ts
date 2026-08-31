@@ -307,8 +307,11 @@ describe("resolveDraftIngredients — free text without quantities (49 of 50)", 
       },
       CATALOG
     );
-    expect(r.blockedReason).toContain("1 of 2 ingredients has no quantity");
-    expect(r.blockedReason).not.toContain("have no quantity");
+    // The wording changed when the multi-reason case was fixed; what this test
+    // protects is that the singular case reads correctly, not the exact phrase.
+    expect(r.blockedReason).toContain("1 of 2 ingredients cannot be used yet");
+    expect(r.blockedReason).toContain("It has no quantity in the source");
+    expect(r.blockedReason).not.toMatch(/1 ingredients have|They have/);
   });
 
   it("never invents a quantity, a unit or a substitution", () => {
@@ -489,7 +492,7 @@ describe("resolveDraftIngredients — review findings", () => {
     );
     expect(r.items[0].issues.map(i => i.code)).toEqual(["quantity_not_exact"]);
     expect(r.blocked).toBe(true);
-    expect(r.blockedReason).toMatch(/exact decimal/i);
+    expect(r.blockedReason).toMatch(/no exact decimal form/i);
     expect(r.blockedReason).not.toMatch(/does not record/i);
   });
 
@@ -543,6 +546,27 @@ describe("resolveDraftIngredients — review findings", () => {
     );
     expect(r.items[0].role).toBe("ingredient");
     expect(r.items[0].name).toBe("Garnishing syrup");
+  });
+
+  it("does not read as more broken rows than there are, when one row has two problems", () => {
+    // Two ingredients, four problems between them. The first wording counted
+    // each reason separately — "2 have no unit. 1 has no exact decimal form.
+    // 1 is recorded as zero." — which reads as four bad rows out of two.
+    const r = resolveDraftIngredients(
+      {
+        product_category: "syrup_or_related_product",
+        original_recipe_json: {
+          ingredients: [
+            { ingredient_name: "A", quantity_normalized: "0", unit_name: "" },
+            { ingredient_name: "B", quantity_normalized: "1/3", unit_name: "" },
+          ],
+        },
+      },
+      CATALOG
+    );
+    expect(r.blockedReason).toMatch(/^2 of 2 ingredients cannot be used yet/);
+    // The reasons overlap on a single ingredient, and the sentence says so.
+    expect(r.blockedReason).toMatch(/can overlap/i);
   });
 
   it("KNOWN LIMIT: a real unit word starting an ingredient name is taken as the unit", () => {
