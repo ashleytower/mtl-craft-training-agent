@@ -394,7 +394,10 @@ export function resolveDraftIngredients(
       reasons.push({ n: zero.length, phrase: "a quantity of zero" });
     }
 
-    const lead = `${blocking.length} of ${measurable.length} ingredients cannot be used yet`;
+    // The noun agrees with the TOTAL, the verb with the blocked count:
+    // "1 of 1 ingredient", "1 of 4 ingredients", "4 of 4 ingredients".
+    const noun = measurable.length === 1 ? "ingredient" : "ingredients";
+    const lead = `${blocking.length} of ${measurable.length} ${noun} cannot be used yet`;
     const fix = blocking.length === 1 ? "Fix it" : "Fix each";
     if (reasons.length === 1) {
       const subject = blocking.length === 1 ? "It has" : "They have";
