@@ -43,13 +43,13 @@ ingest.
 ## What is in the database now
 
 ```
-beverage.knowledge_sources   42 rows   (5 pre-existing + 1 course + 12 lessons + 24 external)
-beverage.knowledge_chunks   158 rows   all embedded, all full-text indexed
+beverage.knowledge_sources   44 rows   (5 pre-existing + 1 course + 14 lessons + 24 external)
+beverage.knowledge_chunks   167 rows   158 caption + 9 page-text, all embedded and full-text indexed
 ```
 
 | tier | rows | what |
 |---|---|---|
-| `tier_b_authorized_course` | 13 | the course, and one source per collected lesson |
+| `tier_b_authorized_course` | 15 | the course, and one source per collected lesson |
 | `tier_c_external_practitioner` | 26 | Kevin Kos, Morgenthaler, clear ice, FDA, Serious Eats, Notion registers |
 | `tier_d_inspiration` | 1 | The Alchemist — recorded, deliberately not ingested |
 
@@ -58,24 +58,52 @@ control.** Retrievability is not approval; that stayed a separate human step,
 and the ingest never overwrites `rights_status`, `operational_status` or
 `review_status` on a re-run.
 
-### Course coverage: 12 of 39 items
+### Course coverage: 14 of 39 items
 
 Captions exist for lessons 1, 5, 6, 7, 14, 16, 18, 23, 27, 31, 32 and 36 —
 Introduction, Safety, Food Grade Ingredients, Regulations, Solubility,
 Emulsions, Density, Prototyping a Flavour, Flavour Levels and Calculations,
 Sugar, Acids & Acidity, and Putting It All Together.
 
-**27 items have no captions and were never collected**, including What is
-Flavour?, Chemistry of Beverages, Science of Taste, Solvents for Flavours,
-Terpenes, HLB, Natural vs Artificial Flavours, Equipment and Ingredients,
-Documentation, Essences, Extracts, Tincture, Ageing Flavours, Flavourist
-Formulating, Mineral Salts, Bitterness, Suppliers, and all four quizzes.
+Two more — 13 "Solvents for Flavours" and 22 "Documentation" — are ingested
+from their **lesson page text**, added 2026-08-31. Their players never exposed
+a caption track, so they carry section-and-paragraph citations instead of
+timestamps. See "Page-text lessons" below.
+
+**25 items have no captured content at all**, including What is Flavour?,
+Chemistry of Beverages, Science of Taste, Terpenes, HLB, Natural vs Artificial
+Flavours, Equipment and Ingredients, Essences, Extracts, Tincture, Ageing
+Flavours, Flavourist Formulating, Mineral Salts, Bitterness, Suppliers, and all
+four quizzes.
 
 Do not read that list back to anyone — run `coverage`. The list is true today
-and stale the moment someone collects lesson 13. Two lessons (13 Solvents,
-22 Documentation) exposed no caption track at all; Manus preserved their page
-text in `authorized_lesson_pages/` and it is **not** ingested, because page text
-has no timestamps and must not be dressed up as a transcript.
+and stale the moment someone collects another lesson.
+
+### Page-text lessons
+
+`server/knowledgeLessonPages.ts`. Two lessons had no caption track, so the only
+authorised text is the lesson's written body. It is ingested, and it is cited
+honestly:
+
+- `retrieval_type: "page_text_only"` on every chunk.
+- **No `timestamp`, `start_seconds` or `end_seconds` key exists on them at
+  all** — a consumer wanting a clock finds nothing rather than a guess.
+- The locator carries the section heading and the paragraph range, both of
+  which a reader can go and verify on the page. Chunks never straddle a
+  heading, and paragraphs are numbered across the whole page.
+- Chunk keys are `aod-fbd-<lesson>-p001`, so they cannot collide with the
+  `-001` caption keys.
+
+Rendered citation:
+
+> `Flavour & Beverage Development Course, lesson 13 "Solvents for Flavours" (lesson page, "Water", paragraphs 13-14) — https://…/6066`
+
+Extraction anchors on the video `<div>` and the nav buttons, **not** on a
+content class: MasterStudy reuses its content class names inside `<link>` tags,
+so the first textual match for the class is a stylesheet URL, not the lesson.
+
+The video narration in these two lessons is still uncaptured. This is the
+written body, not a substitute transcript, and the source summary says so.
 
 To collect more: `extract_authorized_course_caption.sh` and
 `vtt_to_knowledge_records.py` in the zip are the reproducible path. Both were
@@ -200,21 +228,56 @@ sources return first.
 
 ---
 
+## The exposed service-account key — resolved 2026-08-31
+
+`.manus-recovery/SOURCES.md` reported a GCP service-account private key pasted
+into the public Manus share. Verified rather than assumed, then acted on.
+
+**Status was real.** Key `786c9b3b…` on
+`claude-code@atomic-rune-450718-q5.iam.gserviceaccount.com` was `USER_MANAGED`,
+never-expiring, and **not disabled**. The account holds **`roles/owner`** plus
+`roles/accessapproval.approver` on the project — a full project-owner
+credential, publicly downloadable.
+
+**Blast radius checked before touching it.** The key id appears in no config,
+env file or code anywhere on the machine — only in SOURCES.md itself and in
+gcloud's own logs. No GitHub repo carries a GCP secret. The only SA key file on
+disk is the replacement, `91ffbc15…`.
+
+**Revoked by disabling, not deleting.** Disabling is instantly reversible, so a
+missed consumer fails visibly and is restored in one command. Confirmed from the
+raw API: `disabled: true`,
+`disableReason: SERVICE_ACCOUNT_KEY_DISABLE_REASON_USER_INITIATED`. (The
+`gcloud … keys list` table does not render the column — check the JSON.)
+
+**Affected services verified after.** The replacement key still mints a token
+and still reads the live **Inventory Database** sheet, tested in an isolated
+`CLOUDSDK_CONFIG` so Ashley's own gcloud session was untouched.
+
+### Still Ashley's on this item
+
+- **The share is still public.** Restricting it needs the Manus owner login;
+  the browser here sees only the viewer menu ("Report"), not share settings.
+  Losing the files is no longer a risk — the corpus is in the database and in
+  gitignored `data/knowledge/`.
+- **The key was pasted into the conversation transcript**, not into a file
+  (`pasted_content.txt` is only Firecrawl docs). Worth scanning the transcript
+  for anything else pasted the same way — a Supabase `service_role` key would be
+  far more damaging than the GCP one, and that session touched Supabase.
+- **Deletion**, if wanted, is irreversible and was not done.
+- **An undocumented third key**, `fa1c0c3c…` (created 2025-06-26,
+  never-expiring, `USER_MANAGED`), is active and referenced nowhere on this
+  machine. Not mentioned in any handoff. Worth identifying or retiring.
+
 ## Still open
 
-1. **Nothing is approved.** All 42 sources are `pending_review` or
+1. **Nothing is approved.** All 44 sources are `pending_review` or
    `reference_only`. That is correct and deliberate — promoting one is a human
    decision in the console, and no route here can do it.
-2. **21 video lessons have no captions**, plus 2 with page text only and 4
-   quizzes. The collection path is reproducible; it needs an authorised browser
-   session per lesson.
+2. **25 course items have no captured content**: 21 video lessons, 2 text
+   lessons, and 4 quizzes (quizzes are course metadata, not knowledge). The
+   collection path is reproducible; it needs an authorised browser session per
+   lesson. The two page-text lessons still have **uncaptured video narration**.
 3. **`Supplier.pdf`** (33 KB, lesson 6) and five linked FEMA/Perfumer & Flavorist
    PDFs are registered in `transcripts/downloadable_assets.tsv` and not
    ingested. The course host is Cloudflare-protected against server-side fetch.
-4. **The Simplifier review has not run.** `~/.claude/CLAUDE.md` requires
-   `@code-simplifier` on the final diff of a non-trivial build; this session was
-   instructed not to spawn subagents, so it is outstanding rather than skipped.
-5. **The leaked service-account key** in `.manus-recovery/SOURCES.md` is still
-   Ashley's to handle — the share link is public and still live, which is how
-   this recovery was possible. Unchanged by this work, but the two facts are the
-   same fact.
