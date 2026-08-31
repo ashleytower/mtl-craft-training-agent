@@ -36,6 +36,7 @@ import {
   pageChunkPayloads,
   pageLessonSource,
 } from "../server/knowledgeLessonPages";
+import { courseAssetSources } from "../server/knowledgeCourseAssets";
 import { embedToLiteral, embeddingConfig } from "../server/knowledgeEmbedding";
 import * as beverage from "../server/beverageClient";
 import type { OperatorIdentity } from "../server/_core/supabaseAuth";
@@ -135,7 +136,7 @@ async function main() {
   console.log(
     `corpus: ${manifest.length} manifest rows, ${chunks.length} caption chunks across ` +
       `${captioned.size} lessons, ${pageLessons.length} page-text lessons, ` +
-      `${externals.length} external sources`
+      `${externals.length} external sources, ${courseAssetSources().length} linked course assets`
   );
 
   if (dryRun) {
@@ -155,7 +156,12 @@ async function main() {
   // exact AND of every term in the question, so "how do I make clear ice at
   // home" found none of the three clear-ice sources while "clear ice" found all
   // three. See db/migrations/112.
-  const allSources = [course, ...lessons, ...pageLessons, ...externals];
+  // Documents the lessons LINK but the course does not host as lessons —
+  // citations only, no chunks, because holding their text is what the rights
+  // posture forbids. See server/knowledgeCourseAssets.ts.
+  const assets = courseAssetSources();
+
+  const allSources = [course, ...lessons, ...pageLessons, ...externals, ...assets];
   const sourcesWithEmbeddings = [];
   for (const source of allSources) {
     sourcesWithEmbeddings.push({
@@ -221,11 +227,23 @@ async function main() {
     );
   }
 
+  // CONTENT coverage and MANIFEST coverage, reported separately. All 39
+  // manifest rows have always existed; the number that matters is how many
+  // carry material Brix can answer from.
   const coverage = await beverage.knowledgeCoverage(identity);
-  const missing = coverage.course_lessons.filter(l => !l.ingested);
+  const cov = coverage.course;
+  const chunkCounts = coverage.chunks;
   console.log(
-    `coverage: ${coverage.course_lessons.length - missing.length}/${coverage.course_lessons.length} ` +
-      `course items ingested, ${missing.length} not collected`
+    `coverage: ${cov.items_with_content}/${cov.items_total} course items have CONTENT ` +
+      `(${cov.items_with_captions} captions, ${cov.items_page_text_only} page-text)`
+  );
+  console.log(
+    `          ${cov.items_register_only} register-only (quizzes, no knowledge to hold), ` +
+      `${cov.items_not_collected} NOT COLLECTED`
+  );
+  console.log(
+    `chunks:   ${chunkCounts.total} total (${chunkCounts.caption} caption, ` +
+      `${chunkCounts.page_text} page-text), ${chunkCounts.embedded} embedded`
   );
   console.log(`course source key: ${COURSE_SOURCE_KEY}`);
 }

@@ -252,22 +252,49 @@ export function searchKnowledge(
   });
 }
 
+/**
+ * How each course item is actually held.
+ *
+ * `captions` and `page_text` are the two content states — the first quotable
+ * with a timestamp, the second cited by section and paragraph. `register_only`
+ * is an item that legitimately carries no knowledge (a quiz); the course's own
+ * ingestion guidance says quizzes are course metadata, not material to answer
+ * from, so counting one as a gap would misreport it. `none` is the real gap.
+ */
+export type CourseContentKind = "captions" | "page_text" | "register_only" | "none";
+
 export type KnowledgeCoverage = {
   sources: Array<{
     source_key: string;
     title: string;
     authority_tier: string;
     operational_status: string;
+    summary_embedded: boolean;
     chunks: number;
     embedded: number;
   }>;
-  course_lessons: Array<{
-    lesson_number: string;
-    lesson_id: string;
-    lesson_title: string;
-    lesson_type: string;
-    ingested: boolean;
-  }>;
+  course: {
+    /** Rows in the 39-item manifest. This is MANIFEST coverage. */
+    items_total: number;
+    /** Items we can actually answer from. This is CONTENT coverage. */
+    items_with_content: number;
+    items_with_captions: number;
+    items_page_text_only: number;
+    items_register_only: number;
+    items_not_collected: number;
+    lessons: Array<{
+      lesson_number: string;
+      lesson_id: string;
+      lesson_title: string;
+      lesson_type: string;
+      duration_or_marker: string | null;
+      chunks: number;
+      content_kind: CourseContentKind;
+      /** Kept for older callers. Means "represented", not "has content". */
+      ingested: boolean;
+    }>;
+  };
+  chunks: { total: number; embedded: number; caption: number; page_text: number };
 };
 
 /**

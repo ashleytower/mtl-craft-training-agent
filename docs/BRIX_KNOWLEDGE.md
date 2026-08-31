@@ -58,7 +58,39 @@ control.** Retrievability is not approval; that stayed a separate human step,
 and the ingest never overwrites `rights_status`, `operational_status` or
 `review_status` on a re-run.
 
-### Course coverage: 14 of 39 items
+### Course coverage: 14 of 39 items HAVE CONTENT
+
+**Content coverage and manifest coverage are different numbers and must never be
+conflated.** All 39 manifest rows have existed since the register was ingested;
+that says nothing about what Brix can answer from. `beverage_knowledge_coverage`
+(migration 115) reports them separately:
+
+| | |
+|---|---|
+| manifest items | **39** — every row present, always was |
+| **with content** | **14** — 12 captions + 2 page-text. **This is the real number.** |
+| register-only | **4** — the quizzes. No knowledge to hold; the course's own guidance is that a quiz is metadata, not material to answer from. Counting one as a gap misreports it; inventing content to move the number would be worse. |
+| **not collected** | **21** — 19 videos + 2 text lessons. The genuine gap. |
+
+Each item carries `content_kind`: `captions`, `page_text`, `register_only` or
+`none`. Run `coverage`; never recite a number from a document.
+
+#### Local caption material is fully ingested — verified cue by cue
+
+Every `.vtt` on disk is accounted for. Cue counts divided into 12-cue chunks
+predict exactly the 158 caption chunks stored:
+
+```
+4726:70→6  4736:75→7  4746:325→28  4751:99→9   4761:225→19  4786:127→11
+4801:138→12 4806:109→10 5841:216→18 6006:301→26 6476:79→7   6486:53→5
+                                                    total predicted = 158 = stored
+```
+
+The 13th file, `lesson_01_introduction.en.vtt`, is a **byte-identical duplicate**
+of `lesson_6486.en-auto.vtt` (same md5) — not extra content, and correctly not
+double-ingested.
+
+### The original coverage line
 
 Captions exist for lessons 1, 5, 6, 7, 14, 16, 18, 23, 27, 31, 32 and 36 —
 Introduction, Safety, Food Grade Ingredients, Regulations, Solubility,
@@ -372,6 +404,40 @@ authenticated** (no `lastAuthenticatedTime` at all).
 - **An undocumented third key**, `fa1c0c3c…` (created 2025-06-26,
   never-expiring, `USER_MANAGED`), is active and referenced nowhere on this
   machine. Not mentioned in any handoff. Worth identifying or retiring.
+
+## Linked course documents — citations, not text
+
+`batch1/transcripts/downloadable_assets.tsv` records six documents the lessons
+link. They are now registered as **citation-only sources with no chunks**, which
+is the rights position rather than a shortcut: Perfumer & Flavorist articles
+belong to Allured Business Media and the GRAS list to FEMA. We may cite and
+summarise; we may not hold their text.
+
+| key | linked from | document | read? |
+|---|---|---|---|
+| `AOD-ASSET-4761-1` | 27 Flavour Levels | *A Novel Approach to Flavor Development: Using an Equation to Make Flavors* — Frank Fischetti, Jr. | yes |
+| `AOD-ASSET-4761-2` | 27 Flavour Levels | FEMA GRAS substances 2001-3124 | yes |
+| `AOD-ASSET-4746-1` | 16 Emulsions | *Stability of Beverage Flavor Emulsions* — Tan & Holmes, IFF | yes |
+| `AOD-ASSET-6476-1` | 23 Prototyping | *…Using the Categorizing Technique to Make Flavors* — Fischetti | yes |
+| `AOD-ASSET-4736-1` | 7 Regulations | USDA ARS publication, 26 pages | **no — scanned, no text layer** |
+| `AOD-ASSET-5841-1` | 6 Food Grade Ingredients | course `Supplier.pdf` | **no — HTTP 403, needs the session** |
+
+Every title and author above was read from the actual PDF's first page, not
+inferred from its URL. The two that could not be read carry
+`summary_grounded_in_document: false` and say so in their summary — they are
+registered so the gap is visible, not to imply knowledge nobody has.
+
+## The access blocker on the remaining 21 items
+
+The 19 uncollected videos and 2 text lessons cannot be collected from here.
+`https://edu.artofdrink.com/user-account/` returns a **Sign In form** — there is
+no authenticated Art of Drink session in this Chrome profile, and entering
+Ashley's password is not something this session will do. The Cloudflare
+interstitial clears on its own; the missing thing is the login itself.
+
+Once signed in, the collection path is unchanged and already proven:
+`batch1/extract_authorized_course_caption.sh` per lesson, then
+`vtt_to_knowledge_records.py`, then re-run the ingest. No new code is needed.
 
 ## Still open
 

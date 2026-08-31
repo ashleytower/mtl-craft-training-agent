@@ -254,9 +254,14 @@ export function registerHermesRoutes(app: Express) {
   /**
    * What the corpus holds, per source and per course lesson.
    *
-   * 12 of the course's 39 items have captions. Without this route the agent
-   * would have to take "the rest were never collected" on faith from a prompt,
-   * and a prompt cannot know when someone collects lesson 13.
+   * Returns CONTENT coverage and MANIFEST coverage as separate numbers. All 39
+   * manifest rows have always existed; what matters is how many carry material
+   * Brix can answer from, and the two must never be conflated in a report.
+   *
+   * `content_kind` per item is one of `captions`, `page_text`, `register_only`
+   * (a quiz — course metadata, not knowledge) or `none` (the real gap). Without
+   * this route the agent would have to take a coverage claim on faith from a
+   * prompt, and a prompt cannot know when someone collects another lesson.
    */
   app.get("/api/hermes/knowledge/coverage", async (req: Request, res: Response) => {
     const identity = hermesIdentityFromRequest(req);
@@ -266,16 +271,12 @@ export function registerHermesRoutes(app: Express) {
     }
 
     try {
+      // Passed through as the database computes it. Content coverage and
+      // manifest coverage are separate numbers on purpose: 39 manifest rows
+      // have always existed, and the question that matters is how many carry
+      // material Brix can actually answer from.
       const coverage = await beverage.knowledgeCoverage(identity);
-      const ingested = coverage.course_lessons.filter(l => l.ingested);
-      res.json({
-        sources: coverage.sources,
-        course: {
-          items_total: coverage.course_lessons.length,
-          items_ingested: ingested.length,
-          lessons: coverage.course_lessons,
-        },
-      });
+      res.json(coverage);
     } catch (error) {
       res.status(502).json({
         error: error instanceof Error ? error.message : "coverage lookup failed",
