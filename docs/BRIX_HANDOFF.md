@@ -235,7 +235,16 @@ Detail in `docs/BRIX_KNOWLEDGE.md`. The short version:
 - **Corpus files are not in git** (`data/knowledge/`, gitignored). The database
   is the store of record; recovery steps are in `docs/BRIX_KNOWLEDGE.md`.
 
-### 7. The exposed service-account key — resolved, with residue
+### 7. Dependency vulnerabilities — pre-existing, not from this work
+
+`npm audit`: **57 total, 2 critical, 17 high** — `@trpc/*`, `axios`, `lodash`,
+`drizzle-orm`, `vite`, `vitest`, `postcss`, `nanoid`, `path-to-regexp` and
+others. All inherited from the original Manus WebDev template export. The
+knowledge work added **zero** runtime dependencies, so none of these are new.
+Not fixed here because it is a dependency-upgrade project of its own, and doing
+it inside a knowledge-retrieval change would bury it. Worth scheduling.
+
+### 8. The exposed service-account key — resolved, with residue
 
 Verified genuinely active, then disabled (reversible) rather than deleted;
 replacement verified against the live Inventory Database sheet. Full account in
