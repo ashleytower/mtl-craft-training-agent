@@ -96,6 +96,19 @@ export const beverageRouter = router({
     }
   }),
 
+  /**
+   * Cocktail recipes as the CRM records them. Read-only: the CRM is the source
+   * of truth for a cocktail's ingredients, quantities and units, and nothing
+   * here can write back to it.
+   */
+  listCrmRecipes: operatorProcedure.query(async () => {
+    try {
+      return await beverage.listCrmRecipes();
+    } catch (error) {
+      return asRefusal(error);
+    }
+  }),
+
   listApproved: operatorProcedure.query(async ({ ctx }) => {
     try {
       return (await beverage.listApprovedFormulas(ctx.identity)) as ApprovedFormula[];

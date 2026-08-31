@@ -10,6 +10,7 @@
  */
 import { getSupabaseAdmin } from "./_core/supabaseAuth";
 import type { OperatorIdentity } from "./_core/supabaseAuth";
+import type { CrmRecipe } from "@shared/crmRecipes";
 
 /** Arguments every governed RPC takes, derived from the verified operator. */
 type OperatorArgs = {
@@ -83,6 +84,45 @@ export type FormulaComponentInput = {
   source_locator?: string;
   notes?: string;
 };
+
+/**
+ * Cocktail recipes as the CRM records them.
+ *
+ * The CRM is the source of truth for a cocktail's ingredients, quantities and
+ * units. `public.recipes` sits in this same Supabase project and already grants
+ * SELECT to `service_role`, which this client already holds — so this is a read
+ * through the integration that exists, not a new pipeline. It is read-only by
+ * construction: there is no writer here, and a beverage draft must never edit a
+ * CRM recipe.
+ *
+ * Rows whose `data` is not a recipe object are skipped rather than guessed at.
+ */
+export async function listCrmRecipes(): Promise<CrmRecipe[]> {
+  const { data, error } = await getSupabaseAdmin()
+    .from("recipes")
+    .select("id, name, data")
+    .order("name");
+
+  if (error) throw new Error(error.message);
+
+  return (data ?? []).flatMap(row => {
+    const payload = (row as { data?: unknown }).data;
+    if (!payload || typeof payload !== "object") return [];
+    const recipe = payload as Partial<CrmRecipe>;
+    if (!Array.isArray(recipe.ingredients)) return [];
+    return [
+      {
+        // The row's own id and name win over anything inside the blob, so a
+        // malformed payload cannot rename or re-point a recipe.
+        id: String((row as { id: unknown }).id),
+        name: String((row as { name: unknown }).name ?? recipe.name ?? ""),
+        englishDescription: recipe.englishDescription ?? null,
+        method: recipe.method ?? null,
+        ingredients: recipe.ingredients,
+      },
+    ];
+  });
+}
 
 export function ensureContext(identity: OperatorIdentity) {
   return callRpc<BeverageContext>("beverage_ensure_context", operatorArgs(identity));

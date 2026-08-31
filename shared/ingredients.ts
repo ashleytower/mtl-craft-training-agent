@@ -27,6 +27,7 @@
  * specific rather than a blanket "none resolved".
  */
 import { isKnownUnit, isMeasureWord } from "./units";
+import { crmRecipeToIngredients, findCrmRecipe, type CrmRecipe } from "./crmRecipes";
 
 export type CatalogEntry = {
   /** The formula_key when this is a formula that could become a sub-component. */
@@ -41,6 +42,7 @@ export type IngredientIssue =
   | { code: "quantity_is_zero" }
   | { code: "unit_not_recognised"; unit: string }
   | { code: "quantity_not_exact"; text: string }
+  | { code: "type_unit_mismatch"; type: string; unit: string }
   | { code: "ambiguous_catalog_match"; candidates: string[] };
 
 export type ParsedIngredient = {
@@ -56,16 +58,19 @@ export type ParsedIngredient = {
 };
 
 export type DraftResolution = {
-  source: "structured" | "free_text" | "none";
+  source: "crm_recipe" | "structured" | "free_text" | "none";
   language: "en" | "fr" | null;
   items: ParsedIngredient[];
   duplicatesDropped: number;
+  /** The CRM recipe these measures came from, when one did. */
+  crmRecipe: { id: string; name: string; method: string | null } | null;
   /** True when a formula version cannot be created from this as it stands. */
   blocked: boolean;
   blockedReason: string | null;
 };
 
 type DraftLike = {
+  name?: string | null;
   product_category?: string | null;
   original_recipe_json?: {
     ingredients?: Array<{
@@ -322,7 +327,8 @@ function dedupe(items: ParsedIngredient[]): { items: ParsedIngredient[]; dropped
 
 export function resolveDraftIngredients(
   draft: DraftLike,
-  catalog: CatalogEntry[] = []
+  catalog: CatalogEntry[] = [],
+  crmRecipes: CrmRecipe[] = []
 ): DraftResolution {
   const json = draft.original_recipe_json ?? null;
   const structured = json?.ingredients ?? null;
@@ -330,8 +336,28 @@ export function resolveDraftIngredients(
   let items: ParsedIngredient[] = [];
   let source: DraftResolution["source"] = "none";
   let language: DraftResolution["language"] = null;
+  let crmRecipe: DraftResolution["crmRecipe"] = null;
 
-  if (structured && structured.length > 0) {
+  // Order of precedence, and the reason for each step:
+  //   structured  — this draft was already normalised against its own source.
+  //   CRM recipe  — the CRM is the source of truth for a cocktail's measures.
+  //   free text   — the intake's prose, which records no quantities at all.
+  const matched =
+    structured && structured.length > 0
+      ? null
+      : findCrmRecipe(draft.name ?? "", crmRecipes);
+
+  if (matched) {
+    items = crmRecipeToIngredients(matched);
+    if (items.length > 0) {
+      source = "crm_recipe";
+      crmRecipe = {
+        id: matched.id,
+        name: matched.name,
+        method: matched.method ?? null,
+      };
+    }
+  } else if (structured && structured.length > 0) {
     items = parseStructured(structured, catalog);
     source = items.length > 0 ? "structured" : "none";
   } else {
@@ -415,6 +441,7 @@ export function resolveDraftIngredients(
     language,
     items: deduped.items,
     duplicatesDropped: deduped.dropped,
+    crmRecipe,
     blocked,
     blockedReason,
   };

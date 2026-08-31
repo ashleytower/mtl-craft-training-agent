@@ -234,6 +234,7 @@ describe("resolution is not approval", () => {
     expect(Object.keys(r).sort()).toEqual([
       "blocked",
       "blockedReason",
+      "crmRecipe",
       "duplicatesDropped",
       "items",
       "language",
@@ -252,13 +253,143 @@ describe("resolution is not approval", () => {
     }
   });
 
-  it("cannot reach a writer, because it imports nothing that can write", () => {
-    // Structural. The resolver is pure: units in, parsed items out. If someone
-    // later imports the supabase client or the tRPC router here, resolving a
-    // draft could start having side effects, and this is the line that stops it.
-    const source = readFileSync(new URL("../shared/ingredients.ts", import.meta.url), "utf8");
-    const imports = [...source.matchAll(/^import\s[^;]*?from\s+"([^"]+)"/gm)].map(m => m[1]);
-    expect(imports).toEqual(["./units"]);
-    expect(source).not.toMatch(/\brpc\(|supabase|fetch\(|mutation/i);
+  it("cannot reach a writer, across its whole import closure", () => {
+    // Structural. The resolver is pure: units and records in, parsed items out.
+    // If someone later imports the supabase client or the tRPC router into any
+    // of these, resolving a draft could start having side effects.
+    //
+    // Checked transitively rather than on one file, because adding a module was
+    // all it took to slip past the single-file version of this test.
+    const allowed: Record<string, string[]> = {
+      "shared/ingredients.ts": ["./units", "./crmRecipes"],
+      "shared/crmRecipes.ts": ["./units", "./ingredients"],
+      "shared/units.ts": [],
+    };
+    for (const [file, expected] of Object.entries(allowed)) {
+      const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
+      const imports = [...source.matchAll(/^import\s[^;]*?from\s+"([^"]+)"/gm)].map(m => m[1]);
+      expect(imports.sort()).toEqual([...expected].sort());
+      // Comments stripped first: these files describe the Supabase integration
+      // in prose, and a scan that cannot tell a sentence from a call would fail
+      // on the documentation rather than on any real dependency.
+      const code = source
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+      expect(code).not.toMatch(/\brpc\(|supabase|fetch\(|mutation/i);
+    }
+  });
+});
+
+describe("CRM-backed cocktail — scaling and preparation, end to end", () => {
+  /** Shaped like a row of public.recipes, with its own values. */
+  const CRM_RECIPES = [
+    {
+      id: "synthetic-sour",
+      name: "Synthetic Sour",
+      englishDescription: "Lemon, Simple Syrup, Bourbon, Eggwhites",
+      method:
+        "ADD all ingredients to the shaker. DRY SHAKE for 15 seconds.\nADD ice and SHAKE again.STRAIN into a glass.",
+      ingredients: [
+        { name: "Bourbon", type: "alcohol", quantityPerDrink: 2, unit: "oz" },
+        { name: "Simple Syrup", type: "syrup", quantityPerDrink: 0.5, unit: "oz" },
+        { name: "Lemon Juice", type: "juice", quantityPerDrink: 0.75, unit: "oz" },
+        { name: "Eggwhite", type: "juice", quantityPerDrink: 1, unit: "splash" },
+        { name: "Dehydrated Citrus", type: "garnish", quantityPerDrink: 1, unit: "garnish" },
+        { name: "Low Ball", type: "glass", quantityPerDrink: 1, unit: "glass" },
+      ],
+    },
+  ];
+
+  const draft = {
+    name: "Synthetic Sour",
+    product_category: "cocktail",
+    original_recipe_json: {
+      ingredients_source_text_english: "Lemon, Simple Syrup, Bourbon, Eggwhites",
+      method_source_text: "older intake wording that the CRM supersedes",
+    },
+  };
+
+  const resolution = resolveDraftIngredients(draft, CATALOG, CRM_RECIPES);
+
+  it("is backed by the CRM, not by the intake prose", () => {
+    expect(resolution.source).toBe("crm_recipe");
+    expect(resolution.crmRecipe?.name).toBe("Synthetic Sour");
+    expect(resolution.blocked).toBe(false);
+  });
+
+  it("scales every CRM quantity exactly, for a party of 40", () => {
+    const formula = toFormula("Synthetic Sour", resolution);
+    const result = scaleFormula(formula, { mode: "multiplier", multiplier: "40" });
+
+    const byName = Object.fromEntries(
+      result.components.map(c => [c.ingredientName, c.scaledQuantity])
+    );
+    expect(byName["Bourbon"]).toBe("80");
+    expect(byName["Simple Syrup"]).toBe("20");
+    expect(byName["Lemon Juice"]).toBe("30");
+    expect(byName["Eggwhite"]).toBe("40");
+    for (const c of result.components) expect(c.scaledQuantityIsExact).toBe(true);
+  });
+
+  it("scales to a limiting bottle without inventing a conversion", () => {
+    const formula = toFormula("Synthetic Sour", resolution);
+    const result = scaleFormula(formula, {
+      mode: "limitingIngredient",
+      ingredientName: "Bourbon",
+      availableQuantity: "26",
+      unit: "oz",
+    });
+    // 26/2 = 13 drinks.
+    expect(result.factor.exact).toBe("13");
+    expect(
+      result.components.find(c => c.ingredientName === "Lemon Juice")?.scaledQuantity
+    ).toBe("9.75");
+  });
+
+  it("refuses to scale a CRM oz recipe against a gram measure", () => {
+    const formula = toFormula("Synthetic Sour", resolution);
+    expect(() =>
+      scaleFormula(formula, {
+        mode: "limitingIngredient",
+        ingredientName: "Bourbon",
+        availableQuantity: "750",
+        unit: "gr",
+      })
+    ).toThrow();
+  });
+
+  it("takes the preparation method from the CRM, superseding the intake text", () => {
+    const steps = parseMethodDraft(resolution.crmRecipe?.method ?? null);
+    expect(steps.map(s => s.text)).toEqual([
+      "ADD all ingredients to the shaker.",
+      "DRY SHAKE for 15 seconds.",
+      "ADD ice and SHAKE again.",
+      "STRAIN into a glass.",
+    ]);
+    // The intake wording must not leak through.
+    expect(JSON.stringify(steps)).not.toContain("older intake wording");
+  });
+
+  it("presents that method to the agent as reviewed once an operator confirms it", () => {
+    const steps = parseMethodDraft(resolution.crmRecipe?.method ?? null);
+    const forAgent = methodForAgent({ source: "operator", steps, raw: null });
+    expect(forAgent.recorded).toBe(true);
+    expect(forAgent.reviewed).toBe(true);
+    expect(forAgent.steps[0]).toBe("1. ADD all ingredients to the shaker.");
+  });
+
+  it("keeps glassware out of the batch sheet and garnish out of the components", () => {
+    const formula = toFormula("Synthetic Sour", resolution);
+    const names = formula.components.map(c => c.ingredientName);
+    expect(names).not.toContain("Low Ball");
+    expect(names).not.toContain("Dehydrated Citrus");
+    expect(names).toHaveLength(4);
+  });
+
+  it("resolving a CRM-backed draft still approves nothing", () => {
+    // The CRM supplying measures does not make a formula approved. Approval
+    // remains a separate, human, audited step.
+    expect(JSON.stringify(resolution)).not.toMatch(/lifecycle|"approved"/i);
+    expect(Object.keys(resolution)).not.toContain("approvedAt");
   });
 });

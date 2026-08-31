@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { cleanFormulaName } from "@shared/formulaName";
 import { parseMethodDraft, type MethodStep } from "@shared/method";
+import type { CrmRecipe } from "@shared/crmRecipes";
 import {
   resolveDraftIngredients,
   type CatalogEntry,
@@ -140,6 +141,8 @@ function issueText(issue: IngredientIssue): string {
       return `"${issue.unit}" is not a unit this system can convert`;
     case "quantity_not_exact":
       return `"${issue.text}" has no exact decimal form`;
+    case "type_unit_mismatch":
+      return `typed "${issue.type}" but measured in "${issue.unit}" — the CRM record disagrees with itself`;
     case "ambiguous_catalog_match":
       return `matches ${issue.candidates.length} formulas — pick one by hand`;
   }
@@ -212,6 +215,8 @@ export default function BeverageIntelligence() {
   const drafts = trpc.beverage.listDrafts.useQuery(undefined, { enabled });
   const pending = trpc.beverage.listPending.useQuery(undefined, { enabled });
   const approved = trpc.beverage.listApproved.useQuery(undefined, { enabled });
+  // The CRM is the source of truth for a cocktail's measures.
+  const crmRecipes = trpc.beverage.listCrmRecipes.useQuery(undefined, { enabled });
 
   const [normalizing, setNormalizing] = useState<FormulaDraft | null>(null);
   const [formulaName, setFormulaName] = useState("");
@@ -262,6 +267,7 @@ export default function BeverageIntelligence() {
   });
 
   const draftRows = (drafts.data ?? []) as FormulaDraft[];
+  const crmRows = (crmRecipes.data ?? []) as CrmRecipe[];
   const pendingRows = (pending.data ?? []) as FormulaVersion[];
   const approvedRows = (approved.data ?? []) as FormulaVersion[];
 
@@ -281,12 +287,16 @@ export default function BeverageIntelligence() {
     setFormulaName(cleanFormulaName(draft.name));
     setYieldValue("");
     setYieldUnit(draft.intended_yield_unit ?? "L");
-    const resolved = resolveDraftIngredients(draft, catalog);
+    const resolved = resolveDraftIngredients(draft, catalog, crmRows);
     setResolution(resolved);
     setComponents(componentsFrom(resolved));
-    // Prefilled for a cocktail, empty for a syrup — the Notion syrup collection
-    // carries no method at all, so that is the normal case, not a failure.
-    setMethodSteps(parseMethodDraft(draft.method_source_text));
+    // When the CRM backs this recipe it is the source of truth for the whole
+    // recipe, method included, so its wording wins over the intake's. Otherwise
+    // the intake text is prefilled — empty for a syrup, which carries no method
+    // at all, so that is the normal case rather than a failure.
+    setMethodSteps(
+      parseMethodDraft(resolved.crmRecipe?.method ?? draft.method_source_text)
+    );
   }
 
   function submitVersion() {
@@ -403,7 +413,7 @@ export default function BeverageIntelligence() {
                 </TableHeader>
                 <TableBody>
                   {draftRows.map(draft => {
-                    const resolved = resolveDraftIngredients(draft, catalog);
+                    const resolved = resolveDraftIngredients(draft, catalog, crmRows);
                     const usable = componentsFrom(resolved);
                     const missing = resolved.items.filter(
                       i => i.role === "ingredient" && i.quantity === null
@@ -734,6 +744,15 @@ export default function BeverageIntelligence() {
               </div>
             </div>
 
+            {resolution?.crmRecipe && (
+              <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
+                Ingredients, quantities, units and method come from the CRM
+                recipe <span className="font-medium">{resolution.crmRecipe.name}</span>.
+                Editing them here changes this formula version only — the CRM
+                recipe is never written back to.
+              </div>
+            )}
+
             {resolution?.blockedReason && (
               <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
                 {resolution.blockedReason}
@@ -838,9 +857,11 @@ export default function BeverageIntelligence() {
             <div className="space-y-2">
               <Label>Preparation method</Label>
               <p className="text-xs text-muted-foreground">
-                {normalizing?.method_source_text
-                  ? "Prefilled from the recipe intake. Correct it before creating the version — these steps are what gets approved."
-                  : "Nothing came from the intake for this one. Type the method if you know it; leaving it blank records no method rather than a guessed one."}
+                {resolution?.crmRecipe?.method
+                  ? "Prefilled from the CRM recipe. Correct it before creating the version — these steps are what gets approved, and the CRM is not written back to."
+                  : normalizing?.method_source_text
+                    ? "Prefilled from the recipe intake. Correct it before creating the version — these steps are what gets approved."
+                    : "Nothing came from the intake for this one. Type the method if you know it; leaving it blank records no method rather than a guessed one."}
               </p>
               {methodSteps.map((step, index) => (
                 <div key={index} className="grid gap-2 sm:grid-cols-[1fr_3fr_auto]">
