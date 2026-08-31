@@ -9,18 +9,31 @@ Manus design/context: https://manus.im/share/5BNfPHDbcgJbvdHmeTZo9E
 
 ## Verified state
 
+Updated 2026-08-31 after the knowledge-retrieval work. Knowledge detail lives in
+**`docs/BRIX_KNOWLEDGE.md`**; this file stays the one-page picture.
+
 | | |
 |---|---|
-| commit | `b30712efab24b5e65957b4873f8bfc929c0ca2ca` (2026-08-31 07:33 -0400) |
-| | merge of PR #5, *CRM as the source of truth for cocktail measures* |
-| tests | **151 passing**, 8 files |
+| commit | `902d105` — merge of PR #8, *page-text lessons cited by page* |
+| tests | **201 passing**, 11 files |
 | typecheck | `tsc --noEmit` clean |
-| working tree | clean, one remote branch (`main`) |
+| build | `npm run build` clean |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
+| beverage migrations | 110-113 in `db/migrations/`, all applied and registered |
 
-Recent merges: #5 `b30712e` CRM-backed cocktail measures · #4 `ef5e408` message
-noun agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
+Recent merges: #8 `902d105` page-text lessons · #7 `0379dd4` cited knowledge
+corpus · #5 `b30712e` CRM-backed cocktail measures · #4 `ef5e408` message noun
+agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
 `db/baseline/DRIFT.md`.
+
+### Corpus, measured
+
+| | |
+|---|---|
+| `beverage.knowledge_sources` | **44** — all `pending_review` / `reference_only`, none approved |
+| `beverage.knowledge_chunks` | **167** — 158 caption + 9 page-text, all embedded |
+| course coverage | **14 of 39** items; 25 never collected |
+| approved formulas | still **1** (`Jalapeno v1`) — unchanged, and a human step |
 
 ---
 
@@ -203,6 +216,35 @@ ordinary answer there, not a fault.
 
 ---
 
+### 6. Knowledge: what is left — added 2026-08-31
+
+Detail in `docs/BRIX_KNOWLEDGE.md`. The short version:
+
+- **Nothing in the corpus is approved.** All 44 sources sit `pending_review` or
+  `reference_only`, by design. Promoting one is a console decision; no route
+  here can do it.
+- **25 of 39 course items have no captured content** — 21 video lessons, 2 text
+  lessons, 4 quizzes. Each needs an authorised browser session; the collection
+  scripts are in `data/knowledge/batch1/` and are reproducible.
+- **The two page-text lessons still have uncaptured video narration.** Their
+  written body is ingested and cited by section and paragraph; the spoken track
+  is not there and must not be implied.
+- **`Supplier.pdf` and five linked FEMA / Perfumer & Flavorist PDFs** are
+  registered in `transcripts/downloadable_assets.tsv` and not ingested. The host
+  is Cloudflare-protected against server-side fetch.
+- **Corpus files are not in git** (`data/knowledge/`, gitignored). The database
+  is the store of record; recovery steps are in `docs/BRIX_KNOWLEDGE.md`.
+
+### 7. The exposed service-account key — resolved, with residue
+
+Verified genuinely active, then disabled (reversible) rather than deleted;
+replacement verified against the live Inventory Database sheet. Full account in
+`docs/BRIX_KNOWLEDGE.md`. **Still Ashley's:** the Manus share is still public
+(restricting it needs the Manus owner login), the key was pasted into the
+conversation transcript so it is worth scanning that transcript for anything
+else pasted the same way, deletion was not done, and an undocumented third
+never-expiring key (`fa1c0c3c…`, 2025-06-26) is active and referenced nowhere.
+
 ## Traps worth knowing
 
 - **Check `server/hermesRoutes.ts` before editing `SKILL.md`.** Claiming a
@@ -218,6 +260,14 @@ ordinary answer there, not a fault.
 - **`node` on this machine is x64** and breaks vitest/tsx. Prefix commands with
   `PATH=/usr/local/bin:$PATH`.
 - **A bot cannot appear in a Telegram chat list until the user messages it first.**
+- **A page chunk has no clock.** Lessons 13 and 22 are page text, not
+  transcripts. `retrieval_type: "page_text_only"` and there is deliberately no
+  `timestamp` key at all — do not add one, and do not let the agent infer one.
+- **MasterStudy reuses content class names inside `<link>` tags.** The first
+  textual match for `masterstudy-course-player-lesson-video` in a saved lesson
+  page is a stylesheet URL, not the lesson. Anchor on the `<div …>`.
+- **`gcloud … keys list` does not render the `disabled` column.** It prints
+  blank whether or not a key is disabled. Read the JSON.
 
 ---
 
