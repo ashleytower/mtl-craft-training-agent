@@ -312,6 +312,52 @@ raw API: `disabled: true`,
 and still reads the live **Inventory Database** sheet, tested in an isolated
 `CLOUDSDK_CONFIG` so Ashley's own gcloud session was untouched.
 
+### Closed 2026-08-31 (second pass)
+
+- **Replacement key secured.** Was `-rw-r--r--` (world-readable) in `~/Downloads`
+  with a quarantine xattr. Now `~/.config/gcloud/keys/` at `600` inside a `700`
+  directory, xattrs cleared, verified byte-identical before the Downloads copy
+  was deleted. Nothing on this machine referenced the old path.
+- **Owner removed.** `claude-code@` held `roles/owner` + `roles/accessapproval.approver`;
+  it now holds only `roles/serviceusage.serviceUsageConsumer`. Safe because
+  every consumer uses **Workspace user-data APIs** (Sheets, Drive, Calendar,
+  Gmail) authorised by OAuth scopes and document sharing — **zero GCP resource
+  SDKs** are used, and project IAM governs resources nothing here touches.
+  Two human owners remain, so the project cannot be orphaned. Verified after
+  propagation: Sheets read still `200`, all three scopes still mint, and
+  `getIamPolicy` as the SA now returns **403**. Policy backed up first.
+- **No key material left loose.** The only SA key file on disk is the secured
+  one. `RAILWAY_FIX.md` and the `test_google_*` files matched a
+  service-account grep but contain **zero** `BEGIN PRIVATE KEY` blocks and zero
+  long base64 blobs — placeholders only.
+- **All five recovered Manus artifacts scanned** for PEM keys, JWTs, Google API
+  keys, `sk-`/`sk_live_`, GitHub tokens, Slack tokens and Postgres URLs:
+  **zero matches**, counts only, no values printed.
+
+### Why the third key could not be resolved
+
+`fa1c0c3c…` (2025-06-26, never-expiring, `USER_MANAGED`) is **still enabled**,
+deliberately. The evidence channel that would settle it is switched off:
+
+- `auditConfigs: NONE` — **Data Access audit logging is disabled** on the
+  project, so ordinary API reads are never logged.
+- `serviceAccountKeyLastAuthentication` returns **no records for any key**.
+- Searching 400 days of logs finds **0** references to `fa1c0c3c…` — but also
+  **0 authentication entries for `91ffbc15…`**, the key we *know* Railway uses.
+
+So absence of evidence here is a property of the configuration, not of the key.
+Disabling it on that basis would be acting on a signal already proven blind, and
+Railway — the one consumer that cannot be enumerated from this machine — needs
+an interactive login. Left enabled and reported rather than guessed at.
+
+**A related find:** the audit log shows a `DisableServiceAccountKey` on
+2026-01-14 by `gcp-compromised-key-response@system.gserviceaccount.com` —
+Google's automated leaked-credential response — against a key on the
+**`google-sheets@`** service account. This project has had a key leak before.
+
+**Also excessive:** `n8n-instance@` holds `roles/owner` and has **never
+authenticated** (no `lastAuthenticatedTime` at all).
+
 ### Still Ashley's on this item
 
 - **The share is still public.** Restricting it needs the Manus owner login;
