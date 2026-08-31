@@ -226,6 +226,11 @@ export function registerHermesRoutes(app: Express) {
         results: found.results.map(result => ({
           citation: citationFor(result),
           quotable: result.kind === "chunk",
+          // Every result already carries a finished `citation`, so this is not
+          // permission to omit one — it is the source's own declared rights
+          // posture, and it was being computed, stored and returned by the RPC
+          // only to be dropped here. Forwarded so the field means something.
+          citation_required: result.citation_required,
           authority_tier: result.authority_tier,
           review_status: result.review_status,
           operational_status: result.operational_status,

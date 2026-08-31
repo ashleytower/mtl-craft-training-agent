@@ -9,6 +9,7 @@ import {
   lessonSources,
   parseJsonl,
   parseLessonManifest,
+  sourceEmbeddingText,
   type CourseChunkRecord,
   type ExternalSourceRecord,
   type LessonManifestRow,
@@ -67,6 +68,34 @@ describe("parseLessonManifest", () => {
     expect(() => parseLessonManifest("lesson_number,lesson_id\n1,6486")).toThrow(
       /lesson_title/
     );
+  });
+
+  // An unquoted comma inside a title used to shift every field after it —
+  // lesson_type silently became " part one" and the url was dropped entirely.
+  // Misfiled data that looks entirely plausible is worse than a crash.
+  it("refuses a row with too many cells instead of shifting every field", () => {
+    const bad = [
+      "lesson_number,lesson_id,lesson_title,lesson_type,duration_or_marker,url",
+      "9,6241,Safety Quiz, part one,quiz,10 questions,https://x",
+    ].join("\n");
+    expect(() => parseLessonManifest(bad)).toThrow(/has 7 cells, expected 6/);
+  });
+
+  it("refuses a row with too few cells", () => {
+    const bad = [
+      "lesson_number,lesson_id,lesson_title,lesson_type,duration_or_marker,url",
+      "9,6241,Safety",
+    ].join("\n");
+    expect(() => parseLessonManifest(bad)).toThrow(/has 3 cells, expected 6/);
+  });
+
+  it("names the offending row number, counting the header", () => {
+    const bad = [
+      "lesson_number,lesson_id,lesson_title,lesson_type,duration_or_marker,url",
+      "1,6486,Introduction,video,6 minutes,https://x",
+      "2,4721,Bad,Row,video,6 minutes,https://x",
+    ].join("\n");
+    expect(() => parseLessonManifest(bad)).toThrow(/row 3/);
   });
 });
 
@@ -230,6 +259,54 @@ describe("externalSources", () => {
       record({ source_url: undefined, video_url: "https://youtu.be/abc" }),
     ]);
     expect(source.source_url).toBe("https://youtu.be/abc");
+  });
+});
+
+describe("sourceEmbeddingText", () => {
+  // This format is duplicated in SQL by
+  // beverage_knowledge_sources_pending_embedding (migration 113), which embeds
+  // rows this script never sees. If the two diverge, the embedding column ends
+  // up holding vectors from two different spaces and nothing reports it — the
+  // results just quietly get worse. Pinned here so a change to either side has
+  // to be a deliberate, visible one.
+  const base = {
+    source_key: "PUB-KK-001",
+    title: "Super Juice Calculator",
+    publisher: "Kevin Kos",
+    creator: null,
+    source_url: "https://example.test",
+    authority_tier: "tier_c_external_practitioner",
+    rights_status: "public_summary_only",
+    operational_status: "reference_only",
+    citation_required: true,
+    governed_summary: "Derives acid and water from peel weight.",
+    source_metadata: { topics: ["super juice", "acid"] },
+  };
+
+  it("is title, summary, then comma-joined topics, newline separated", () => {
+    expect(sourceEmbeddingText(base)).toBe(
+      "Super Juice Calculator\n" +
+        "Derives acid and water from peel weight.\n" +
+        "super juice, acid"
+    );
+  });
+
+  it("omits an empty summary rather than leaving a blank line", () => {
+    expect(sourceEmbeddingText({ ...base, governed_summary: "" })).toBe(
+      "Super Juice Calculator\nsuper juice, acid"
+    );
+  });
+
+  it("omits topics when there are none", () => {
+    expect(sourceEmbeddingText({ ...base, source_metadata: {} })).toBe(
+      "Super Juice Calculator\nDerives acid and water from peel weight."
+    );
+  });
+
+  it("ignores a topics value that is not an array", () => {
+    expect(
+      sourceEmbeddingText({ ...base, source_metadata: { topics: "not-an-array" } })
+    ).toBe("Super Juice Calculator\nDerives acid and water from peel weight.");
   });
 });
 

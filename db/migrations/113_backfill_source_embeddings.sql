@@ -27,6 +27,12 @@
 -- topics" slightly differently would put two incompatible vector spaces in one
 -- column, and nothing would report it — the results would just quietly get
 -- worse.
+--
+-- KEEP IN SYNC WITH `sourceEmbeddingText` in `server/knowledgeCorpus.ts`, which
+-- does the same assembly in TypeScript for sources the ingest writes directly.
+-- The duplication is deliberate — this path runs inside Postgres over rows the
+-- script never sees — but the two must produce byte-identical text for the same
+-- input. `knowledgeCorpus.test.ts` pins the TS side's format for that reason.
 create or replace function public.beverage_knowledge_sources_pending_embedding(
   p_external_subject text,
   p_display_name text,

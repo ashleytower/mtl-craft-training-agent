@@ -95,6 +95,15 @@ export type SourcePayload = {
  * source has no body to embed and must not acquire one; this is what lets it be
  * found by meaning rather than only by an exact term match, without holding a
  * word more of anyone's work than the governed summary already does.
+ *
+ * KEEP IN SYNC WITH `beverage_knowledge_sources_pending_embedding` in
+ * `db/migrations/113_backfill_source_embeddings.sql`, which assembles the same
+ * three fields in SQL for the backfill path. Two implementations exist on
+ * purpose — the backfill runs inside Postgres over rows this script never sees,
+ * and routing it through Node would be worse — but if they diverge, the column
+ * ends up holding vectors from two different spaces and nothing reports it.
+ * `knowledgeCorpus.test.ts` pins the exact output format so a change here shows
+ * up as a failing test rather than as quietly worse retrieval.
  */
 export function sourceEmbeddingText(source: SourcePayload): string {
   const topics = source.source_metadata.topics;
@@ -141,11 +150,22 @@ export function parseLessonManifest(csv: string): LessonManifestRow[] {
       throw new Error(`lesson manifest is missing the "${column}" column`);
     }
   }
-  return lines.slice(1).filter(Boolean).map(line => {
+  return lines.slice(1).filter(Boolean).map((line, index) => {
     const cells = splitCsvLine(line);
+    // Same discipline as `externalSources` below: refuse rather than guess. An
+    // unquoted comma inside a lesson title yields one cell too many, and
+    // zipping that against the header shifts every field after the break —
+    // `lesson_type` silently becomes " part one" and the url is dropped. That
+    // misfiling would reach the database looking entirely plausible.
+    if (cells.length !== header.length) {
+      throw new Error(
+        `lesson manifest row ${index + 2} has ${cells.length} cells, expected ` +
+          `${header.length}. A comma inside a field must be quoted. Row: ${line}`
+      );
+    }
     const row: Record<string, string> = {};
-    header.forEach((name, index) => {
-      row[name] = cells[index] ?? "";
+    header.forEach((name, position) => {
+      row[name] = cells[position] ?? "";
     });
     return row as unknown as LessonManifestRow;
   });
