@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { exactDecimal, resolveDraftIngredients, type CatalogEntry } from "./ingredients";
+import type { CrmRecipe } from "./crmRecipes";
 
 /** Stands in for what the workbench already has loaded: drafts + approved formulas. */
 const CATALOG: CatalogEntry[] = [
@@ -658,4 +659,91 @@ describe("resolveDraftIngredients — review findings", () => {
     expect(r.items.map(i => i.name)).toEqual(["Salt", "to taste"]);
     expect(r.blocked).toBe(true);
   });
+});
+
+describe("resolveDraftIngredients — the CRM is the source of truth", () => {
+  const CRM: CrmRecipe[] = [
+    {
+      id: "r1",
+      name: "Synthetic Mojito",
+      englishDescription: "Mint, Lime, Rum, Soda",
+      method: "MUDDLE the mint. ADD everything else. GARNISH.",
+      ingredients: [
+        { name: "White Rum", type: "alcohol", quantityPerDrink: 2, unit: "oz" },
+        { name: "Lime Juice", type: "juice", quantityPerDrink: 0.75, unit: "oz" },
+        { name: "Simple Syrup", type: "syrup", quantityPerDrink: 0.5, unit: "oz" },
+        { name: "Club Soda", type: "soda", quantityPerDrink: 2, unit: "oz" },
+        { name: "Mint", type: "garnish", quantityPerDrink: 1, unit: "garnish" },
+        { name: "Highball", type: "glass", quantityPerDrink: 1, unit: "glass" },
+      ],
+    },
+  ];
+
+  const mojitoDraft = {
+    name: "Synthetic Mojito",
+    product_category: "cocktail",
+    original_recipe_json: {
+      ingredients_source_text_english: "Mint, Lime, Rum, Soda",
+      method_source_text: "Some older wording from the intake.",
+    },
+  };
+
+  it("uses the CRM record instead of the draft's free text", () => {
+    const r = resolveDraftIngredients(mojitoDraft, CATALOG, CRM);
+    expect(r.source).toBe("crm_recipe");
+    expect(
+      r.items.filter(i => i.role === "ingredient").map(i => [i.name, i.quantity, i.unit])
+    ).toEqual([
+      ["White Rum", "2", "oz"],
+      ["Lime Juice", "0.75", "oz"],
+      ["Simple Syrup", "0.5", "oz"],
+      ["Club Soda", "2", "oz"],
+    ]);
+  });
+
+  it("is no longer blocked, because the CRM records every measure", () => {
+    const r = resolveDraftIngredients(mojitoDraft, CATALOG, CRM);
+    expect(r.blocked).toBe(false);
+    expect(r.blockedReason).toBeNull();
+  });
+
+  it("records which CRM recipe it came from, so the provenance is visible", () => {
+    const r = resolveDraftIngredients(mojitoDraft, CATALOG, CRM);
+    expect(r.crmRecipe).toEqual({
+      id: "r1",
+      name: "Synthetic Mojito",
+      method: "MUDDLE the mint. ADD everything else. GARNISH.",
+    });
+  });
+
+  it("falls back to the draft's own text when the CRM has no such recipe", () => {
+    const r = resolveDraftIngredients(
+      { ...mojitoDraft, name: "Not In The CRM" },
+      CATALOG,
+      CRM
+    );
+    expect(r.source).toBe("free_text");
+    expect(r.crmRecipe).toBeNull();
+    expect(r.blocked).toBe(true);
+  });
+
+  it("still prefers a structured draft over the CRM, because that draft was normalised already", () => {
+    const r = resolveDraftIngredients(
+      {
+        name: "Synthetic Mojito",
+        product_category: "syrup_or_related_product",
+        original_recipe_json: {
+          ingredients: [
+            { ingredient_name: "Jalapenos", quantity_normalized: "5400", unit_name: "gr" },
+          ],
+        },
+      },
+      CATALOG,
+      CRM
+    );
+    expect(r.source).toBe("structured");
+    expect(r.items[0].name).toBe("Jalapenos");
+  });
+
+
 });

@@ -67,12 +67,16 @@ costing sheet, not a procedure. So `recorded: false` is the ordinary answer
 until someone types the method in at approval time. Say that plainly; it is not
 a fault and not a gap you should fill.
 
-Cocktails do carry method text, and their ingredient NAMES now resolve, but
-49 of the 50 record no quantities at all — the source lists "Mint, Lime, Rum,
-Soda" and nothing more. A formula version needs a quantity and a unit for every
-component, so those 49 cannot be approved until someone enters the measures by
-hand. Until that happens you will still not meet a cocktail in `list`. Do not
-offer cocktail specs, and do not fill in a measure yourself.
+Cocktails are still not yours to quote. No cocktail is approved, so `list`
+returns none, and `drafts` reports `has_ingredients: false` for every one of
+them because a cocktail draft carries no structured ingredients of its own.
+
+The operator's workbench can now build a cocktail formula from the CRM's
+recipes, but **you have no tool that reads a CRM recipe**. Do not describe
+cocktail measures, do not say a cocktail is ready to scale, and do not infer
+that a measure exists because a drink obviously has one. If a cocktail is ever
+approved it will appear in `list` like anything else, and only then may you
+scale it.
 
 `drafts` reports `has_method` as a yes/no and never the text, for the same
 reason it withholds quantities: an unapproved method is no safer to follow than

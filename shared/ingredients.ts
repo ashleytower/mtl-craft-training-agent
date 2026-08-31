@@ -41,6 +41,7 @@ export type IngredientIssue =
   | { code: "quantity_is_zero" }
   | { code: "unit_not_recognised"; unit: string }
   | { code: "quantity_not_exact"; text: string }
+  | { code: "type_unit_mismatch"; type: string; unit: string }
   | { code: "ambiguous_catalog_match"; candidates: string[] };
 
 export type ParsedIngredient = {
@@ -56,16 +57,19 @@ export type ParsedIngredient = {
 };
 
 export type DraftResolution = {
-  source: "structured" | "free_text" | "none";
+  source: "crm_recipe" | "structured" | "free_text" | "none";
   language: "en" | "fr" | null;
   items: ParsedIngredient[];
   duplicatesDropped: number;
+  /** The CRM recipe these measures came from, when one did. */
+  crmRecipe: { id: string; name: string; method: string | null } | null;
   /** True when a formula version cannot be created from this as it stands. */
   blocked: boolean;
   blockedReason: string | null;
 };
 
 type DraftLike = {
+  name?: string | null;
   product_category?: string | null;
   original_recipe_json?: {
     ingredients?: Array<{
@@ -208,7 +212,10 @@ function buildItem(
     issues.push({ code: "no_unit_in_source" });
   }
 
-  if (unit && !isKnownUnit(unit)) {
+  // Only a measured row's unit matters. A garnish counted in "garnish" is not a
+  // unit problem, and saying so would put noise in the list an operator reads
+  // to find the real ones.
+  if (role === "ingredient" && unit && !isKnownUnit(unit)) {
     issues.push({ code: "unit_not_recognised", unit });
   }
 
@@ -320,9 +327,122 @@ function dedupe(items: ParsedIngredient[]): { items: ParsedIngredient[]; dropped
   return { items: kept, dropped: items.length - kept.length };
 }
 
+/* ------------------------------------------------------------------------- *
+ * Cocktail recipes as the CRM records them.
+ *
+ * The CRM is the source of truth for a cocktail's ingredients, quantities and
+ * units. This lives here rather than in its own module so that it reuses
+ * `buildItem` — the rules for "no quantity", "zero", "no unit" and an
+ * unconvertible unit are the same wherever a row comes from, and a second copy
+ * of them would drift.
+ * ------------------------------------------------------------------------- */
+
+export type CrmIngredient = {
+  name: string;
+  /** alcohol | garnish | glass | juice | others | soda | syrup — lower case. */
+  type?: string | null;
+  /** Arrives from jsonb as a JSON number. */
+  quantityPerDrink?: number | string | null;
+  unit?: string | null;
+};
+
+export type CrmRecipe = {
+  id: string;
+  name: string;
+  method?: string | null;
+  ingredients: CrmIngredient[];
+};
+
+/** Glassware is not an ingredient; a batch sheet must not ask anyone to measure one. */
+const NOT_AN_INGREDIENT = new Set(["glass"]);
+
+/**
+ * Words that describe presentation rather than a measure. A measured row whose
+ * unit is one of these disagrees with its own type.
+ */
+const PRESENTATION_UNITS = new Set(["glass", "garnish"]);
+
+/**
+ * Punctuation-insensitive, for matching a draft NAME to a recipe NAME:
+ * "Emma's Garden" and "Emmas Garden" are the same drink.
+ *
+ * Deliberately looser than `normalise`, which compares ingredient names and
+ * must keep "Cream 35%" distinct from "Cream 35". Two different jobs, two
+ * different rules.
+ */
+function normaliseRecipeName(name: string): string {
+  return name
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .replace(/[^a-z0-9]+/g, "");
+}
+
+/**
+ * The CRM's own quantity, as text for `buildItem` to validate.
+ *
+ * Every row in the corpus carries a JSON number, but the string branch is kept
+ * because the column is jsonb and nothing stops one appearing — and a string is
+ * exactly the case that needs validating, since "1/3" has no exact decimal
+ * form. `buildItem` decides that; this only gets it there.
+ */
+function crmQuantityText(raw: CrmIngredient["quantityPerDrink"]): string | null {
+  if (raw === null || raw === undefined) return null;
+  if (typeof raw === "number") return Number.isFinite(raw) ? String(raw) : null;
+  const text = raw.trim();
+  return text === "" ? null : text;
+}
+
+export function crmRecipeToIngredients(recipe: CrmRecipe): ParsedIngredient[] {
+  const rows = Array.isArray(recipe.ingredients) ? recipe.ingredients : [];
+
+  return rows
+    .filter(row => (row.name ?? "").trim().length > 0)
+    .filter(row => !NOT_AN_INGREDIENT.has((row.type ?? "").trim().toLowerCase()))
+    .map(row => {
+      const rowType = (row.type ?? "").trim().toLowerCase();
+      const role: ParsedIngredient["role"] = rowType === "garnish" ? "garnish" : "ingredient";
+      const unit = (row.unit ?? "").trim() || null;
+
+      // The CRM links nothing to the beverage catalog, so no catalog is passed.
+      const item = buildItem(
+        (row.name ?? "").trim(),
+        crmQuantityText(row.quantityPerDrink),
+        unit,
+        role,
+        []
+      );
+
+      // A measured row whose unit describes presentation disagrees with itself.
+      // Which field is right is a question for a person — the CRM types one such
+      // ingredient as a juice while typing it a garnish in 38 other rows — so
+      // the row is kept as typed and the disagreement is reported, not resolved.
+      if (role === "ingredient" && unit && PRESENTATION_UNITS.has(unit.toLowerCase())) {
+        item.issues.push({ code: "type_unit_mismatch", type: rowType, unit });
+      }
+      return item;
+    });
+}
+
+/**
+ * The CRM recipe for a draft, or null.
+ *
+ * Exact name match only. A near match ("Daiquiri" for "Tropikal Daiquiri")
+ * would attach one drink's measures to a different drink, and two recipes
+ * sharing a name is a question for a person rather than a tie to break here.
+ */
+export function findCrmRecipe(draftName: string, recipes: CrmRecipe[]): CrmRecipe | null {
+  const wanted = normaliseRecipeName(draftName);
+  if (!wanted) return null;
+  const hits = recipes.filter(r => normaliseRecipeName(r.name) === wanted);
+  return hits.length === 1 ? hits[0] : null;
+}
+
 export function resolveDraftIngredients(
   draft: DraftLike,
-  catalog: CatalogEntry[] = []
+  catalog: CatalogEntry[] = [],
+  crmRecipes: CrmRecipe[] = []
 ): DraftResolution {
   const json = draft.original_recipe_json ?? null;
   const structured = json?.ingredients ?? null;
@@ -330,8 +450,28 @@ export function resolveDraftIngredients(
   let items: ParsedIngredient[] = [];
   let source: DraftResolution["source"] = "none";
   let language: DraftResolution["language"] = null;
+  let crmRecipe: DraftResolution["crmRecipe"] = null;
 
-  if (structured && structured.length > 0) {
+  // Order of precedence, and the reason for each step:
+  //   structured  — this draft was already normalised against its own source.
+  //   CRM recipe  — the CRM is the source of truth for a cocktail's measures.
+  //   free text   — the intake's prose, which records no quantities at all.
+  const matched =
+    structured && structured.length > 0
+      ? null
+      : findCrmRecipe(draft.name ?? "", crmRecipes);
+
+  if (matched) {
+    items = crmRecipeToIngredients(matched);
+    if (items.length > 0) {
+      source = "crm_recipe";
+      crmRecipe = {
+        id: matched.id,
+        name: matched.name,
+        method: matched.method ?? null,
+      };
+    }
+  } else if (structured && structured.length > 0) {
     items = parseStructured(structured, catalog);
     source = items.length > 0 ? "structured" : "none";
   } else {
@@ -415,6 +555,7 @@ export function resolveDraftIngredients(
     language,
     items: deduped.items,
     duplicatesDropped: deduped.dropped,
+    crmRecipe,
     blocked,
     blockedReason,
   };
