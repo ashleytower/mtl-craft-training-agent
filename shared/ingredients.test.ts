@@ -569,6 +569,48 @@ describe("resolveDraftIngredients — review findings", () => {
     expect(r.blockedReason).toMatch(/can overlap/i);
   });
 
+  it("never states a reason count higher than the number of blocked ingredients", () => {
+    // The leading number is the count of ingredients; the reason numbers are
+    // attributes of those same ingredients. If a reason could exceed the lead,
+    // the sentence would be arithmetically impossible on its face.
+    const shapes = [
+      [{ ingredient_name: "A", quantity_normalized: "0", unit_name: "" }],
+      [
+        { ingredient_name: "A", quantity_normalized: "1/3", unit_name: "" },
+        { ingredient_name: "B", quantity_normalized: "", unit_name: "gr" },
+        { ingredient_name: "C", quantity_normalized: "0", unit_name: "gr" },
+      ],
+      [{ ingredient_name: "A", quantity_normalized: "5", unit_name: "gr" }],
+    ];
+    for (const ingredients of shapes) {
+      const r = resolveDraftIngredients(
+        { product_category: "syrup_or_related_product", original_recipe_json: { ingredients } },
+        CATALOG
+      );
+      if (!r.blockedReason) continue;
+      const [lead, ...rest] = [...r.blockedReason.matchAll(/\d+/g)].map(m => Number(m[0]));
+      // lead is "N of M"; the first two numbers are N and M.
+      const blockedCount = lead;
+      for (const n of rest.slice(1)) {
+        expect(n).toBeLessThanOrEqual(blockedCount);
+      }
+    }
+  });
+
+  it("never renders a reason list that is empty while ingredients are blocked", () => {
+    const r = resolveDraftIngredients(
+      {
+        product_category: "cocktail",
+        original_recipe_json: { ingredients_source_text_english: "Mint, Lime" },
+      },
+      CATALOG
+    );
+    expect(r.blocked).toBe(true);
+    // A dangling "2 of 2 ingredients cannot be used yet." with no reason after
+    // it would be worse than no message.
+    expect(r.blockedReason).toMatch(/cannot be used yet\.? (It has|They have|—)/);
+  });
+
   it("KNOWN LIMIT: a real unit word starting an ingredient name is taken as the unit", () => {
     // "1 Cup Cordial" resolves to 1 cup of "Cordial". The parser cannot tell
     // that "Cup" belongs to the name without an ingredient dictionary, and
