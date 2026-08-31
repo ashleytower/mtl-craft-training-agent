@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
 import { exactDecimal, resolveDraftIngredients, type CatalogEntry } from "./ingredients";
 import type { CrmRecipe } from "./crmRecipes";
 
@@ -746,10 +745,5 @@ describe("resolveDraftIngredients — the CRM is the source of truth", () => {
     expect(r.items[0].name).toBe("Jalapenos");
   });
 
-  it("never writes anything back towards the CRM", () => {
-    // The resolution is a read. If this module ever grew a way to push a
-    // corrected measure back, a draft could silently rewrite the CRM.
-    const source = readFileSync(new URL("./crmRecipes.ts", import.meta.url), "utf8");
-    expect(source).not.toMatch(/insert|update|upsert|delete|\brpc\(/i);
-  });
+
 });

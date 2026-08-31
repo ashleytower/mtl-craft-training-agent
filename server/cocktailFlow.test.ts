@@ -260,9 +260,12 @@ describe("resolution is not approval", () => {
     //
     // Checked transitively rather than on one file, because adding a module was
     // all it took to slip past the single-file version of this test.
+    // Two files, no cycle. This was briefly a three-file whitelist that had to
+    // permit ingredients.ts and crmRecipes.ts importing each other — the review
+    // pointed out that a whitelist admitting a cycle is a weaker guarantee than
+    // the one it replaced, so the modules were folded back together.
     const allowed: Record<string, string[]> = {
-      "shared/ingredients.ts": ["./units", "./crmRecipes"],
-      "shared/crmRecipes.ts": ["./units", "./ingredients"],
+      "shared/ingredients.ts": ["./units"],
       "shared/units.ts": [],
     };
     for (const [file, expected] of Object.entries(allowed)) {

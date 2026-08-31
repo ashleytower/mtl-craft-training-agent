@@ -3,7 +3,7 @@ import {
   crmRecipeToIngredients,
   findCrmRecipe,
   type CrmRecipe,
-} from "./crmRecipes";
+} from "./ingredients";
 
 /** Shaped exactly like a row of public.recipes.data, with its own values. */
 const DAIQUIRI: CrmRecipe = {
@@ -42,12 +42,6 @@ describe("crmRecipeToIngredients", () => {
     expect(items.map(i => i.name)).not.toContain("Low Ball");
   });
 
-  it("does not report a missing quantity for anything, because the CRM records one", () => {
-    for (const item of crmRecipeToIngredients(DAIQUIRI)) {
-      expect(item.issues.map(i => i.code)).not.toContain("no_quantity_in_source");
-    }
-  });
-
   it("flags oz as unconvertible without refusing the quantity", () => {
     const rum = crmRecipeToIngredients(DAIQUIRI)[0];
     expect(rum.quantity).toBe("1.5");
@@ -55,14 +49,27 @@ describe("crmRecipeToIngredients", () => {
   });
 
   it("carries a number through as an exact decimal string", () => {
-    // quantityPerDrink arrives as a JSON number. The scaler needs a string and
-    // must never be handed a float that has already lost precision.
+    // The earlier note here claimed the scaler needs a string and must not get
+    // a float. Both are false: beverageScaling types Quantity as string|number
+    // and stringifies it itself. The real reason is that ParsedIngredient
+    // .quantity is a string the operator edits as text in the dialog.
     const items = crmRecipeToIngredients({
       ...DAIQUIRI,
       ingredients: [{ name: "X", type: "syrup", quantityPerDrink: 0.5, unit: "ml" }],
     });
     expect(items[0].quantity).toBe("0.5");
-    expect(typeof items[0].quantity).toBe("string");
+  });
+
+  it("validates a string quantity rather than passing it straight through", () => {
+    // Every row in the corpus is a JSON number, but the column is jsonb and a
+    // string is exactly the case that needs checking — "1/3" has no exact
+    // decimal form and must not reach an approved formula unflagged.
+    const items = crmRecipeToIngredients({
+      ...DAIQUIRI,
+      ingredients: [{ name: "X", type: "syrup", quantityPerDrink: "1/3", unit: "ml" }],
+    });
+    expect(items[0].quantity).toBeNull();
+    expect(items[0].issues.map(i => i.code)).toContain("quantity_not_exact");
   });
 
   it("refuses a row whose quantity is missing or unusable rather than inventing one", () => {

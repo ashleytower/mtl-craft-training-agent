@@ -10,7 +10,7 @@
  */
 import { getSupabaseAdmin } from "./_core/supabaseAuth";
 import type { OperatorIdentity } from "./_core/supabaseAuth";
-import type { CrmRecipe } from "@shared/crmRecipes";
+import type { CrmRecipe } from "@shared/ingredients";
 
 /** Arguments every governed RPC takes, derived from the verified operator. */
 type OperatorArgs = {
@@ -116,7 +116,6 @@ export async function listCrmRecipes(): Promise<CrmRecipe[]> {
         // malformed payload cannot rename or re-point a recipe.
         id: String((row as { id: unknown }).id),
         name: String((row as { name: unknown }).name ?? recipe.name ?? ""),
-        englishDescription: recipe.englishDescription ?? null,
         method: recipe.method ?? null,
         ingredients: recipe.ingredients,
       },

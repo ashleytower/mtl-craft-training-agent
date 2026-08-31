@@ -6,10 +6,11 @@ import { toast } from "sonner";
 
 import { cleanFormulaName } from "@shared/formulaName";
 import { parseMethodDraft, type MethodStep } from "@shared/method";
-import type { CrmRecipe } from "@shared/crmRecipes";
+
 import {
   resolveDraftIngredients,
   type CatalogEntry,
+  type CrmRecipe,
   type DraftResolution,
   type IngredientIssue,
 } from "@shared/ingredients";
