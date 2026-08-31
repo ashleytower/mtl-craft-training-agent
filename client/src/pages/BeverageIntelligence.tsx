@@ -6,6 +6,12 @@ import { toast } from "sonner";
 
 import { cleanFormulaName } from "@shared/formulaName";
 import { parseMethodDraft, type MethodStep } from "@shared/method";
+import {
+  resolveDraftIngredients,
+  type CatalogEntry,
+  type DraftResolution,
+  type IngredientIssue,
+} from "@shared/ingredients";
 import { trpc } from "@/lib/trpc";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -118,15 +124,62 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Only ingredient rows with a name and a usable quantity can become components. */
-function usableIngredients(draft: FormulaDraft): ComponentDraft[] {
-  const rows = draft.original_recipe_json?.ingredients ?? [];
-  return rows
-    .filter(r => (r.ingredient_name ?? "").trim().length > 0)
-    .map(r => ({
-      ingredient_name: (r.ingredient_name ?? "").trim(),
-      quantity: (r.quantity_normalized ?? "").trim(),
-      unit: (r.unit_name ?? "").trim(),
+/**
+ * One sentence per issue, in the operator's terms. The resolver decides what is
+ * wrong; this only decides how to say it.
+ */
+function issueText(issue: IngredientIssue): string {
+  switch (issue.code) {
+    case "no_quantity_in_source":
+      return "no quantity in the source";
+    case "no_unit_in_source":
+      return "has a quantity but no unit";
+    case "quantity_is_zero":
+      return "recorded as zero";
+    case "unit_not_recognised":
+      return `"${issue.unit}" is not a unit this system can convert`;
+    case "quantity_not_exact":
+      return `"${issue.text}" has no exact decimal form`;
+    case "ambiguous_catalog_match":
+      return `matches ${issue.candidates.length} formulas — pick one by hand`;
+  }
+}
+
+/**
+ * What the resolver may link an ingredient to. Built from what the workbench has
+ * already loaded rather than from a new endpoint: approved formulas can become a
+ * sub-component, and names already used in a structured draft are known
+ * ingredients. Nothing here is fuzzy — an exact name or no link at all.
+ */
+function buildCatalog(
+  approved: FormulaVersion[],
+  drafts: FormulaDraft[]
+): CatalogEntry[] {
+  const entries: CatalogEntry[] = approved.map(f => ({
+    key: f.formula_key ?? null,
+    name: f.name,
+    kind: "approved_formula",
+  }));
+  const seen = new Set(entries.map(e => e.name.trim().toLowerCase()));
+  for (const draft of drafts) {
+    for (const row of draft.original_recipe_json?.ingredients ?? []) {
+      const name = (row.ingredient_name ?? "").trim();
+      if (!name || seen.has(name.toLowerCase())) continue;
+      seen.add(name.toLowerCase());
+      entries.push({ key: null, name, kind: "known_ingredient" });
+    }
+  }
+  return entries;
+}
+
+/** Components the dialog should start from. A blank quantity is left blank. */
+function componentsFrom(resolution: DraftResolution): ComponentDraft[] {
+  return resolution.items
+    .filter(item => item.role === "ingredient")
+    .map(item => ({
+      ingredient_name: item.name,
+      quantity: item.quantity ?? "",
+      unit: item.unit ?? "",
     }));
 }
 
@@ -166,6 +219,7 @@ export default function BeverageIntelligence() {
   const [yieldUnit, setYieldUnit] = useState("L");
   const [components, setComponents] = useState<ComponentDraft[]>([]);
   const [methodSteps, setMethodSteps] = useState<MethodStep[]>([]);
+  const [resolution, setResolution] = useState<DraftResolution | null>(null);
   const [rationale, setRationale] = useState<Record<string, string>>({});
 
   const [scaleTarget, setScaleTarget] = useState<string>("");
@@ -211,6 +265,12 @@ export default function BeverageIntelligence() {
   const pendingRows = (pending.data ?? []) as FormulaVersion[];
   const approvedRows = (approved.data ?? []) as FormulaVersion[];
 
+  // Rebuilt only when the two lists change; every draft row resolves against it.
+  const catalog = useMemo(
+    () => buildCatalog(approvedRows, draftRows),
+    [approvedRows, draftRows]
+  );
+
   const selectedApproved = useMemo(
     () => approvedRows.find(f => f.id === scaleTarget) ?? null,
     [approvedRows, scaleTarget]
@@ -221,7 +281,9 @@ export default function BeverageIntelligence() {
     setFormulaName(cleanFormulaName(draft.name));
     setYieldValue("");
     setYieldUnit(draft.intended_yield_unit ?? "L");
-    setComponents(usableIngredients(draft));
+    const resolved = resolveDraftIngredients(draft, catalog);
+    setResolution(resolved);
+    setComponents(componentsFrom(resolved));
     // Prefilled for a cocktail, empty for a syrup — the Notion syrup collection
     // carries no method at all, so that is the normal case, not a failure.
     setMethodSteps(parseMethodDraft(draft.method_source_text));
@@ -341,7 +403,11 @@ export default function BeverageIntelligence() {
                 </TableHeader>
                 <TableBody>
                   {draftRows.map(draft => {
-                    const usable = usableIngredients(draft);
+                    const resolved = resolveDraftIngredients(draft, catalog);
+                    const usable = componentsFrom(resolved);
+                    const missing = resolved.items.filter(
+                      i => i.role === "ingredient" && i.quantity === null
+                    ).length;
                     return (
                       <TableRow key={draft.id}>
                         <TableCell className="font-medium">{draft.name}</TableCell>
@@ -355,7 +421,16 @@ export default function BeverageIntelligence() {
                         <TableCell>
                           {usable.length === 0 ? (
                             <span className="inline-flex items-center gap-1 text-amber-600 text-sm">
-                              <TriangleAlert className="w-4 h-4" /> none resolved
+                              <TriangleAlert className="w-4 h-4" /> no ingredient list
+                            </span>
+                          ) : missing > 0 ? (
+                            // Named, but not yet measurable. Saying which of the
+                            // two it is matters: one needs a source fix, the
+                            // other needs somebody to type the quantities.
+                            <span className="inline-flex items-center gap-1 text-amber-600 text-sm">
+                              <TriangleAlert className="w-4 h-4" />
+                              {usable.length} named, {missing}{" "}
+                              {missing === 1 ? "needs" : "need"} a quantity
                             </span>
                           ) : (
                             <span className="text-neutral-600">{usable.length}</span>
@@ -658,6 +733,45 @@ export default function BeverageIntelligence() {
                 />
               </div>
             </div>
+
+            {resolution?.blockedReason && (
+              <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+                {resolution.blockedReason}
+              </div>
+            )}
+
+            {resolution && resolution.items.some(i => i.issues.length > 0) && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  What the source did not give us
+                </Label>
+                <ul className="text-xs text-muted-foreground space-y-0.5">
+                  {resolution.items
+                    .filter(i => i.issues.length > 0)
+                    .map((item, index) => (
+                      <li key={index}>
+                        <span className="font-medium">{item.name}</span>
+                        {" — "}
+                        {item.issues.map(issueText).join("; ")}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
+
+            {resolution && resolution.items.some(i => i.role === "garnish") && (
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  Garnish (not a measured component)
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  {resolution.items
+                    .filter(i => i.role === "garnish")
+                    .map(i => i.name)
+                    .join(", ")}
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Components</Label>

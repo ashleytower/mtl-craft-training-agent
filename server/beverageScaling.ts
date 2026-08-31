@@ -12,6 +12,8 @@
  * touches no stock, computes no cost, and never releases a batch.
  */
 
+import { canonicalUnit } from "@shared/units";
+
 /** Digits kept when a decimal expansion does not terminate. */
 const DECIMAL_DIGITS = 28;
 
@@ -161,23 +163,7 @@ function toDecimal({ n, d }: Rational): { text: string; isExact: boolean } {
  * and quietly treating 16 oz of sugar as interchangeable with 16 fl oz of
  * anything is precisely the mistake this module exists to prevent.
  */
-const UNIT_SPELLINGS: Record<string, string> = {
-  g: "gr", gr: "gr", gram: "gr", grams: "gr", gramme: "gr", grammes: "gr",
-  kg: "kg", kilo: "kg", kilos: "kg", kilogram: "kg", kilograms: "kg",
-  ml: "ml", milliliter: "ml", millilitre: "ml", milliliters: "ml", millilitres: "ml",
-  l: "l", lt: "l", liter: "l", litre: "l", liters: "l", litres: "l",
-  tsp: "tsp", teaspoon: "tsp", teaspoons: "tsp",
-  tbsp: "tbsp", tablespoon: "tbsp", tablespoons: "tbsp",
-  cup: "cup", cups: "cup",
-  unit: "unit", units: "unit", each: "unit", ea: "unit",
-  piece: "unit", pieces: "unit", pc: "unit", pcs: "unit",
-};
 
-/** Canonical label for comparison. Unknown units compare as themselves. */
-function canonicalUnit(unit: string): string {
-  const key = unit.trim().toLowerCase();
-  return UNIT_SPELLINGS[key] ?? key;
-}
 
 function findComponent(
   formula: NormalizedFormula,
