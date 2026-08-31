@@ -15,12 +15,42 @@ pnpm-authoritative (`packageManager: pnpm@10.4.1`, with a patched `wouter`), and
 harmful: it made `npm audit` report a phantom tree, and `npm install` against it
 silently skips the `wouter@3.7.1` patch — a bug this estate has hit before.
 
-## The decisive fact: this server is not deployed
+## CORRECTION: deployment status is unproven, and the triage no longer rests on it
 
-No `vercel.json`, `railway.json`, `Dockerfile`, `Procfile`, `fly.toml`,
-`render.yaml`, or CI workflow exists in this repository. The server runs locally
-and Brix reaches it at `http://localhost:3000`. "Production exposure" for this
-repo therefore means *reachable in the local server bundle*, not internet-facing.
+An earlier version of this document asserted **"this server is not deployed"** as
+a decisive fact. That was not supported by the evidence, and the triage has been
+restated so it no longer depends on the answer.
+
+What is actually established:
+
+| checked | result |
+|---|---|
+| `vercel.json` / `railway.json` / `Dockerfile` / `Procfile` / `fly.toml` / `render.yaml` | none present |
+| CI workflows (`.github/workflows`) | none |
+| GitHub Deployments API | 0 |
+| GitHub Environments | 0 |
+| Repo webhooks (Vercel/Railway install one when linked) | none |
+| `.vercel/` project link | absent |
+| launchd job running this server | none |
+| local Railway/Vercel CLI state | none |
+
+What is **not** established, and cannot be from here:
+
+- **Railway and Vercel both require an interactive login** this session does not
+  have, so their project lists were never read. Either can deploy a repo with no
+  file in it, configured entirely from the dashboard.
+- The repo carries a production-shaped `start` script
+  (`NODE_ENV=production node dist/index.js`) and a real `build`.
+
+So: *no deployment evidence was found in anything reachable, and several signals
+point against one — but "not deployed" is not proven.* Ask Railway/Vercel
+directly before relying on it.
+
+**Because of that, every verdict below is argued on a deployment-independent
+basis**: whether the package reaches the server bundle at all, and whether the
+specific vulnerable code path is used. Those hold whether or not the server is
+deployed. The one verdict that genuinely depended on deployment status is
+`drizzle-orm`, and it is marked accordingly.
 
 ## Criticals
 
@@ -38,9 +68,52 @@ repo therefore means *reachable in the local server bundle*, not internet-facing
 |---|---|---|
 | `axios` | **fixed** | 1.12.2 → 1.20.0. Was not in `dist` anyway (0 refs). |
 | `nanoid` | **fixed** | 5.1.6 → 5.1.16. In the bundle; advisory needs an attacker-controlled non-integer `size`. |
-| `jws` | **BLOCKED upstream** | Production, via `googleapis` → `google-auth-library` → `gtoken` → `jws@4.0.0`. `googleapis` is genuinely used (`server/googleSheets.ts`). Updated `google-auth-library` 10.5.0 → 10.9.1; **it still pins `jws@4.0.0`**, so this cannot be cleared in range. Needs upstream to move. |
+| `jws` | **RESOLVED — and the vulnerable path was never reachable** | See below. |
 | `@trpc/server` | **not exposed** | The advisory is prototype pollution in `experimental_nextAppDirCaller`. That adapter is never referenced in this repo. |
-| `drizzle-orm` | **inert, needs a major** | SQL injection advisory. In the bundle, but `getDb()` returns `null` unless `DATABASE_URL` is set, and it is not set — the legacy MySQL path has been dead since the Manus export. Fix requires a major upgrade; deferred rather than bundled into a security pass. |
+| `drizzle-orm` | **DEPENDS ON DEPLOYMENT — treat as open** | SQL injection advisory, and it is in the bundle. `getDb()` returns `null` unless `DATABASE_URL` is set. It is not set in the local `.env`, so the path is dead **locally**. But a deployment environment could set it, and deployment status is unproven (above). The earlier "inert" verdict overstated this. Fix needs a major upgrade. Resolve the deployment question first. |
+
+### `jws` — call path verified, then fixed anyway
+
+Previously reported as "blocked upstream". That was true of the *version range*
+but wrong as a conclusion, and it also overstated the risk.
+
+**The vulnerable call path is not reachable here.** Advisory
+[GHSA-869p-cjfg-cm3x](https://github.com/advisories/GHSA-869p-cjfg-cm3x) is
+*"Improperly Verifies HMAC Signature"* (CWE-347) — it affects **`jws.verify`
+with an HMAC algorithm**. Inspecting the built code of both dependents:
+
+```
+gtoken@8.0.0                 jws.sign x2      jws.verify x0
+google-auth-library@10.5.0   jws.sign x1      jws.verify x0
+google-auth-library@10.9.1   jws.sign x1      jws.verify x0
+algorithm used:              'RS256'   (asymmetric — not HMAC)
+```
+
+Google only ever **signs** service-account assertions with RS256. It never
+verifies, and never uses HMAC. So the advisory did not describe a reachable
+weakness in this codebase.
+
+**Fixed regardless**, because `jws@4.0.1` is published and the fix is a patch
+bump. Adopted with a targeted `pnpm.overrides` entry — the *same* config object
+that already held `tailwindcss>nanoid`, so no config mechanism changed:
+
+```json
+"pnpm": {
+  "patchedDependencies": { "wouter@3.7.1": "patches/wouter@3.7.1.patch" },
+  "overrides": { "tailwindcss>nanoid": "3.3.7", "jws": "4.0.1" }
+}
+```
+
+Safety checks on the change:
+
+- **wouter patch preserved** — the lockfile's `patchedDependencies` hash
+  (`4e16e6ff…`) is byte-identical before and after, and `patches/` is intact.
+- **Lockfile change is surgical** — the entire diff is two lines: the old `jws`
+  integrity out, the new one in.
+- **Functionally exercised through the real path**, not a stand-in: a
+  `googleapis` → `google.auth.JWT` authorize (which drives `jws.sign`) followed
+  by a live Sheets read returned `200`, with `jws version actually loaded: 4.0.1`
+  resolved from `googleapis`' own tree.
 
 ## Highs that are dev-tooling only
 
@@ -51,9 +124,12 @@ does not serve traffic.
 
 ## What changed
 
-- Removed `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner` — declared
-  dependencies, never imported. `server/storage.ts` uses the Manus forge HTTP
-  proxy, not S3.
+- Removed `@aws-sdk/client-s3` and `@aws-sdk/s3-request-presigner`. This one
+  **was** re-verified exhaustively after the correction above: a repo-wide
+  search (every directory, not just `server/`) for `aws-sdk`, `S3Client`,
+  `getSignedUrl` and `PutObjectCommand`, plus a dynamic-`import()`/`require()`
+  scan, returns nothing outside this document. `server/storage.ts` uses the
+  Manus forge HTTP proxy, not S3. The removal stands.
 - Removed the stray tracked `package-lock.json`.
 - `axios` → 1.20.0, `nanoid` → 5.1.16, `google-auth-library` → 10.9.1.
 
@@ -67,7 +143,16 @@ clean.
   here were therefore surgical, by package.
 - `drizzle-orm` and `vite`/`vitest` majors are dependency-upgrade work of their
   own, not a security pass.
-- Four declared production dependencies are never imported in source —
-  `dotenv`, `framer-motion`, `openai`, `tailwindcss-animate`. Removing them
-  would shrink the surface further, but none currently carries a high or
-  critical advisory, so they were left alone rather than widened into this pass.
+- **CORRECTION — an earlier version of this list was wrong.** It claimed four
+  production dependencies were "never imported in source". `dotenv` **is
+  imported**: `server/_core/index.ts:1` does `import "dotenv/config"`, a
+  side-effect import the original grep pattern (`from "dotenv"`) could not match.
+
+  Re-checked with a broader search, `framer-motion`, `openai` and
+  `tailwindcss-animate` return no references. Note the near-miss that makes the
+  point: `client/src/index.css` imports **`tw-animate-css`**, which is a
+  *different package* from `tailwindcss-animate`.
+
+  These three are therefore **"no static references found"**, not "unused" —
+  dynamic or build-time use cannot be excluded by grep. None carries a high or
+  critical advisory. **No removal is recommended on this evidence.**
