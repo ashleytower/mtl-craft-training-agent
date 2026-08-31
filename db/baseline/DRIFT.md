@@ -66,18 +66,31 @@ halves were wrong:
 
 `db/migrations/110_formula_version_process.sql` does not byte-match what the
 database stored for that migration. The **SQL is identical** — verified by
-stripping comments and diffing, no statement differs. The file carries eight
-extra comment lines that the applied version does not.
+stripping comments and diffing, no statement differs. Only the comments differ.
 
 The cause is worth recording because it is the whole problem in miniature: the
-migration was applied first, and the explanatory comment was added to the file
+migration was applied first, and explanatory comments were added to the file
 afterwards. Nothing re-synced, and nothing would have noticed. A comment is
 harmless; the same sequence with a `where` clause would not be.
 
-If a migration file is edited after it is applied, either re-apply it (when the
-change is real) or leave the file alone and put the new understanding in a
-document (when it is only commentary). Editing an applied migration in place
-makes git and the database disagree about what ran.
+The rule that follows: if a migration file is edited after it is applied, either
+re-apply it (when the change is real) or leave the file alone and put the new
+understanding in a document (when it is only commentary). Editing an applied
+migration in place makes git and the database disagree about what ran.
+
+**One deliberate exception, taken with evidence.** That file's header carried a
+factual claim that was wrong — that migrations 097-109 had no source file
+anywhere and should be recovered via `pg_get_functiondef`. It was left standing
+for a few hours and in that time it misled a reader, who read it and reported
+"097-109 still need recovering" as outstanding work. A comment that assigns
+someone real work that is already done, by a method that could not have worked,
+is not harmless commentary. It was replaced in place with a correction that
+points here.
+
+That widens the comment-only gap between this file and the database. The SQL
+still matches exactly, and the trade was made knowingly: a stale falsehood in the
+file people actually open is worse than a larger diff against a comment block
+nobody executes.
 
 ## 5. What is genuinely unrecoverable from the database
 
