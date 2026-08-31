@@ -129,11 +129,22 @@ Updated 2026-08-31 by the knowledge-retrieval work.
 
 | | in git | applied to the database |
 |---|---|---|
-| beverage migrations | 4 (`db/migrations/110`, `111`, `112`, `113`) | 18 |
+| beverage migrations | 5 (`db/migrations/110`-`114`) | 19 |
 | recovered for the record | 15 (`db/baseline/recovered-migrations/`) | — |
 
-111-113 were written as files first and applied from those files, so unlike
-110 there is no comment-only drift between git and the database. They continue
+111-114 were written as files first and applied from those files, so unlike
+110 there is largely no comment-only drift between git and the database.
+
+**One deliberate comment-only exception, 2026-08-31.** `113` gained a
+`KEEP IN SYNC WITH` cross-reference pointing at `sourceEmbeddingText` in
+`server/knowledgeCorpus.ts`. The SQL is byte-identical — verified by stripping
+comments and diffing, zero statements differ; only 6 comment lines were added.
+Taken under the §4b rule because the file's own comment already warns that two
+callers building the embed text differently would put incompatible vectors in
+one column "and nothing would notice", while not saying that the second caller
+exists or where. A reader acting on that warning could not find the thing it
+warns about. `114` supersedes `111`/`112` for
+`beverage_ingest_knowledge_sources` and `beverage_search_knowledge`. They continue
 the shared number line described in §2; the CRM's highest file was still 104 at
 the time, checked before numbering. The baseline files in §8 were captured
 before them and therefore describe 27 tables, not the 28 that now exist —

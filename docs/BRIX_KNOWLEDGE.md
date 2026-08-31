@@ -183,10 +183,47 @@ Citric acid 30 gr · Jalapenos 5400 gr · Preservative 30 gr · Water 18000 ml.
 | `111_beverage_knowledge_retrieval.sql` | `knowledge_chunks`, ingest RPCs, `beverage_search_knowledge`, `beverage_knowledge_coverage` |
 | `112_knowledge_source_embeddings.sql` | source embeddings — fixes a real defect 111 shipped with, see below |
 | `113_backfill_source_embeddings.sql` | embed any source some other path created |
+| `114_search_excludes_bookkeeping_sources.sql` | stop coverage stubs competing with real content; let `citation_required` re-sync |
 
 All three applied to `ctyxnhcljruyciebkwef` and registered in
 `supabase_migrations.schema_migrations`. They continue the shared number line —
 CRM's highest file is still 104. See `db/baseline/DRIFT.md` §2.
+
+### The defect 112 shipped with, found by review
+
+An independent Simplifier review of the merged work found two substantive
+issues. The first was worse than the review estimated.
+
+**Coverage stubs were taking 45.8% of result slots.** `source_hits` treated
+every source with a non-empty `governed_summary` as citable. That is right for
+the 29 external sources, where the summary IS the content. It was wrong for the
+14 per-lesson and 1 course bookkeeping rows, whose summary reads *"Lesson 5 of
+the Flavour & Beverage Development course. 6 time-coded passages covering 1:03
+of 7 minutes."*
+
+Measured across 8 ordinary questions at the default limit of 6, before 114:
+
+| question | stub results |
+|---|---|
+| what does the course say about safety | **4 of 6** |
+| how long is the sugar lesson | **6 of 6** — no real content at all |
+| what is in the … course | **6 of 6** — no real content at all |
+| **overall** | **22 of 48 slots (45.8%)** |
+
+After 114: **0 of 48**, with external cite-only sources still returning
+correctly and the safety question now answering from real transcript.
+
+The predicate is semantic, not a key list: a source that **has chunks** is
+already represented in search by those chunks, so its summary is metadata; the
+course register has no chunks but is identified by the `lesson_manifest` it
+carries. The two Notion intake rows keep competing, correctly — no chunks, and
+their summaries are real statements rather than counts.
+
+**`citation_required` could never be corrected.** It was in the insert list but
+missing from `on conflict do update set`, so a corrected value in the corpus file
+would never land. `rights_status` and `operational_status` are excluded
+deliberately and documented; this one was an oversight. No wrong data resulted —
+all 44 rows are `true` — but the idempotency contract was broken for one column.
 
 ### The defect 111 shipped with
 
@@ -210,7 +247,7 @@ sources return first.
 | check | result |
 |---|---|
 | `tsc --noEmit` | clean |
-| `vitest run` | **182 passing**, 10 files (was 151/8) |
+| `vitest run` | **208 passing**, 11 files (was 151/8) |
 | ingest idempotency | second run `0 inserted, 37 updated`; third identical |
 | citation accuracy | spot-checked against `lesson_4801.en-auto.vtt` cue `00:02:15.120` — exact |
 | recipe boundary | knowledge route returns no MTL Craft measure; formula route unchanged |

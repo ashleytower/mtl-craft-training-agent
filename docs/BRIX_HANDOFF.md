@@ -14,12 +14,12 @@ Updated 2026-08-31 after the knowledge-retrieval work. Knowledge detail lives in
 
 | | |
 |---|---|
-| commit | `902d105` — merge of PR #8, *page-text lessons cited by page* |
-| tests | **201 passing**, 11 files |
+| commit | see `git log` — PR #9, *Simplifier findings fixed* |
+| tests | **208 passing**, 11 files |
 | typecheck | `tsc --noEmit` clean |
 | build | `npm run build` clean |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
-| beverage migrations | 110-113 in `db/migrations/`, all applied and registered |
+| beverage migrations | 110-114 in `db/migrations/`, all applied and registered |
 
 Recent merges: #8 `902d105` page-text lessons · #7 `0379dd4` cited knowledge
 corpus · #5 `b30712e` CRM-backed cocktail measures · #4 `ef5e408` message noun
@@ -216,7 +216,31 @@ ordinary answer there, not a fault.
 
 ---
 
-### 6. Knowledge: what is left — added 2026-08-31
+### 6. Simplifier review — run, findings fixed
+
+An independent `@code-simplifier` reviewed the merged work. Two substantive
+findings, both fixed in migration 114, plus three nits all fixed:
+
+- **Coverage stubs took 45.8% of search result slots** (measured, worse than the
+  review's estimate). Two questions returned 6/6 bookkeeping and no real
+  content. Now 0%.
+- **`citation_required` could never be corrected** after first ingest — missing
+  from `on conflict do update set`.
+- CSV manifest rows are now width-validated (an unquoted comma used to shift
+  every field silently); `citation_required` is forwarded to the API instead of
+  being dead plumbing; the TS/SQL embed-text duplication is cross-referenced in
+  both files and format-pinned by a test.
+
+The review also checked and cleared: limit clamping, score normalization,
+`formatClock`, the RLS/SECURITY DEFINER boundary, and the 111-vs-112 migration
+duplication (which is the project's documented fix-forward convention working
+as intended). It found no missed reuse and no over-engineering.
+
+Note for whoever runs it next: the reviewer could not execute `vitest` because
+of the known `@rollup/rollup-darwin-x64` arch drift. Prefix with
+`PATH=/usr/local/bin:$PATH`.
+
+### 7. Knowledge: what is left — added 2026-08-31
 
 Detail in `docs/BRIX_KNOWLEDGE.md`. The short version:
 
@@ -235,7 +259,7 @@ Detail in `docs/BRIX_KNOWLEDGE.md`. The short version:
 - **Corpus files are not in git** (`data/knowledge/`, gitignored). The database
   is the store of record; recovery steps are in `docs/BRIX_KNOWLEDGE.md`.
 
-### 7. Dependency vulnerabilities — pre-existing, not from this work
+### 8. Dependency vulnerabilities — pre-existing, not from this work
 
 `npm audit`: **57 total, 2 critical, 17 high** — `@trpc/*`, `axios`, `lodash`,
 `drizzle-orm`, `vite`, `vitest`, `postcss`, `nanoid`, `path-to-regexp` and
@@ -244,7 +268,7 @@ knowledge work added **zero** runtime dependencies, so none of these are new.
 Not fixed here because it is a dependency-upgrade project of its own, and doing
 it inside a knowledge-retrieval change would bury it. Worth scheduling.
 
-### 8. The exposed service-account key — resolved, with residue
+### 9. The exposed service-account key — resolved, with residue
 
 Verified genuinely active, then disabled (reversible) rather than deleted;
 replacement verified against the live Inventory Database sheet. Full account in
