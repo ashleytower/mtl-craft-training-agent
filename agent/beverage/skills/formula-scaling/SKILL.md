@@ -1,9 +1,10 @@
 ---
 name: formula-scaling
-description: "Use when asked to scale a syrup or cocktail formula, batch a recipe up or down, work out quantities for a target yield, or figure out what can be made from the amount of an ingredient on hand. Reads approved formulas from the governed beverage schema."
+description: "Use when asked to scale a syrup or cocktail formula, batch a recipe up or down, work out quantities for a target yield, or figure out what can be made from the amount of an ingredient on hand. Also use for technique and theory questions — emulsions, acids, water activity, solubility, extraction, preservation, clear ice, flavour dosing in ppm — which are answered from a cited knowledge corpus. Reads approved formulas from the governed beverage schema; recipe quantities always come from the formula, never from the corpus."
 metadata:
-  version: "1.0.0"
+  version: "1.1.0"
   created_from_session: "2026-08-29 beverage intelligence rebuild"
+  updated_from_session: "2026-08-31 Manus course corpus recovery and retrieval"
 ---
 
 # Formula Scaling
@@ -17,9 +18,18 @@ Scale an **approved** MTL Craft formula exactly, using the beverage service.
 - "Double the blood orange cordial."
 - "What can I make with what's left?"
 - "What formulas do we have approved?"
+- "Why did my emulsion separate?" → `knowledge`
+- "What order do I add acid in?" → `knowledge`
+- "How do I make clear ice?" → `knowledge`
+- "What does the course say about water activity?" → `knowledge`
 
 Do not use this skill to change a recipe, approve a formula, create a draft,
 update inventory, or price a batch. None of those have a route here.
+
+**A question about a house recipe is never a `knowledge` question.** "How much
+sugar is in our jalapeño syrup" is `list`, even though the corpus has passages
+about sugar that read like an answer. Course material explains decisions; it
+never supplies an MTL Craft measure.
 
 ## Never do the arithmetic yourself
 
@@ -82,15 +92,68 @@ scale it.
 reason it withholds quantities: an unapproved method is no safer to follow than
 an unapproved number.
 
+## Technique and theory: `knowledge`
+
+`knowledge --query "<a plain-language question>"` searches the governed corpus
+and returns passages with citations. Optional `--limit` (default 6, max 25).
+
+What is actually in it, measured:
+
+- **158 time-coded passages** from 12 lessons of the Art of Drink "Flavour &
+  Beverage Development" course Ashley is enrolled in. These are `quotable` —
+  the text is the real transcript and you may read it out, attributed.
+- **29 cite-only sources**: Kevin Kos, Jeffrey Morgenthaler's calculators,
+  clear-ice methods, two FDA references (water activity, acidified foods),
+  Serious Eats, and the two Notion intake registers. For these, `text` is a
+  governed summary and there is **no fuller text behind it**. Cite it, relay the
+  summary, link it — do not elaborate as if you had read the original.
+
+Each result carries:
+
+- `citation` — already composed. **Use it exactly as given.** Do not round a
+  timestamp, do not restyle it, do not attach it to a claim it did not support.
+- `quotable` — `true` for course transcript, `false` for summary-only.
+- `authority_tier` — `tier_b_authorized_course` is the course; `tier_c_*` is an
+  outside practitioner; `tier_a_internal` is an MTL Craft intake register.
+- `review_status` — every row is `pending_review` or `reference_only` today.
+  Nothing in this corpus is an approved control. Say so when it matters.
+
+The response also carries `boundary`, the same sentence every time: this
+material must never alter a formula, approve an ingredient, authorise a
+shelf-life claim, determine a preservation plan, or release a batch.
+
+`search_mode` tells you how the search actually ran. `hybrid` means meaning and
+wording both counted. `text_only` means the embedding service was down and only
+wording counted — results are narrower, so if they look thin, say the search ran
+in text-only mode rather than concluding the corpus is empty.
+
+**When it returns nothing**, say the corpus has nothing on that topic. Do not
+answer from general bartending knowledge, and never present your own knowledge
+as MTL Craft practice or as course content.
+
+## `coverage` — what is and is not in the corpus
+
+`coverage` takes no arguments. It returns every source with its chunk count, and
+the course's full 39-item manifest with an `ingested` flag per lesson.
+
+**12 of the course's 39 items have captions. 27 do not** — they were never
+collected, not hidden. That includes What is Flavour?, Terpenes, Essences,
+Extracts, Tincture, Mineral Salts, Bitterness, Equipment and Ingredients, and
+all four quizzes. If someone asks about one of those, run `coverage` and tell
+them the lesson exists in the course but was never collected. Do not guess at
+its content from the lesson title.
+
+Run `coverage` rather than reciting that list — the moment someone collects
+lesson 13, this paragraph is stale and the tool is not.
+
 ## What this agent does NOT know
 
-You have formulas, method where someone recorded it, and arithmetic. You do not
-have:
-- **technique or theory** — extraction, preservation, water activity, clear ice
-  and similar are not in this system. Say so; do not answer from general
-  knowledge and do not present it as MTL Craft practice.
+You have formulas, method where someone recorded it, arithmetic, and the cited
+corpus above. You do not have:
 - **cocktail specs** — the cocktail catalogue lives elsewhere. Only approved
   beverage formulas are yours.
+- **anything the corpus does not cover.** A `knowledge` search that comes back
+  empty is a complete answer. Say it is not in the corpus.
 
 ## Procedure
 
@@ -99,6 +162,15 @@ profile environment.
 
 ```bash
 python3 skills/beverage/formula-scaling/scripts/beverage.py list
+```
+
+```bash
+# technique and theory, with citations
+python3 skills/beverage/formula-scaling/scripts/beverage.py knowledge \
+  --query "why did my emulsion separate"
+
+# what the corpus holds, and which course lessons were never collected
+python3 skills/beverage/formula-scaling/scripts/beverage.py coverage
 ```
 
 ```bash

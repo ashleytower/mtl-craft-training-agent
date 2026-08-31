@@ -30,7 +30,7 @@ Brix runs from the Hermes profile at `~/.hermes/profiles/beverage/` — **not fr
 this repository**. `agent/beverage/` is a committed mirror, kept in sync by hand.
 Telegram: https://t.me/Brix_recipe_bot
 
-Four tools, backed by three HTTP routes in `server/hermesRoutes.ts`:
+Six tools, backed by five HTTP routes in `server/hermesRoutes.ts`:
 
 | tool | route | what it does |
 |---|---|---|
@@ -38,6 +38,10 @@ Four tools, backed by three HTTP routes in `server/hermesRoutes.ts`:
 | `drafts` | `/api/hermes/drafts` | unapproved drafts by name — **never quantities** |
 | `scale` | `/api/hermes/scale` | exact rational scaling; also returns the method |
 | `method` | `/api/hermes/formulas` | how an approved formula is made |
+| `knowledge` | `/api/hermes/knowledge` | cited technique and theory — **never a measure** |
+| `coverage` | `/api/hermes/knowledge/coverage` | what the corpus holds, and which lessons are missing |
+
+The last two arrived 2026-08-31; see `docs/BRIX_KNOWLEDGE.md`.
 
 Guarantees that hold today:
 
@@ -90,7 +94,25 @@ it, do not reconcile CRM against Notion, do not overwrite CRM recipes from Notio
 
 ## Remaining gaps
 
-### 1. Brix cannot retrieve any knowledge — this is the next priority
+### 1. Brix cannot retrieve any knowledge — CLOSED 2026-08-31
+
+**Superseded by `docs/BRIX_KNOWLEDGE.md`. Read that instead of this section.**
+
+Manus's course work was found, not missing: the share is still live and its
+sandbox files survive. The session had simply run out of credits at step 2 of 4
+before it could load anything. Recovered and ingested — 42 knowledge sources and
+158 time-coded course passages, all embedded, reachable through a fifth tool
+(`knowledge`) and a sixth (`coverage`). Every answer carries a citation composed
+by the service. Nothing is approved: all 42 rows remain `pending_review` or
+`reference_only`.
+
+12 of the course's 39 items have captions; the other 27 were never collected.
+Run `coverage` for the current split rather than trusting any prose.
+
+The four findings below were accurate when written and are kept as the record of
+what was true before that work.
+
+#### The original finding (2026-08-31, now historical)
 
 Ask Brix how to make something it has not been given, or anything about
 technique, and it correctly says it does not know. Four separate reasons, all

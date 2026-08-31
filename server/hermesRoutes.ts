@@ -11,6 +11,7 @@ import type { Express, Request, Response } from "express";
 import { hermesIdentityFromRequest } from "./_core/hermesService";
 import * as beverage from "./beverageClient";
 import { scaleFormula, type NormalizedFormula } from "./beverageScaling";
+import { embedToLiteral } from "./knowledgeEmbedding";
 import { methodForAgent, type StoredMethod } from "@shared/method";
 
 type ApprovedFormula = {
@@ -55,6 +56,38 @@ function toNormalized(formula: ApprovedFormula): NormalizedFormula {
       unit: c.unit,
     })),
   };
+}
+
+/**
+ * The citation, composed here rather than by the agent.
+ *
+ * A model asked to "cite the lesson and timestamp" will mostly do it and
+ * occasionally invent a plausible one, and a fabricated timestamp on a real
+ * lesson is worse than no citation at all — it looks checkable and isn't. So
+ * the string is built from the stored locator and handed over finished.
+ */
+function citationFor(result: beverage.KnowledgeResult): string {
+  const locator = result.locator ?? {};
+  const url = typeof locator.source_url === "string" ? locator.source_url : null;
+
+  if (result.kind === "chunk") {
+    const lessonNumber = locator.lesson_number;
+    const lessonTitle = locator.lesson_title;
+    const timestamp = locator.timestamp;
+    const course = locator.course_title ?? "Art of Drink course";
+    const lesson =
+      lessonNumber && lessonTitle
+        ? `lesson ${lessonNumber} "${lessonTitle}"`
+        : (lessonTitle ?? result.source_title);
+    return [
+      `${course}, ${lesson}`,
+      timestamp ? ` at ${timestamp}` : "",
+      url ? ` — ${url}` : "",
+    ].join("");
+  }
+
+  const publisher = result.publisher ? `${result.publisher}, ` : "";
+  return `${publisher}"${result.source_title}"${url ? ` — ${url}` : ""}`;
 }
 
 export function registerHermesRoutes(app: Express) {
@@ -134,6 +167,102 @@ export function registerHermesRoutes(app: Express) {
     } catch (error) {
       res.status(502).json({
         error: error instanceof Error ? error.message : "lookup failed",
+      });
+    }
+  });
+
+  /**
+   * Search the governed knowledge corpus.
+   *
+   * This is the only route that answers a technique question, and it answers it
+   * with somebody else's words plus a citation — never with a formula. Two
+   * result kinds come back and the difference matters:
+   *
+   *   quotable: true   course material we hold in full. `body` is the actual
+   *                    transcript and may be read out, attributed.
+   *   quotable: false  a public source we may only cite. `body` is a governed
+   *                    summary someone already wrote; there is no fuller text
+   *                    behind it to go and find.
+   *
+   * `search_mode` reports whether the embedding service was reachable. A
+   * text-only answer is a real answer, just a narrower one, and saying so beats
+   * a silent downgrade that reads as a thin corpus.
+   */
+  app.get("/api/hermes/knowledge", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+
+    const query = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    if (!query) {
+      res.status(400).json({ error: "q is required" });
+      return;
+    }
+    const limit = Number.parseInt(String(req.query.limit ?? "6"), 10);
+
+    try {
+      // Null when the local embedding service is down; the RPC then ranks by
+      // full text alone and says so in `search_mode`.
+      const embedding = await embedToLiteral(query);
+      const found = await beverage.searchKnowledge(identity, {
+        query,
+        embedding,
+        limit: Number.isNaN(limit) ? 6 : limit,
+      });
+
+      res.json({
+        query: found.query,
+        search_mode: found.search_mode,
+        count: found.count,
+        boundary: found.boundary,
+        results: found.results.map(result => ({
+          citation: citationFor(result),
+          quotable: result.kind === "chunk",
+          authority_tier: result.authority_tier,
+          review_status: result.review_status,
+          operational_status: result.operational_status,
+          source_key: result.source_key,
+          text: result.body,
+          locator: result.locator,
+        })),
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : "knowledge search failed",
+      });
+    }
+  });
+
+  /**
+   * What the corpus holds, per source and per course lesson.
+   *
+   * 12 of the course's 39 items have captions. Without this route the agent
+   * would have to take "the rest were never collected" on faith from a prompt,
+   * and a prompt cannot know when someone collects lesson 13.
+   */
+  app.get("/api/hermes/knowledge/coverage", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+
+    try {
+      const coverage = await beverage.knowledgeCoverage(identity);
+      const ingested = coverage.course_lessons.filter(l => l.ingested);
+      res.json({
+        sources: coverage.sources,
+        course: {
+          items_total: coverage.course_lessons.length,
+          items_ingested: ingested.length,
+          lessons: coverage.course_lessons,
+        },
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : "coverage lookup failed",
       });
     }
   });
