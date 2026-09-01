@@ -15,7 +15,7 @@ Updated 2026-09-01 after the page-text merge. Knowledge detail lives in
 | | |
 |---|---|
 | commit | see `git log` — PR #9, *Simplifier findings fixed* |
-| tests | **272 passing**, 14 files |
+| tests | **288 passing**, 15 files |
 | typecheck | `tsc --noEmit` clean |
 | build | `npm run build` clean |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
@@ -31,9 +31,9 @@ agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
 | | |
 |---|---|
 | `beverage.knowledge_sources` | **71** — 38 `pending_review`, 32 `reference_only`, 1 `inspiration_only`; **none approved** |
-| `beverage.knowledge_chunks` | **463** — 336 caption + 127 page-text, all embedded |
-| course CONTENT coverage | **35 of 39** — 23 with a clock + 12 page-text-only |
-| lessons holding page text | **24** — 12 page-only + **12 mixed** (both kinds under one source) |
+| `beverage.knowledge_chunks` | **513** — 386 time-coded (336 publisher captions + **50 local transcript**) + 127 page-text, all embedded |
+| course CONTENT coverage | **35 of 39** — 30 with a clock + 5 page-text-only |
+| lessons holding page text | **24** — 5 page-only + **19 mixed** (both kinds under one source) |
 | course register-only | **4** — the quizzes; no knowledge to hold, none fabricated |
 | course NOT COLLECTED | **0** |
 | approved formulas | still **1** (`Jalapeno v1`) — unchanged, and a human step |
@@ -274,11 +274,15 @@ Detail in `docs/BRIX_KNOWLEDGE.md`. The short version:
   library (177015) serves an embed containing no `.vtt` reference of any kind,
   where library 4056's embeds do. This is a source limitation, not a
   collection gap.
-- **Their audio is collected and duration-verified; the transcription run is
-  blocked on machine resources.** All 7 lessons' audio was pulled from the
-  enrolled session and every duration matches the manifest (60.6 minutes
-  total). Transcription itself could not run: see "Local transcription" under
-  Traps.
+- **All 7 are transcribed and ingested** (2026-09-01). 546 cues over 60.6
+  minutes, 50 chunks, every transcript inside the media guard. Each of the
+  seven now holds BOTH its transcript and its page text under one source row —
+  `content_kind: mixed` — so a lesson can be quoted with a clock or cited by
+  paragraph, and the citation says which.
+- **Every citation from a transcript carries its provenance.** `citationFor`
+  appends *(local transcript, unreviewed machine output)*, so a Whisper guess
+  never reads as the publisher's own caption track. `chunks.local_transcript`
+  in the coverage response counts them: 50 of 386 time-coded chunks.
 - **`Supplier.pdf`** is registered and **not** ingested — the host returns 403 to
   server-side fetch. The **USDA** publication is registered and not summarised —
   it is a 26-page scan with no text layer. The four other linked PDFs carry
@@ -324,16 +328,15 @@ never-expiring key (`fa1c0c3c…`, 2025-06-26) is active and referenced nowhere.
   deliberately no `timestamp` key at all — do not add one, and do not let the
   agent infer one. This now holds for 24 lessons, 12 of which also carry
   time-coded passages under the same source row.
-- **Local transcription needs a quiet machine, and this one is not.** On
-  2026-09-01, with load average 40-62 and 0.3-0.8% idle CPU, Whisper could not
-  transcribe 170 seconds of audio in 420 seconds. The binding constraint is CPU
-  starvation, not model size: `tiny.en` (39 MB) also timed out at 300s on the
-  same clip, which the same machine had done in 2:47 the night before. The
-  resident consumers were `chroma-mcp` (claude-mem's vector store, ~1.2 GB,
-  100-140% CPU, and **it respawns within seconds of being killed** because
-  `uv tool uvx` supervises it), Google Drive, VS Code, ChatGPT/Codex and Ollama.
-  Check `top -l 1 -n 0 | grep -E "CPU usage|PhysMem"` for real idle CPU before
-  starting a run.
+- **Local transcription needs real idle CPU, and Docker will take all of it.**
+  Docker Desktop's VM runs `--cpus 10 --memoryMiB 8092` — every logical core and
+  half the RAM — and colima can be holding a second VM beside it. With both up,
+  Whisper could not transcribe 170 seconds of audio in 420; `tiny.en` (39 MB)
+  timed out too, which proves CPU starvation rather than model size. Stopping
+  the qa-env containers and colima took it to 0.5-1.1x realtime. Check
+  `top -l 1 -n 0 | grep -E "CPU usage|PhysMem"` first: the tell is idle near 0%
+  with 60-75% in `sys`. `chroma-mcp` (~1.2 GB) **respawns within seconds of
+  being killed** because `uv tool uvx` supervises it, so killing it is not a fix.
 - **Do not send this audio to a cloud transcription service.** It is
   `authorized_private` course material under Ashley's enrolment. Local-only is
   a rights constraint, not a preference — an offline machine is the fix, not a

@@ -44,7 +44,7 @@ ingest.
 
 ```
 beverage.knowledge_sources   71 rows   (5 pre-existing + 1 course + 35 lessons + 24 external + 6 linked docs)
-beverage.knowledge_chunks   463 rows   336 caption + 127 page-text, all embedded and full-text indexed
+beverage.knowledge_chunks   513 rows   386 time-coded (336 captions + 50 local transcript) + 127 page-text, all embedded
 ```
 
 | tier | rows | what |
@@ -68,7 +68,7 @@ reported separately by `beverage_knowledge_coverage`:
 | | |
 |---|---|
 | manifest items | **39** |
-| **with content** | **35** — 11 captions only, 12 **mixed**, 12 page-text only |
+| **with content** | **35** — 11 captions only, 19 **mixed**, 5 page-text only |
 | lessons holding page text | **24** — the honest total; `items_with_page_text` |
 | register-only | **4** — the four quizzes |
 | **not collected** | **0** |
@@ -225,51 +225,120 @@ tell was a surviving `embed_5446.html` — the fetch script deletes that marker
 only on clean completion — and the re-fetch produced the correct 319s. That
 marker convention is why the truncation did not reach the corpus.
 
-### Transcription itself is blocked — machine, not method
+### Transcription: done, and what it cost to get there
 
-Whisper could not run at usable speed on 2026-09-01. Measured, not assumed:
+All 7 transcribed 2026-09-01 with `small.en`, primed with the course glossary.
+**546 cues over 60.6 minutes, 50 chunks.**
+
+| lesson | cues | transcript ends | media | overshoot | coverage |
+|---|---|---|---|---|---|
+| 4776 Tincture | 25 | 170.00s | 170.13s | −0.13s | 99.9% |
+| 4906 What is Flavour? | 214 | 1414.32s | 1406.61s | **+7.71s** | 100.5% |
+| 5256 Ageing Flavours | 66 | 440.14s | 440.28s | −0.14s | 100.0% |
+| 5446 Science of Taste | 50 | 323.92s | 319.02s | **+4.90s** | 101.5% |
+| 5551 Documentation | 38 | 231.52s | 232.02s | −0.50s | 99.8% |
+| 6066 Solvents for Flavours | 91 | 621.32s | 621.95s | −0.63s | 99.9% |
+| 6381 Terpenes | 62 | 447.20s | 447.49s | −0.29s | 99.9% |
+
+**Two transcripts legitimately end after their audio does.** Whisper decodes in
+30-second windows and pads the last one with silence, so a correct transcript
+can overshoot. An earlier one-second tolerance would have rejected lessons 10
+and 12 — 264 good cues. `assertTranscriptCoversMedia` now allows one decode
+window, which is the principled ceiling because the overshoot can only come
+from that padded window; a mismatched file or runaway clock is wrong by
+minutes. It also refuses a transcript covering under half its recording, which
+is what transcription dying partway looks like.
+
+#### The machine, not the method, was the blocker
+
+Whisper could not run at all on 2026-09-01 until Docker was stopped. Measured:
 
 ```
-small.en, 170s audio, 2 concurrent passes   >20 min, no output   (load 27)
-small.en, 170s audio, single pass           >35 min, no output   (load 48)
-small.en, 170s audio, after freeing 1.2 GB   420s timeout        (load 30)
-tiny.en   170s audio (39 MB model)           300s timeout        (load 62)
-same clip, same machine, previous night      2:47 complete
+small.en, 170s clip, two passes in parallel   >20 min, no output   load 27
+small.en, 170s clip, single pass              >35 min, no output   load 48
+small.en, 170s clip, greedy decoding           400s timeout        load 45
+tiny.en   170s clip (39 MB model)              300s timeout        load 62
+--- Docker Desktop VM and colima stopped ---
+small.en, 170s clip                            489s complete
+small.en, 1406s lesson                        1516s complete       (1.08x)
+small.en, 622s lesson                          329s complete       (0.53x)
 ```
 
-`tiny.en` failing is the decisive datum: **the constraint is CPU starvation, not
-model memory.** Idle CPU sat at 0.3-0.8% with 66-74% in the kernel. `chroma-mcp`
-(claude-mem's vector store) held ~1.2 GB at 100-140% CPU and **respawns within
-seconds of being killed**, because `uv tool uvx` supervises it.
+`tiny.en` timing out is the decisive datum: a 39 MB model cannot be
+memory-bound, so the constraint was **CPU starvation**. Docker Desktop's VM was
+running `--cpus 10 --memoryMiB 8092` — every logical core and half the RAM —
+with colima holding a second VM beside it. Idle CPU sat at 0.3-1.6%. After
+stopping the 6 `supabase_*_qa-env` containers and colima, throughput went from
+never-finishing to **0.5-1.1x realtime**.
 
-The pipeline is complete and tested — `server/knowledgeTranscripts.ts`, the
-merge in `scripts/ingest-knowledge.ts`, and 24 tests. Finishing is one command
-on a quiet machine:
+Diagnose with `top -l 1 -n 0 | grep -E "CPU usage|PhysMem"` before a run; the
+tell is idle near 0% with 60-75% in `sys`. Note `chroma-mcp` (claude-mem's
+vector store, ~1.2 GB) respawns within seconds of being killed because
+`uv tool uvx` supervises it — killing it is not a fix.
 
-```
-scratchpad/transcribe.sh                       # writes pass_primed/lesson_<id>.vtt
-cp pass_primed/*.vtt data/knowledge/local_transcripts/
-scratchpad/verify_terms.py                     # unprimed re-check of every biased term
-PATH=/usr/local/bin:$PATH npx tsx scripts/ingest-knowledge.ts
-```
-
-The audio must **not** be sent to a cloud transcription service: it is
+The audio must **not** go to a cloud transcription service: it is
 `authorized_private` material under Ashley's enrolment.
 
 ### How the glossary prompt is kept honest
 
 Whisper is primed with an `--initial_prompt` built from the course's own Jargon
 File (lesson 5136) plus domain terms grepped out of the saved lesson pages —
-every biased term is attested in real course material, none invented. The pilot
-showed why it is needed: unprimed `small.en` rendered **gentian** as "genshin",
-and *gentian* appears twice in lesson 6066's own page text.
+every biased term is attested in real course material, none invented, and a
+test pins that. The pilot showed why it is needed: unprimed `small.en` rendered
+**gentian** as "genshin", and gentian appears in lesson 6066's own page.
 
-Bias can also put a word where nobody said it, so `verify_terms.py` re-cuts the
-audio around **every** occurrence of a biased term and re-transcribes that window
-with **no prompt**. A term the unprimed decoder also produces is confirmed by the
-audio; one it does not is recorded `UNCONFIRMED` rather than silently kept — and
-never silently "corrected" from the glossary. It also flags prompt echo, where
-Whisper recites its own instructions during silence.
+Bias can also put a word where nobody said one, so
+`scripts/verify-transcript-terms.py` checks every occurrence twice.
+
+**Result, 2026-09-01 — all 57 occurrences checked, not a sample:**
+
+```
+biased-term occurrences across 7 transcripts:   57
+distinct terms used:                            10
+attested in the course's own written material:  10/10
+prompt echoes:                                   0
+
+audio re-checked against UNPRIMED decoding:     57 of 57
+  confirmed  decoder produced the term itself   55
+  variant    same word, different spelling       2
+  ABSENT     audio does not support it           0
+```
+
+| term | occ | term | occ |
+|---|---|---|---|
+| terpenes | 29 | gentian | 3 |
+| tincture | 6 | emulsion | 2 |
+| solvent | 5 | macerated | 1 |
+| ABV | 5 | FEMA | 1 |
+| limonene | 4 | shelf stable | 1 |
+
+**Zero `absent`.** No term in any transcript lacks support in the recording.
+
+#### Why three verdicts and not two
+
+The two `variant` rows are both `gentian ~ genshin` in lesson 26, and they are
+the reason a pass/fail check is not good enough. Unprimed Whisper writes
+"genshin"; an exact-match test calls that a failure and files the prime's most
+valuable correction beside a genuine fabrication, where nobody can tell them
+apart.
+
+The third gentian occurrence settles it. At 97.04s the **unprimed** decoder
+produced "gentian" correctly on its own. So the speaker does say the word, the
+unprimed model gets it right sometimes and wrong others, and the prime only
+made the spelling consistent. That is the bias doing exactly what it is allowed
+to do — and it is evidence in `term_verification.json`, not an assertion.
+
+Only `absent` — nothing in the unprimed audio resembling the term — is evidence
+of a possible insertion, and there are none. The similarity threshold (0.65)
+was set from measured pairs: gentian/genshin 0.71 and terpenes/terpines 0.88
+against tincture/store 0.29 and gentian/stand 0.17. Real variants cluster at
+0.7-0.9, unrelated words below 0.4; 0.65 sits in the gap.
+
+A cue where the decoder recites its own glossary is refused outright by the
+ingest rather than dropped, because such a cue would otherwise enter the corpus
+as a timestamped quotable passage and then pass every term check — the words in
+a recited glossary being, by construction, the exact vocabulary the checker
+treats as attested.
 
 ## Linked course documents — citations, not text
 
