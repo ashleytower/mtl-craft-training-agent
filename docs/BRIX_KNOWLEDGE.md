@@ -25,7 +25,7 @@ left to load it. Nothing was lost and nothing needed rebuilding.
 
 | file | size | what it is |
 |---|---|---|
-| `art_of_drink_knowledge_chunks.jsonl` | 232 KB | **158 time-coded citation records**, 12 lessons |
+| `art_of_drink_knowledge_chunks.jsonl` | 232 KB | **158 time-coded citation records**, 12 lessons — *as recovered; the file now holds 336 records across 23 lessons after the 2026-08-31 collection* |
 | `art_of_drink_lesson_manifest.csv` | 5 KB | the full 39-item course curriculum |
 | `Art_of_Drink_Ingestion_Batch_1.zip` | 599 KB | 13 raw `.en-auto.vtt` tracks, 14 lesson pages, `downloadable_assets.tsv`, and the two scripts that produced the corpus |
 | `Public_External_Knowledge_Records.jsonl` | 28 KB | **24 governed summaries** of public practitioner sources |
@@ -49,7 +49,7 @@ beverage.knowledge_chunks   380 rows   336 caption + 44 page-text, all embedded 
 
 | tier | rows | what |
 |---|---|---|
-| `tier_b_authorized_course` | 15 | the course, and one source per collected lesson |
+| `tier_b_authorized_course` | 36 | the course, and one source per collected lesson |
 | `tier_c_external_practitioner` | 26 | Kevin Kos, Morgenthaler, clear ice, FDA, Serious Eats, Notion registers |
 | `tier_d_inspiration` | 1 | The Alchemist — recorded, deliberately not ingested |
 
@@ -187,7 +187,7 @@ Two things worth keeping for next time:
 
 ## Still open
 
-1. **Nothing is approved.** All 44 sources are `pending_review` or
+1. **Nothing is approved.** All 71 sources are `pending_review` or
    `reference_only`. That is correct and deliberate — promoting one is a human
    decision in the console, and no route here can do it.
 2. **4 course items have no content, and all four are quizzes** — correctly

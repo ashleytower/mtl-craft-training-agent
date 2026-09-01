@@ -290,7 +290,12 @@ export type KnowledgeCoverage = {
       duration_or_marker: string | null;
       chunks: number;
       content_kind: CourseContentKind;
-      /** Kept for older callers. Means "represented", not "has content". */
+      /**
+       * MANIFEST-level: "this row has at least one chunk". It is NOT the
+       * content answer — a page-text lesson and a fully captioned one both
+       * report true. Nothing in this repo or in the agent's own client reads
+       * it; it is kept only because the RPC returns it. Use `content_kind`.
+       */
       ingested: boolean;
     }>;
   };

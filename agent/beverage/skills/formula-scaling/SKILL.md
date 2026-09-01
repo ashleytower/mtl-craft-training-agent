@@ -159,7 +159,9 @@ conflate them:
 - `items_not_collected` — the genuine gap.
 
 Each lesson carries `content_kind`: `captions`, `page_text`, `register_only` or
-`none`.
+`none`. **Read `content_kind`, not `ingested`** — `ingested` only means the row
+has some chunk, and is true for a page-text lesson and a fully captioned one
+alike.
 
 **Never say the course is complete because every manifest row exists.** If asked
 how much of the course is covered, run `coverage` and give
