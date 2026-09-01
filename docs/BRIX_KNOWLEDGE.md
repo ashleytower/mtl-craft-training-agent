@@ -68,7 +68,8 @@ reported separately by `beverage_knowledge_coverage`:
 | | |
 |---|---|
 | manifest items | **39** |
-| **with content** | **35** — 23 captions + 12 page-text (12 of the captioned lessons also carry page text) |
+| **with content** | **35** — 11 captions only, 12 **mixed**, 12 page-text only |
+| lessons holding page text | **24** — the honest total; `items_with_page_text` |
 | register-only | **4** — the four quizzes |
 | **not collected** | **0** |
 
@@ -101,7 +102,17 @@ Summary, Jargon File, Suppliers, Flavour Starter Kit. Page-text chunks went
 
 Five of those ten have **no video on the page at all** — Safety Summary, HLB,
 Flavour Starter Kit, Jargon File and Suppliers returned zero `<iframe>` and zero
-`<video>` elements, so their written body is the whole lesson.
+`<video>` elements, so their written body is the whole lesson. Two more
+(Solvents for Flavours, Documentation) were added to the page-text set on
+2026-09-01, bringing it to 12; see the per-lesson evidence table below.
+
+**Page text is no longer a fallback (2026-09-01).** The ingest used to skip a
+lesson's written page whenever that lesson had captions. It no longer does, so
+the 12 lessons that always had captions gained the pages already collected for
+them — 83 more passages, taking page-text chunks 44 → **127** and the corpus to
+**463**. Those 12 lessons now hold both kinds under one source row and are
+classified `mixed`; a lesson's page passages are still cited by section and
+paragraph, never by the clock its transcript carries.
 
 #### The method was verified against known-good data before it was trusted
 
@@ -147,6 +158,16 @@ mismatches:                                                 0
 And in the database: **0** page-text chunks carry a `timestamp` or
 `start_seconds` key, **0** caption chunks are missing one, **0** chunks or
 sources are unembedded, **0** duplicate chunk keys, **0** approved sources.
+
+#### A clock does not mean the publisher said it
+
+Two things now carry a timestamp: the publisher's own caption track, and a
+transcript this machine produced. They are not the same evidence, and
+`citationFor` marks the difference in the citation string itself —
+`(local transcript, unreviewed machine output)` — not only in the source row's
+summary. The summary is written once per lesson at ingest; the citation is what
+a reader sees against an actual quote, so the disclaimer has to be there too.
+`chunks.local_transcript` in the coverage response counts them.
 
 ## The captionless lessons: what has video, and what does not
 

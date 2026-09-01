@@ -9,17 +9,17 @@ Manus design/context: https://manus.im/share/5BNfPHDbcgJbvdHmeTZo9E
 
 ## Verified state
 
-Updated 2026-08-31 after the knowledge-retrieval work. Knowledge detail lives in
+Updated 2026-09-01 after the page-text merge. Knowledge detail lives in
 **`docs/BRIX_KNOWLEDGE.md`**; this file stays the one-page picture.
 
 | | |
 |---|---|
 | commit | see `git log` — PR #9, *Simplifier findings fixed* |
-| tests | **226 passing**, 12 files |
+| tests | **272 passing**, 14 files |
 | typecheck | `tsc --noEmit` clean |
 | build | `npm run build` clean |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
-| beverage migrations | 110-114 in `db/migrations/`, all applied and registered |
+| beverage migrations | 110-118 in `db/migrations/`, all applied; **118** is the live `beverage_knowledge_coverage` |
 
 Recent merges: #8 `902d105` page-text lessons · #7 `0379dd4` cited knowledge
 corpus · #5 `b30712e` CRM-backed cocktail measures · #4 `ef5e408` message noun
@@ -32,7 +32,8 @@ agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
 |---|---|
 | `beverage.knowledge_sources` | **71** — 38 `pending_review`, 32 `reference_only`, 1 `inspiration_only`; **none approved** |
 | `beverage.knowledge_chunks` | **463** — 336 caption + 127 page-text, all embedded |
-| course CONTENT coverage | **35 of 39** — 23 captions + 12 page-text |
+| course CONTENT coverage | **35 of 39** — 23 with a clock + 12 page-text-only |
+| lessons holding page text | **24** — 12 page-only + **12 mixed** (both kinds under one source) |
 | course register-only | **4** — the quizzes; no knowledge to hold, none fabricated |
 | course NOT COLLECTED | **0** |
 | approved formulas | still **1** (`Jalapeno v1`) — unchanged, and a human step |
@@ -116,14 +117,15 @@ it, do not reconcile CRM against Notion, do not overwrite CRM recipes from Notio
 Manus's course work was found, not missing: the share is still live and its
 sandbox files survive. The session had simply run out of credits at step 2 of 4
 before it could load anything. Recovered and ingested — now 71 knowledge sources and
-380 course passages (336 time-coded + 44 page-text), all embedded, reachable through a fifth tool
+463 course passages (336 time-coded + 127 page-text), all embedded, reachable through a fifth tool
 (`knowledge`) and a sixth (`coverage`). Every answer carries a citation composed
 by the service. Nothing is approved: all 71 rows remain `pending_review` or
 `reference_only`.
 
-23 of the course's 39 items have captions and 12 more carry page text — 35 with
-content, 0 uncollected, and the 4 quizzes stay register-only. Run `coverage` for
-the current split rather than trusting any prose.
+23 of the course's 39 items have time-coded text and 24 hold page text (12 of
+them holding both) — 35 with content, 0 uncollected, and the 4 quizzes stay
+register-only. Run `coverage` for the current split rather than trusting any
+prose.
 
 The four findings below were accurate when written and are kept as the record of
 what was true before that work.

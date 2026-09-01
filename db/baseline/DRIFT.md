@@ -125,12 +125,31 @@ Do not "fix" the missing policies. They are absent on purpose.
 
 ## 7. What this repository tracks today
 
-Updated 2026-08-31 by the knowledge-retrieval work.
+Updated 2026-09-01 by the page-text merge.
 
 | | in git | applied to the database |
 |---|---|---|
-| beverage migrations | 5 (`db/migrations/110`-`114`) | 19 |
+| beverage migrations | 9 (`db/migrations/110`-`118`) | 23 |
 | recovered for the record | 15 (`db/baseline/recovered-migrations/`) | — |
+
+**115-118, the coverage function.** All four were written as files and applied
+from them; no comment-only drift. `beverage_knowledge_coverage` is now defined
+six times across the line (111 → 112 → 115 → 116 → 117 → 118) — **118 is the
+live definition**; the earlier bodies are history. Two of those replacements
+were fixes to the one before:
+
+- `116` applied cleanly and left the function returning HTTP 502, because this
+  database rejects `DELETE` with no `WHERE` clause. DDL succeeding is not the
+  same as the function working, and only live QA caught it. `117` replaced the
+  temp table with CTEs.
+- `118` fixes a classification that had gone stale under the ingest change:
+  `bool_and(retrieval_type = 'page_text_only')` is a two-state answer, and a
+  lesson can now hold both time-coded and page passages. Twelve lessons were
+  live in that state, reporting as plain `captions` with their page passages
+  invisible to every per-item count.
+
+Numbered against the shared line in §2: the CRM's highest file was **109** when
+118 was taken, checked first.
 
 111-114 were written as files first and applied from those files, so unlike
 110 there is largely no comment-only drift between git and the database.
