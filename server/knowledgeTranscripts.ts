@@ -26,6 +26,7 @@
  * A local transcript is evidence of what was said, not a certified quote.
  */
 import type { CourseChunkRecord, LessonManifestRow } from "./knowledgeCorpus";
+import { ECHO_TERM_THRESHOLD, GLOSSARY_TERMS } from "./knowledgeGlossary";
 
 /** One `00:00.000 --> 00:08.340` cue, already stripped of markup. */
 export type TranscriptCue = {
@@ -185,6 +186,112 @@ export function transcriptChunkRecords(
 
 function round3(value: number): number {
   return Math.round(value * 1000) / 1000;
+}
+
+/**
+ * Does this cue look like the decoder reciting its own `--initial_prompt`?
+ *
+ * Transcription primes Whisper with a comma-separated glossary of course terms.
+ * Whisper is known to emit its conditioning text as though it were speech when
+ * it meets silence, and the result is catastrophic here rather than merely
+ * untidy: the glossary lands in the corpus as a passage with a real timestamp,
+ * indistinguishable from narration, and gets quoted back verbatim as something
+ * the instructor said. It would also sail through every term check, because the
+ * words in it are by construction the exact words the checker treats as
+ * attested course vocabulary.
+ *
+ * The test is deliberately narrow — the prompt's own preamble plus a long
+ * comma run. A flavour course really does say things like "lemon, lime, orange,
+ * grapefruit and yuzu", and a looser rule would throw that away. Callers REFUSE
+ * on a hit rather than dropping the cue, so a false positive costs a human
+ * glance and a false negative is what must not happen.
+ */
+export function isPromptEcho(text: string): boolean {
+  const low = text.toLowerCase();
+  const commas = low.match(/,/g)?.length ?? 0;
+
+  // The prompt's own preamble, recited from the top.
+  if (low.includes("terms:") && commas >= 5) return true;
+
+  // A recitation that resumes mid-list has no preamble to find. Whisper loops
+  // on its conditioning text, and nothing says a loop restarts at the
+  // beginning — "gentian, wormwood, percolation, macerated, tincture, solvent,
+  // emulsion, HLB" is the same fabrication wearing no identifying mark, and the
+  // preamble test alone would pass it straight into the corpus.
+  //
+  // So: a comma run carrying many DISTINCT glossary terms. Counting glossary
+  // terms rather than commas is what separates this from real speech — a
+  // flavour course does say "lemon, lime, orange, grapefruit and yuzu", and
+  // none of those is course jargon.
+  if (commas >= ECHO_TERM_THRESHOLD - 1) {
+    const distinct = new Set(
+      GLOSSARY_TERMS.filter(term =>
+        new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text)
+      ).map(term => term.toLowerCase())
+    );
+    if (distinct.size >= ECHO_TERM_THRESHOLD) return true;
+  }
+
+  return false;
+}
+
+/**
+ * Whisper's decode window. The final one is padded with silence, so a correct
+ * transcript's last timestamp can sit up to this far past the end of the audio.
+ */
+export const WHISPER_WINDOW_SECONDS = 30;
+
+/**
+ * How much of a lesson's audio a transcript must cover to count as whole.
+ *
+ * Deliberately generous: a lesson may end on a long silent outro, and rejecting
+ * a good transcript is worse than accepting a slightly short one. It is here to
+ * catch transcription that died partway — the seven collected lessons all cover
+ * 99%+ of their audio, so anything near half is broken, not merely quiet.
+ */
+export const MINIMUM_COVERAGE = 0.5;
+
+/**
+ * Check a transcript against the recording it claims to describe.
+ *
+ * Two opposite failures, both of which produce citations nobody can check:
+ *
+ * OVERSHOOT — timestamps running past the end of the audio. Some overshoot is
+ * correct: Whisper decodes in 30-second windows and pads the last one with
+ * silence, so lesson 10's final cue ends at 1414.3s against 1406.6s of media.
+ * An earlier one-second tolerance rejected that good transcript. One window is
+ * the principled ceiling because the overshoot can only come from that padded
+ * window; beyond it the transcript describes audio the file does not contain,
+ * which is what a mismatched pairing or a runaway clock looks like — and those
+ * are wrong by minutes, not seconds.
+ *
+ * TRUNCATION — transcription died partway. Nothing is fabricated, but every
+ * later citation for the lesson is simply missing, and saying nothing is how a
+ * half-read lesson gets counted as fully covered.
+ */
+export function assertTranscriptCoversMedia(
+  cues: TranscriptCue[],
+  mediaSeconds: number,
+  lessonId: string
+): void {
+  const span = transcriptSpanSeconds(cues);
+
+  if (span > mediaSeconds + WHISPER_WINDOW_SECONDS) {
+    throw new Error(
+      `Transcript for lesson ${lessonId} runs to ${span.toFixed(1)}s but its media is ` +
+        `${mediaSeconds.toFixed(1)}s — past the one-window tolerance. The transcript ` +
+        `does not match the recording; its timestamps are not citable.`
+    );
+  }
+
+  if (span < mediaSeconds * MINIMUM_COVERAGE) {
+    throw new Error(
+      `Transcript for lesson ${lessonId} covers only ${span.toFixed(1)}s of ` +
+        `${mediaSeconds.toFixed(1)}s of audio ` +
+        `(${((span / mediaSeconds) * 100).toFixed(0)}%). It looks truncated — re-run ` +
+        `the transcription for this lesson rather than ingesting a partial one.`
+    );
+  }
 }
 
 /**

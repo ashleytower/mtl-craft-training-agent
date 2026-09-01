@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertTranscriptCoversMedia,
+  isPromptEcho,
   parseVtt,
   transcriptChunkRecords,
   transcriptSpanSeconds,
@@ -205,5 +207,115 @@ describe("parseVtt clock integrity", () => {
        "00:05.000 --> 00:09.000", "two", ""].join("\n")
     );
     expect(cues.map(c => c.text)).toEqual(["one", "two"]);
+  });
+});
+
+describe("isPromptEcho", () => {
+  it("recognises the decoder reciting its own glossary", () => {
+    // Whisper emits its conditioning text as speech when it meets silence. In
+    // this corpus that lands as a timestamped, quotable passage attributed to
+    // the instructor, and it passes every term check because the words in it
+    // ARE the vocabulary the checker treats as attested.
+    expect(
+      isPromptEcho(
+        "Flavour and beverage development course. Terms: ABV, ABW, Brix, CAS, " +
+          "cloud agent, Codex Alimentarius, CO2, EtOH, FCC, FEMA, GRAS."
+      )
+    ).toBe(true);
+  });
+
+  it("leaves a genuine spoken list alone", () => {
+    // A flavour course really does enumerate ingredients. Throwing that away
+    // would delete real narration, so the test is narrow on purpose.
+    expect(
+      isPromptEcho("We use lemon, lime, orange, grapefruit, yuzu and bergamot in this one.")
+    ).toBe(false);
+  });
+
+  it("does not fire on ordinary narration that mentions terms", () => {
+    expect(isPromptEcho("Tinctures are ten parts solvent to one part herb.")).toBe(false);
+    expect(isPromptEcho("")).toBe(false);
+  });
+
+  it("needs both signals, not either one", () => {
+    // "terms:" with no list is a speaker introducing vocabulary.
+    expect(isPromptEcho("Let me define some terms: it will help later.")).toBe(false);
+    // A long comma run with no preamble is a spoken enumeration.
+    expect(isPromptEcho("a, b, c, d, e, f, g, h")).toBe(false);
+  });
+});
+
+describe("assertTranscriptCoversMedia", () => {
+  const cuesTo = (end: number) => [
+    { startSeconds: 0, endSeconds: end / 2, text: "a" },
+    { startSeconds: end / 2, endSeconds: end, text: "b" },
+  ];
+
+  it("accepts the real overshoot Whisper produces", () => {
+    // Lesson 10, measured: 214 cues ending at 1414.32s against 1406.61s of
+    // media. Whisper pads its final 30s decode window with silence, so a
+    // correct transcript can end after the audio does. A one-second tolerance
+    // rejected this good transcript.
+    expect(() => assertTranscriptCoversMedia(cuesTo(1414.32), 1406.61, "4906")).not.toThrow();
+  });
+
+  it("accepts a transcript ending exactly one window past the audio", () => {
+    expect(() => assertTranscriptCoversMedia(cuesTo(130), 100, "x")).not.toThrow();
+  });
+
+  it("refuses a transcript describing audio the file does not contain", () => {
+    // A mismatched pairing or runaway clock is wrong by minutes, not seconds.
+    expect(() => assertTranscriptCoversMedia(cuesTo(400), 100, "x")).toThrow(
+      /does not match the recording/
+    );
+  });
+
+  it("refuses a transcript that stops far short of its recording", () => {
+    // Transcription died partway. Nothing is fabricated, but every later
+    // citation for the lesson is missing and silence about it makes a half-read
+    // lesson look fully covered.
+    expect(() => assertTranscriptCoversMedia(cuesTo(100), 1000, "x")).toThrow(/truncated/);
+  });
+
+  it("reports the coverage percentage so the failure is diagnosable", () => {
+    expect(() => assertTranscriptCoversMedia(cuesTo(100), 1000, "x")).toThrow(/10%/);
+  });
+
+  it("accepts a lesson that ends on a long silent outro", () => {
+    // Generous on purpose: rejecting a good transcript is worse than accepting
+    // a slightly short one. 60% coverage is quiet, not broken.
+    expect(() => assertTranscriptCoversMedia(cuesTo(600), 1000, "x")).not.toThrow();
+  });
+});
+
+describe("isPromptEcho — recitation that resumes mid-list", () => {
+  it("catches a glossary run with no preamble to identify it", () => {
+    // Whisper loops on its conditioning text and nothing says the loop restarts
+    // at the top. Without this, such a cue enters the corpus as a timestamped
+    // quotable passage and then passes every term check — the words in a
+    // recited glossary being exactly the vocabulary the checker treats as
+    // attested.
+    expect(
+      isPromptEcho(
+        "gentian, wormwood, percolation, macerated, tincture, solvent, " +
+          "emulsion, terpenes, limonene, organoleptic"
+      )
+    ).toBe(true);
+  });
+
+  it("still leaves a genuine spoken list alone", () => {
+    // None of these is course jargon, which is what separates a real
+    // enumeration from a recited glossary.
+    expect(
+      isPromptEcho("We use lemon, lime, orange, grapefruit, yuzu, bergamot, and lime leaf.")
+    ).toBe(false);
+  });
+
+  it("does not refuse a jargon lesson that genuinely names a few terms", () => {
+    // This course teaches vocabulary. Refusing a whole lesson for saying four
+    // glossary words in a sentence would be worse than the problem.
+    expect(
+      isPromptEcho("In this section we'll cover ABV, Brix, GRAS and TTB in detail.")
+    ).toBe(false);
   });
 });

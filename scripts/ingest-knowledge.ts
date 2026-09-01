@@ -41,9 +41,10 @@ import {
   withPageTextNoted,
 } from "../server/knowledgeLessonPages";
 import {
+  assertTranscriptCoversMedia,
+  isPromptEcho,
   parseVtt,
   transcriptChunkRecords,
-  transcriptSpanSeconds,
 } from "../server/knowledgeTranscripts";
 import { courseAssetSources } from "../server/knowledgeCourseAssets";
 import { embedToLiteral, embeddingConfig } from "../server/knowledgeEmbedding";
@@ -84,10 +85,11 @@ function readCorpusFileIfPresent(name: string): string | null {
  *
  * Each `lesson_<id>.vtt` is Whisper output for that lesson's audio, and each
  * sits beside a `lesson_<id>.duration` holding the media length ffprobe
- * measured. The duration file is not bookkeeping: it is the check that a
- * transcript belongs to the recording it claims. A VTT whose last cue runs past
- * the end of its media is either transcribing different audio or carrying a
- * decoder timestamp that ran away, and either way its clocks cannot be cited.
+ * measured. The duration file is not bookkeeping: it is what lets
+ * `assertTranscriptCoversMedia` decide whether a transcript belongs to the
+ * recording it claims — running too far past the end of the audio, or stopping
+ * far short of it. A few seconds past the end is normal and expected; see that
+ * function for why.
  *
  * A lesson with no VTT is normal — most lessons have a real caption track, and
  * five have no video at all.
@@ -128,17 +130,23 @@ function loadLocalTranscripts(
       );
     }
 
-    const span = transcriptSpanSeconds(cues);
-    // One second of slack: a cue may legitimately end on the final frame, and
-    // ffprobe's container duration and the decoder's last timestamp are
-    // measured slightly differently. Anything beyond that is a real mismatch.
-    if (span > mediaSeconds + 1) {
+    // The decoder reciting its own glossary is not narration. Left alone it
+    // would enter the corpus as a timestamped, quotable passage and then pass
+    // every term check, because the words in it ARE the checker's vocabulary.
+    // Refused rather than dropped: a cue this file cannot vouch for is a human
+    // decision, not something to silently delete from a lesson.
+    const echo = cues.find(cue => isPromptEcho(cue.text));
+    if (echo) {
       throw new Error(
-        `Transcript for lesson ${lesson.lesson_id} runs to ${span.toFixed(1)}s but its ` +
-          `media is ${mediaSeconds.toFixed(1)}s. The transcript does not match the ` +
-          `recording; its timestamps are not citable.`
+        `Lesson ${lesson.lesson_id} transcript contains what looks like the decoder ` +
+          `reciting its own initial_prompt at ${echo.startSeconds}s: ` +
+          `"${echo.text.slice(0, 120)}". Refusing to ingest it as narration. ` +
+          `Check the audio at that timestamp, then delete the cue or the file.`
       );
     }
+
+    // Overshoot and truncation, both checked in one tested place.
+    assertTranscriptCoversMedia(cues, mediaSeconds, lesson.lesson_id);
 
     records.push(
       ...transcriptChunkRecords(cues, lesson, {
