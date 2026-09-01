@@ -222,6 +222,66 @@ export function pageChunkPayloads(
 }
 
 /**
+ * Put a lesson's page passages after its time-coded ones, under one source.
+ *
+ * The ingest used to skip a lesson's page entirely once that lesson had
+ * captions. That was survivable only while the two sets never overlapped; the
+ * moment a page-text lesson gained a transcript it would have silently dropped
+ * every page passage already ingested and cited for it.
+ *
+ * Ordinals are reassigned so they stay unique and dense within the source.
+ * Chunk KEYS are deliberately untouched — `-p001` stays `-p001` — because the
+ * upsert matches on `(source_id, chunk_key)`. Renumbering keys instead would
+ * orphan every previously ingested page row under a key nothing writes again,
+ * leaving them searchable, uncounted and impossible to update.
+ */
+export function appendPageChunks(
+  timeCoded: ChunkPayload[],
+  page: ChunkPayload[]
+): ChunkPayload[] {
+  return [
+    ...timeCoded,
+    ...page.map((chunk, index) => ({ ...chunk, ordinal: timeCoded.length + index + 1 })),
+  ];
+}
+
+/**
+ * Amend a time-coded lesson's source row to declare the page passages it also
+ * holds.
+ *
+ * A lesson that gains a transcript does not stop having a written page. Both
+ * are ingested, under one source row, so the row has to say so — otherwise the
+ * summary claims "7 time-coded passages" while the source actually answers from
+ * 12, and the five it does not mention are the ones cited by paragraph rather
+ * than by clock.
+ *
+ * `pageLessonSource` still builds the row for a lesson that has ONLY page text.
+ * This is the both-kinds case, and it starts from the time-coded row because
+ * that row already carries the correct `caption_origin` provenance.
+ */
+export function withPageTextNoted(
+  source: SourcePayload,
+  pageChunkCount: number
+): SourcePayload {
+  if (pageChunkCount === 0) return source;
+  return {
+    ...source,
+    governed_summary:
+      `${source.governed_summary} Also holds ${pageChunkCount} passage` +
+      `${pageChunkCount === 1 ? "" : "s"} of the lesson's written page, cited by ` +
+      `section and paragraph rather than by timestamp.`,
+    source_metadata: {
+      ...source.source_metadata,
+      page_text_chunks: pageChunkCount,
+      // Both locator shapes occur under this source, so a consumer that assumes
+      // every chunk has a clock is wrong. Saying it here means it can be
+      // checked without scanning the chunks.
+      retrieval_types: ["time_coded", "page_text_only"],
+    },
+  };
+}
+
+/**
  * The source row for a page-text lesson.
  *
  * Same shape, tier and rights as a captioned lesson — it is the same course and

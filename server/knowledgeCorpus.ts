@@ -219,6 +219,15 @@ export function courseSource(
   const lessonsWithCaptions = new Set(chunks.map(c => c.lesson_id));
   const videoCount = manifest.filter(l => l.lesson_type === "video").length;
 
+  // Time-coded text now arrives from two places — the publisher's caption track
+  // and local transcription of lessons that never had one. The register counts
+  // them separately, because "we hold captions for 30 lessons" would be false
+  // for the seven this machine transcribed itself.
+  const lessonsByOrigin: Record<string, number> = {};
+  for (const [origin, lessonIds] of groupLessonIdsByOrigin(chunks)) {
+    lessonsByOrigin[origin] = lessonIds.size;
+  }
+
   return {
     source_key: COURSE_SOURCE_KEY,
     title: "Art of Drink — Flavour & Beverage Development Course",
@@ -234,19 +243,53 @@ export function courseSource(
     citation_required: true,
     governed_summary:
       `Enrolled course, ${manifest.length} curriculum items (${videoCount} video). ` +
-      `Time-coded captions collected for ${lessonsWithCaptions.size} lessons, ` +
+      `Time-coded text held for ${lessonsWithCaptions.size} lessons, ` +
       `yielding ${chunks.length} citable passages. Tier B training reference: ` +
       `it explains technique and never supplies an approved measure.`,
     source_metadata: {
       lms_course_id: 3206,
       lesson_manifest: manifest,
       lessons_total: manifest.length,
+      // Kept under its original name for callers written against it, but it has
+      // always meant "lessons with time-coded text" — see lessons_by_origin for
+      // how much of that is actually the publisher's caption track.
       lessons_with_captions: lessonsWithCaptions.size,
+      lessons_by_origin: lessonsByOrigin,
       chunk_count: chunks.length,
       recovered_from: provenance.recoveredFrom,
       recovered_at: provenance.recoveredAt,
     },
   };
+}
+
+/**
+ * How a lesson's time-coded text was obtained, in words, for the summary.
+ *
+ * The summary is what a reader sees and what the source embedding is built
+ * from, so "7 time-coded passages" alone is not enough: a publisher's caption
+ * track and a transcript this machine guessed at are both time-coded, and only
+ * one of them is the publisher's own words. Conflating them is how a machine
+ * transcription ends up quoted as though Darcy O'Neil had written it.
+ *
+ * An unrecognised origin is named verbatim rather than described. Unlike the
+ * rights and status mappings below — where an unknown value throws, because
+ * guessing a rights posture is unsafe — an unknown origin here is only a
+ * missing sentence, and printing the raw value is more honest than either
+ * inventing a description or failing the ingest.
+ */
+export function captionOriginNote(origin: string): string {
+  if (origin === "native_en_auto_vtt") {
+    return "Text is the publisher's own auto-caption track.";
+  }
+  if (origin.startsWith("local_whisper_")) {
+    const model = origin.slice("local_whisper_".length).replace(/_/g, ".");
+    return (
+      `Text was transcribed locally from the lesson audio by Whisper ${model} ` +
+      `because the player exposed no caption track. It is unreviewed machine ` +
+      `output: timestamps come from the audio, wording may contain errors.`
+    );
+  }
+  return `Caption origin: ${origin}.`;
 }
 
 /** One source per lesson that actually has captured passages. */
@@ -276,7 +319,8 @@ export function lessonSources(
         governed_summary:
           `Lesson ${first.lesson_number} of the Flavour & Beverage Development ` +
           `course. ${lessonChunks.length} time-coded passages covering ` +
-          `${formatClock(spanSeconds)} of ${row?.duration_or_marker ?? "video"}.`,
+          `${formatClock(spanSeconds)} of ${row?.duration_or_marker ?? "video"}. ` +
+          captionOriginNote(first.caption_origin),
         source_metadata: {
           course_source_key: COURSE_SOURCE_KEY,
           course_title: first.course_title,
@@ -325,6 +369,19 @@ export function lessonChunkPayloads(
     );
   }
   return out;
+}
+
+/** Distinct lesson ids per `caption_origin`, for the register's breakdown. */
+function groupLessonIdsByOrigin(
+  chunks: CourseChunkRecord[]
+): Map<string, Set<string>> {
+  const byOrigin = new Map<string, Set<string>>();
+  for (const chunk of chunks) {
+    const set = byOrigin.get(chunk.caption_origin);
+    if (set) set.add(chunk.lesson_id);
+    else byOrigin.set(chunk.caption_origin, new Set([chunk.lesson_id]));
+  }
+  return byOrigin;
 }
 
 function groupChunksByLesson(

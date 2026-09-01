@@ -27,15 +27,24 @@ import {
   parseJsonl,
   parseLessonManifest,
   sourceEmbeddingText,
+  type ChunkPayload,
   type CourseChunkRecord,
   type ExternalSourceRecord,
+  type LessonManifestRow,
   type SourcePayload,
 } from "../server/knowledgeCorpus";
 import {
+  appendPageChunks,
   extractLessonPage,
   pageChunkPayloads,
   pageLessonSource,
+  withPageTextNoted,
 } from "../server/knowledgeLessonPages";
+import {
+  parseVtt,
+  transcriptChunkRecords,
+  transcriptSpanSeconds,
+} from "../server/knowledgeTranscripts";
 import { courseAssetSources } from "../server/knowledgeCourseAssets";
 import { embedToLiteral, embeddingConfig } from "../server/knowledgeEmbedding";
 import * as beverage from "../server/beverageClient";
@@ -43,6 +52,15 @@ import type { OperatorIdentity } from "../server/_core/supabaseAuth";
 
 const CORPUS_DIR = process.env.BEVERAGE_CORPUS_DIR ?? "data/knowledge";
 const MANUS_SHARE = "https://manus.im/share/5BNfPHDbcgJbvdHmeTZo9E";
+
+/**
+ * Names the exact decoder behind every locally transcribed passage.
+ *
+ * It is stored on each chunk's locator and read back by `captionOriginNote`,
+ * so a citation can say which model produced the words. Changing model means
+ * changing this string — two models' output must not share one origin label.
+ */
+const TRANSCRIPT_ORIGIN = "local_whisper_small_en";
 
 function readCorpusFile(name: string): string {
   const path = resolve(process.cwd(), CORPUS_DIR, name);
@@ -59,6 +77,78 @@ function readCorpusFile(name: string): string {
 function readCorpusFileIfPresent(name: string): string | null {
   const path = resolve(process.cwd(), CORPUS_DIR, name);
   return existsSync(path) ? readFileSync(path, "utf8") : null;
+}
+
+/**
+ * Locally transcribed lessons, read from `local_transcripts/`.
+ *
+ * Each `lesson_<id>.vtt` is Whisper output for that lesson's audio, and each
+ * sits beside a `lesson_<id>.duration` holding the media length ffprobe
+ * measured. The duration file is not bookkeeping: it is the check that a
+ * transcript belongs to the recording it claims. A VTT whose last cue runs past
+ * the end of its media is either transcribing different audio or carrying a
+ * decoder timestamp that ran away, and either way its clocks cannot be cited.
+ *
+ * A lesson with no VTT is normal — most lessons have a real caption track, and
+ * five have no video at all.
+ */
+function loadLocalTranscripts(
+  manifest: LessonManifestRow[],
+  courseTitle: string
+): CourseChunkRecord[] {
+  const records: CourseChunkRecord[] = [];
+
+  for (const lesson of manifest) {
+    const vtt = readCorpusFileIfPresent(`local_transcripts/lesson_${lesson.lesson_id}.vtt`);
+    if (!vtt) continue;
+
+    const cues = parseVtt(vtt);
+    if (cues.length === 0) {
+      console.log(
+        `  lesson ${lesson.lesson_number} (${lesson.lesson_id}): transcript present ` +
+          `but empty — skipped rather than ingested as a silent lesson`
+      );
+      continue;
+    }
+
+    const durationFile = readCorpusFileIfPresent(
+      `local_transcripts/lesson_${lesson.lesson_id}.duration`
+    );
+    if (!durationFile) {
+      throw new Error(
+        `Transcript for lesson ${lesson.lesson_id} has no measured media duration ` +
+          `beside it. Refusing to ingest timestamps that were never checked ` +
+          `against their recording.`
+      );
+    }
+    const mediaSeconds = Number.parseFloat(durationFile.trim());
+    if (!Number.isFinite(mediaSeconds) || mediaSeconds <= 0) {
+      throw new Error(
+        `Unreadable media duration "${durationFile.trim()}" for lesson ${lesson.lesson_id}.`
+      );
+    }
+
+    const span = transcriptSpanSeconds(cues);
+    // One second of slack: a cue may legitimately end on the final frame, and
+    // ffprobe's container duration and the decoder's last timestamp are
+    // measured slightly differently. Anything beyond that is a real mismatch.
+    if (span > mediaSeconds + 1) {
+      throw new Error(
+        `Transcript for lesson ${lesson.lesson_id} runs to ${span.toFixed(1)}s but its ` +
+          `media is ${mediaSeconds.toFixed(1)}s. The transcript does not match the ` +
+          `recording; its timestamps are not citable.`
+      );
+    }
+
+    records.push(
+      ...transcriptChunkRecords(cues, lesson, {
+        courseTitle,
+        captionOrigin: TRANSCRIPT_ORIGIN,
+      })
+    );
+  }
+
+  return records;
 }
 
 /**
@@ -90,7 +180,7 @@ function ownerIdentity(): OperatorIdentity {
 async function main() {
   const dryRun = process.argv.includes("--dry-run");
 
-  const chunks = parseJsonl<CourseChunkRecord>(
+  const captions = parseJsonl<CourseChunkRecord>(
     readCorpusFile("art_of_drink_knowledge_chunks.jsonl")
   );
   const manifest = parseLessonManifest(readCorpusFile("art_of_drink_lesson_manifest.csv"));
@@ -98,23 +188,45 @@ async function main() {
     readCorpusFile("Public_External_Knowledge_Records.jsonl")
   );
 
+  const courseTitle = captions[0]?.course_title ?? "Flavour & Beverage Development Course";
+
+  // Lessons whose player exposed no caption track but whose audio was
+  // transcribed locally. These records have the same shape as a caption record
+  // and travel the same path from here on — the difference lives in
+  // `caption_origin`, which every citation carries.
+  const transcripts = loadLocalTranscripts(manifest, courseTitle);
+  const chunks = [...captions, ...transcripts];
+
   const course = courseSource(manifest, chunks, {
     recoveredFrom: MANUS_SHARE,
     recoveredAt: "2026-08-31",
   });
-  const lessons = lessonSources(manifest, chunks);
   const externals = externalSources(external);
   const chunksBySource = lessonChunkPayloads(chunks);
 
-  // Lessons whose player exposed no caption track. Their saved page is the only
-  // authorised text we have, and it is cited by section and paragraph — never
-  // by an invented timestamp. See server/knowledgeLessonPages.ts.
-  const courseTitle = chunks[0]?.course_title ?? "Flavour & Beverage Development Course";
-  const captioned = new Set(chunks.map(c => c.lesson_id));
-  const pageLessons: SourcePayload[] = [];
+  // Every lesson's written page, whether or not it also has time-coded text.
+  //
+  // This used to `continue` past any lesson that had captions, treating the
+  // page as a fallback for missing captions rather than as material in its own
+  // right. Two consequences followed from dropping that guard, and both are
+  // wanted:
+  //
+  //   1. A lesson that gains a transcript keeps its page passages. Without
+  //      this, the seven newly transcribed lessons would have silently lost
+  //      every page citation already ingested for them.
+  //   2. The twelve lessons that always had captions gain the pages that were
+  //      collected for them and never ingested — 83 passages, including the
+  //      8.8k-character Food Grade Ingredients page. Ashley chose to include
+  //      these (2026-09-01) rather than leave collected, authorised material
+  //      sitting unused on disk.
+  //
+  // A page passage is still cited by section and paragraph, never by a
+  // timestamp it does not have.
+  const timeCoded = new Set(chunks.map(c => c.lesson_id));
+  const pageChunksBySource = new Map<string, ChunkPayload[]>();
+  const pageOnlyLessons: SourcePayload[] = [];
 
   for (const lesson of manifest) {
-    if (captioned.has(lesson.lesson_id)) continue;
     const html = readCorpusFileIfPresent(
       `batch1/authorized_lesson_pages/lesson_${lesson.lesson_id}.html`
     );
@@ -129,14 +241,37 @@ async function main() {
       );
       continue;
     }
-    pageLessons.push(pageLessonSource(page, lesson, courseTitle, pageChunks.length));
-    chunksBySource.set(lessonSourceKey(lesson.lesson_id), pageChunks);
+    pageChunksBySource.set(lessonSourceKey(lesson.lesson_id), pageChunks);
+    if (!timeCoded.has(lesson.lesson_id)) {
+      pageOnlyLessons.push(pageLessonSource(page, lesson, courseTitle, pageChunks.length));
+    }
   }
 
+  // Page passages follow the time-coded ones within a source, renumbered so
+  // ordinals stay unique and dense. Chunk keys are untouched — `-p001` stays
+  // `-p001` — so a re-run updates the existing row in place instead of
+  // orphaning it under a new key.
+  for (const [sourceKey, pageChunks] of pageChunksBySource) {
+    chunksBySource.set(
+      sourceKey,
+      appendPageChunks(chunksBySource.get(sourceKey) ?? [], pageChunks)
+    );
+  }
+
+  // One row per lesson. A lesson holding both kinds declares both; building a
+  // second row from `pageLessonSource` would collide on `source_key` and the
+  // last writer would win, hiding whichever description lost.
+  const lessons = lessonSources(manifest, chunks).map(source =>
+    withPageTextNoted(source, pageChunksBySource.get(source.source_key)?.length ?? 0)
+  );
+  const pageLessons = pageOnlyLessons;
+
   console.log(
-    `corpus: ${manifest.length} manifest rows, ${chunks.length} caption chunks across ` +
-      `${captioned.size} lessons, ${pageLessons.length} page-text lessons, ` +
-      `${externals.length} external sources, ${courseAssetSources().length} linked course assets`
+    `corpus: ${manifest.length} manifest rows, ${captions.length} caption chunks + ` +
+      `${transcripts.length} local-transcript chunks across ${timeCoded.size} lessons, ` +
+      `${pageChunksBySource.size} lessons with page text ` +
+      `(${pageLessons.length} page-only), ${externals.length} external sources, ` +
+      `${courseAssetSources().length} linked course assets`
   );
 
   if (dryRun) {
