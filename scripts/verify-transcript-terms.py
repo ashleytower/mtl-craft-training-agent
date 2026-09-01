@@ -118,6 +118,24 @@ def pattern(term):
 VARIANT_RATIO = 0.65
 
 
+# Fuzzy matching is only meaningful for words long enough that a shared prefix
+# is evidence rather than coincidence. Below this, edit-ratio is noise:
+#
+#   ta / tea    0.80      cas / cast  0.86      usp / us   0.80
+#   co2 / co    0.80      abv / above 0.75      gmp / gm   0.80
+#
+# Every one of those clears 0.65 while meaning nothing — and in a beverage
+# course a window containing "tea" is close to certain, which would have made
+# TA a `variant` wherever it was checked. Since `absent` is the only verdict
+# treated as possible fabrication, letting short terms fuzzy-match made that
+# signal nearly unreachable for half the vocabulary.
+#
+# Short terms are therefore confirmed-or-absent. An acronym is either produced
+# or it is not; a mangled one ("A.B.V.") lands in `absent` and gets a human,
+# which is the conservative direction.
+MIN_FUZZY_CHARS = 6
+
+
 def audio_verdict(term, unprimed):
     """
     Three outcomes, because two are not enough.
@@ -135,22 +153,109 @@ def audio_verdict(term, unprimed):
       absent     it produced nothing resembling the term, so the audio does not
                  support it and a human must look
 
-    Only `absent` is evidence of a possible insertion.
+    Only `absent` is evidence of a possible insertion, so anything that makes
+    `variant` easy to reach makes this whole check worthless.
     """
     if pattern(term).search(unprimed):
         return "confirmed", None
-    head = term.split()[0].lower()
-    best, best_word = 0.0, None
-    for word in re.findall(r"[A-Za-z][A-Za-z'-]*", unprimed):
-        ratio = SequenceMatcher(None, head, word.lower()).ratio()
-        if ratio > best:
-            best, best_word = ratio, word
+
+    words = re.findall(r"[A-Za-z0-9][A-Za-z0-9'-]*", unprimed)
+
+    # An acronym in CASE_SENSITIVE is matched case-sensitively above for a
+    # reason — "gras" is French, "ta" is a word. Handing it to a lowercasing
+    # fuzzy matcher one line later reopens exactly that hole, so it never gets
+    # a fuzzy pass at all.
+    if term in CASE_SENSITIVE or len(term.replace(" ", "")) < MIN_FUZZY_CHARS:
+        return "absent", None
+
+    # EVERY word of the term must match its counterpart in the window, and the
+    # score is the weakest of them.
+    #
+    # Matching only `term.split()[0]` meant any clip containing "process"
+    # confirmed "process authority". Scoring the joined phrase instead is barely
+    # better, because a long shared first word carries the whole ratio:
+    # "process authority" vs "process the" scores 0.714 and "cloud agent" vs
+    # "cloud was" 0.700 — both above the threshold, both meaningless. Taking the
+    # minimum per word drops those to 0.333 and 0.250 while "flavour house" vs
+    # "flavor house" stays 0.923, which is the real spelling variant this is for.
+    #
+    # A phrase is present only when all of its parts are.
+    target_words = term.lower().split()
+    span = len(target_words)
+    best, best_phrase = 0.0, None
+    for i in range(len(words) - span + 1):
+        window = words[i:i + span]
+        score = min(
+            SequenceMatcher(None, want, got.lower()).ratio()
+            for want, got in zip(target_words, window)
+        )
+        if score > best:
+            best, best_phrase = score, " ".join(window)
+
     if best >= VARIANT_RATIO:
-        return "variant", best_word
-    return "absent", best_word
+        return "variant", best_phrase
+    return "absent", best_phrase
 
 
 PATTERNS = [(t, pattern(t)) for t in TERMS]
+
+
+def _self_test():
+    """
+    Pin the classifier's behaviour. Run by server/knowledgeTranscriptPipeline
+    .test.ts, so these cases sit inside the same gate as the TypeScript.
+
+    This exists because `audio_verdict` shipped with three defects that no test
+    could have caught, there being no Python test harness: it fuzzy-matched on
+    the first word of a multi-word term, gave short acronyms a fuzzy pass where
+    edit-ratio is noise, and lowercased its way around CASE_SENSITIVE. All three
+    produced FALSE CONFIRMATIONS — the one direction this pipeline must not
+    fail in.
+    """
+    cases = [
+        # (term, unprimed text, expected verdict, why)
+        ("macerated", "they are macerated for two weeks", "confirmed", "exact match"),
+        ("gentian", "so genshin, which has a strong bitterness", "variant",
+         "the ASR miss the prime corrects — ratio 0.71"),
+        ("terpenes", "terpines are the aroma compounds", "variant", "spelling slip"),
+        ("gentian", "the mixture was left to stand for two weeks", "absent",
+         "nothing like it — possible insertion"),
+        ("tincture", "you can buy a bottle of vodka", "absent", "unrelated"),
+
+        # Multi-word terms compare the WHOLE phrase, not the head word.
+        ("process authority", "you need to process the fruit first", "absent",
+         "'process' alone must NOT confirm 'process authority'"),
+        ("cloud agent", "the cloud was thick that morning", "absent",
+         "'cloud' alone must NOT confirm 'cloud agent'"),
+        ("shelf stable", "put it on the shelf", "absent",
+         "'shelf' alone must NOT confirm 'shelf stable'"),
+        ("shelf stable", "it is shelf stable for a year", "confirmed", "real phrase"),
+
+        # Short acronyms never get a fuzzy pass: edit-ratio is noise there.
+        ("TA", "add a splash of tea to the mix", "absent", "ta/tea is 0.80 and meaningless"),
+        ("CO2", "the co levels were high", "absent", "co2/co is 0.80 and meaningless"),
+        ("CAS", "the mixture was cast into moulds", "absent", "cas/cast is 0.86"),
+        ("ABV", "as noted above, the ratio matters", "absent", "abv/above is 0.75"),
+        ("ABV", "it comes in at 40% ABV", "confirmed", "real acronym still confirms"),
+
+        # CASE_SENSITIVE is respected in BOTH branches.
+        ("GRAS", "the confit de gras was rich", "absent", "French 'gras' must not confirm GRAS"),
+    ]
+    failures = []
+    for term, text, expected, why in cases:
+        got, _ = audio_verdict(term, text)
+        if got != expected:
+            failures.append(f"  {term!r} vs {text!r}: expected {expected}, got {got}  ({why})")
+    if failures:
+        print("audio_verdict self-test FAILED:")
+        print("\n".join(failures))
+        return 1
+    print(f"audio_verdict self-test: {len(cases)} cases pass")
+    return 0
+
+
+if "--self-test" in sys.argv:
+    raise SystemExit(_self_test())
 
 
 def clock(t):

@@ -26,6 +26,7 @@
  * A local transcript is evidence of what was said, not a certified quote.
  */
 import type { CourseChunkRecord, LessonManifestRow } from "./knowledgeCorpus";
+import { ECHO_TERM_THRESHOLD, GLOSSARY_TERMS } from "./knowledgeGlossary";
 
 /** One `00:00.000 --> 00:08.340` cue, already stripped of markup. */
 export type TranscriptCue = {
@@ -207,7 +208,31 @@ function round3(value: number): number {
  */
 export function isPromptEcho(text: string): boolean {
   const low = text.toLowerCase();
-  return low.includes("terms:") && (low.match(/,/g)?.length ?? 0) >= 5;
+  const commas = low.match(/,/g)?.length ?? 0;
+
+  // The prompt's own preamble, recited from the top.
+  if (low.includes("terms:") && commas >= 5) return true;
+
+  // A recitation that resumes mid-list has no preamble to find. Whisper loops
+  // on its conditioning text, and nothing says a loop restarts at the
+  // beginning — "gentian, wormwood, percolation, macerated, tincture, solvent,
+  // emulsion, HLB" is the same fabrication wearing no identifying mark, and the
+  // preamble test alone would pass it straight into the corpus.
+  //
+  // So: a comma run carrying many DISTINCT glossary terms. Counting glossary
+  // terms rather than commas is what separates this from real speech — a
+  // flavour course does say "lemon, lime, orange, grapefruit and yuzu", and
+  // none of those is course jargon.
+  if (commas >= ECHO_TERM_THRESHOLD - 1) {
+    const distinct = new Set(
+      GLOSSARY_TERMS.filter(term =>
+        new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(text)
+      ).map(term => term.toLowerCase())
+    );
+    if (distinct.size >= ECHO_TERM_THRESHOLD) return true;
+  }
+
+  return false;
 }
 
 /**

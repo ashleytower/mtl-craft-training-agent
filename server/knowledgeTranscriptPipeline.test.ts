@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { extractLessonPage } from "./knowledgeLessonPages";
+import { GLOSSARY_TERMS } from "./knowledgeGlossary";
 
 /**
  * The two halves of the transcription pipeline live in different languages and
@@ -50,6 +52,19 @@ describe("transcription pipeline vocabulary", () => {
     expect(unchecked).toEqual([]);
   });
 
+  it("keeps all THREE copies of the vocabulary in step", () => {
+    // The list lives in a shell script (what primes Whisper), a Python script
+    // (what verifies the result) and a TypeScript module (what the echo
+    // detector counts against). Three runtimes, no shared import.
+    //
+    // Drift is not cosmetic: a term missing from the Python is biased in and
+    // never checked, and a term missing from the TypeScript is invisible to
+    // isPromptEcho, which counts distinct glossary terms to catch a recitation
+    // that resumes mid-list.
+    expect([...GLOSSARY_TERMS]).toEqual(biasedTerms());
+    expect([...GLOSSARY_TERMS]).toEqual(verifiedTerms());
+  });
+
   it("does not claim to verify a term it never biased", () => {
     // Harmless, but it means the verifier's coverage report counts a term the
     // prompt could not have introduced, overstating what was checked.
@@ -85,11 +100,21 @@ describe("transcription pipeline vocabulary", () => {
     // course itself uses. It may not introduce a word from nowhere. Every term
     // must appear in the Jargon File or in a saved lesson page.
     //
-    // Skipped when the corpus files are absent — they are gitignored Tier B
-    // material, so CI and a fresh clone legitimately do not have them.
+    // The corpus is gitignored Tier B material, so CI and a fresh clone
+    // legitimately do not have it. Earlier this swallowed the absence with a
+    // bare `return` inside a try/catch, which meant the test reported PASS
+    // while checking nothing — a green CI run implied this invariant held when
+    // it had never been evaluated. Now the skip is explicit and visible.
+    const dir = resolve(REPO, "data/knowledge/batch1/authorized_lesson_pages");
+    if (!existsSync(dir)) {
+      console.warn(
+        `SKIPPED: ${dir} is absent (gitignored corpus). The "biased terms are ` +
+          `attested" invariant was NOT checked in this run.`
+      );
+      return;
+    }
     let pages: string[];
     try {
-      const dir = resolve(REPO, "data/knowledge/batch1/authorized_lesson_pages");
       pages = readdirSync(dir)
         .filter(f => f.endsWith(".html"))
         // The real extractor, not a second crude one. Stripping every tag to a
@@ -102,8 +127,8 @@ describe("transcription pipeline vocabulary", () => {
             .blocks.map(b => b.text)
             .join("\n");
         });
-    } catch {
-      return;
+    } catch (error) {
+      throw new Error(`corpus present but unreadable: ${String(error)}`);
     }
     expect(pages.length).toBeGreaterThan(0);
 
@@ -137,5 +162,23 @@ describe("transcription pipeline vocabulary", () => {
     const bodyEnd = ts.match(/const BODY_END = ("[^"]+"|'[^']+');/)![1].slice(1, -1);
     expect(py).toContain(bodyStart);
     expect(py).toContain(bodyEnd);
+  });
+});
+
+describe("audio_verdict (verify-transcript-terms.py)", () => {
+  it("passes its own self-test", () => {
+    // The classifier that decides confirmed/variant/absent lives in Python and
+    // had no test harness at all, which is exactly why it shipped three
+    // defects that each produced FALSE CONFIRMATIONS: it fuzzy-matched on the
+    // first word of a multi-word term ("process" confirming "process
+    // authority"), gave short acronyms a fuzzy pass where edit-ratio is noise
+    // ("tea" scoring 0.80 against "TA"), and lowercased its way around
+    // CASE_SENSITIVE.
+    //
+    // Running its self-test from here puts those cases inside the same gate as
+    // the TypeScript, so the Python cannot regress unnoticed.
+    const script = resolve(REPO, "scripts/verify-transcript-terms.py");
+    const out = execFileSync("python3", [script, "--self-test"], { encoding: "utf8" });
+    expect(out).toMatch(/self-test: \d+ cases pass/);
   });
 });

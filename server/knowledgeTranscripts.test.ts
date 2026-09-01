@@ -287,3 +287,35 @@ describe("assertTranscriptCoversMedia", () => {
     expect(() => assertTranscriptCoversMedia(cuesTo(600), 1000, "x")).not.toThrow();
   });
 });
+
+describe("isPromptEcho — recitation that resumes mid-list", () => {
+  it("catches a glossary run with no preamble to identify it", () => {
+    // Whisper loops on its conditioning text and nothing says the loop restarts
+    // at the top. Without this, such a cue enters the corpus as a timestamped
+    // quotable passage and then passes every term check — the words in a
+    // recited glossary being exactly the vocabulary the checker treats as
+    // attested.
+    expect(
+      isPromptEcho(
+        "gentian, wormwood, percolation, macerated, tincture, solvent, " +
+          "emulsion, terpenes, limonene, organoleptic"
+      )
+    ).toBe(true);
+  });
+
+  it("still leaves a genuine spoken list alone", () => {
+    // None of these is course jargon, which is what separates a real
+    // enumeration from a recited glossary.
+    expect(
+      isPromptEcho("We use lemon, lime, orange, grapefruit, yuzu, bergamot, and lime leaf.")
+    ).toBe(false);
+  });
+
+  it("does not refuse a jargon lesson that genuinely names a few terms", () => {
+    // This course teaches vocabulary. Refusing a whole lesson for saying four
+    // glossary words in a sentence would be worse than the problem.
+    expect(
+      isPromptEcho("In this section we'll cover ABV, Brix, GRAS and TTB in detail.")
+    ).toBe(false);
+  });
+});
