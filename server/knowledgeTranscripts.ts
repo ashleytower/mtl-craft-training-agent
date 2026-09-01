@@ -211,6 +211,65 @@ export function isPromptEcho(text: string): boolean {
 }
 
 /**
+ * Whisper's decode window. The final one is padded with silence, so a correct
+ * transcript's last timestamp can sit up to this far past the end of the audio.
+ */
+export const WHISPER_WINDOW_SECONDS = 30;
+
+/**
+ * How much of a lesson's audio a transcript must cover to count as whole.
+ *
+ * Deliberately generous: a lesson may end on a long silent outro, and rejecting
+ * a good transcript is worse than accepting a slightly short one. It is here to
+ * catch transcription that died partway — the seven collected lessons all cover
+ * 99%+ of their audio, so anything near half is broken, not merely quiet.
+ */
+export const MINIMUM_COVERAGE = 0.5;
+
+/**
+ * Check a transcript against the recording it claims to describe.
+ *
+ * Two opposite failures, both of which produce citations nobody can check:
+ *
+ * OVERSHOOT — timestamps running past the end of the audio. Some overshoot is
+ * correct: Whisper decodes in 30-second windows and pads the last one with
+ * silence, so lesson 10's final cue ends at 1414.3s against 1406.6s of media.
+ * An earlier one-second tolerance rejected that good transcript. One window is
+ * the principled ceiling because the overshoot can only come from that padded
+ * window; beyond it the transcript describes audio the file does not contain,
+ * which is what a mismatched pairing or a runaway clock looks like — and those
+ * are wrong by minutes, not seconds.
+ *
+ * TRUNCATION — transcription died partway. Nothing is fabricated, but every
+ * later citation for the lesson is simply missing, and saying nothing is how a
+ * half-read lesson gets counted as fully covered.
+ */
+export function assertTranscriptCoversMedia(
+  cues: TranscriptCue[],
+  mediaSeconds: number,
+  lessonId: string
+): void {
+  const span = transcriptSpanSeconds(cues);
+
+  if (span > mediaSeconds + WHISPER_WINDOW_SECONDS) {
+    throw new Error(
+      `Transcript for lesson ${lessonId} runs to ${span.toFixed(1)}s but its media is ` +
+        `${mediaSeconds.toFixed(1)}s — past the one-window tolerance. The transcript ` +
+        `does not match the recording; its timestamps are not citable.`
+    );
+  }
+
+  if (span < mediaSeconds * MINIMUM_COVERAGE) {
+    throw new Error(
+      `Transcript for lesson ${lessonId} covers only ${span.toFixed(1)}s of ` +
+        `${mediaSeconds.toFixed(1)}s of audio ` +
+        `(${((span / mediaSeconds) * 100).toFixed(0)}%). It looks truncated — re-run ` +
+        `the transcription for this lesson rather than ingesting a partial one.`
+    );
+  }
+}
+
+/**
  * The last moment any cue covers, for checking a transcript against its media.
  *
  * Returns 0 for an empty transcript rather than `-Infinity`, which is what

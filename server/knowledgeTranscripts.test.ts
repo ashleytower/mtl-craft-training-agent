@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertTranscriptCoversMedia,
   isPromptEcho,
   parseVtt,
   transcriptChunkRecords,
@@ -241,5 +242,48 @@ describe("isPromptEcho", () => {
     expect(isPromptEcho("Let me define some terms: it will help later.")).toBe(false);
     // A long comma run with no preamble is a spoken enumeration.
     expect(isPromptEcho("a, b, c, d, e, f, g, h")).toBe(false);
+  });
+});
+
+describe("assertTranscriptCoversMedia", () => {
+  const cuesTo = (end: number) => [
+    { startSeconds: 0, endSeconds: end / 2, text: "a" },
+    { startSeconds: end / 2, endSeconds: end, text: "b" },
+  ];
+
+  it("accepts the real overshoot Whisper produces", () => {
+    // Lesson 10, measured: 214 cues ending at 1414.32s against 1406.61s of
+    // media. Whisper pads its final 30s decode window with silence, so a
+    // correct transcript can end after the audio does. A one-second tolerance
+    // rejected this good transcript.
+    expect(() => assertTranscriptCoversMedia(cuesTo(1414.32), 1406.61, "4906")).not.toThrow();
+  });
+
+  it("accepts a transcript ending exactly one window past the audio", () => {
+    expect(() => assertTranscriptCoversMedia(cuesTo(130), 100, "x")).not.toThrow();
+  });
+
+  it("refuses a transcript describing audio the file does not contain", () => {
+    // A mismatched pairing or runaway clock is wrong by minutes, not seconds.
+    expect(() => assertTranscriptCoversMedia(cuesTo(400), 100, "x")).toThrow(
+      /does not match the recording/
+    );
+  });
+
+  it("refuses a transcript that stops far short of its recording", () => {
+    // Transcription died partway. Nothing is fabricated, but every later
+    // citation for the lesson is missing and silence about it makes a half-read
+    // lesson look fully covered.
+    expect(() => assertTranscriptCoversMedia(cuesTo(100), 1000, "x")).toThrow(/truncated/);
+  });
+
+  it("reports the coverage percentage so the failure is diagnosable", () => {
+    expect(() => assertTranscriptCoversMedia(cuesTo(100), 1000, "x")).toThrow(/10%/);
+  });
+
+  it("accepts a lesson that ends on a long silent outro", () => {
+    // Generous on purpose: rejecting a good transcript is worse than accepting
+    // a slightly short one. 60% coverage is quiet, not broken.
+    expect(() => assertTranscriptCoversMedia(cuesTo(600), 1000, "x")).not.toThrow();
   });
 });
