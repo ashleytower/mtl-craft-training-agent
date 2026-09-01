@@ -25,7 +25,7 @@ left to load it. Nothing was lost and nothing needed rebuilding.
 
 | file | size | what it is |
 |---|---|---|
-| `art_of_drink_knowledge_chunks.jsonl` | 232 KB | **158 time-coded citation records**, 12 lessons |
+| `art_of_drink_knowledge_chunks.jsonl` | 232 KB | **158 time-coded citation records**, 12 lessons — *as recovered; the file now holds 336 records across 23 lessons after the 2026-08-31 collection* |
 | `art_of_drink_lesson_manifest.csv` | 5 KB | the full 39-item course curriculum |
 | `Art_of_Drink_Ingestion_Batch_1.zip` | 599 KB | 13 raw `.en-auto.vtt` tracks, 14 lesson pages, `downloadable_assets.tsv`, and the two scripts that produced the corpus |
 | `Public_External_Knowledge_Records.jsonl` | 28 KB | **24 governed summaries** of public practitioner sources |
@@ -43,13 +43,13 @@ ingest.
 ## What is in the database now
 
 ```
-beverage.knowledge_sources   44 rows   (5 pre-existing + 1 course + 14 lessons + 24 external)
-beverage.knowledge_chunks   167 rows   158 caption + 9 page-text, all embedded and full-text indexed
+beverage.knowledge_sources   71 rows   (5 pre-existing + 1 course + 35 lessons + 24 external + 6 linked docs)
+beverage.knowledge_chunks   380 rows   336 caption + 44 page-text, all embedded and full-text indexed
 ```
 
 | tier | rows | what |
 |---|---|---|
-| `tier_b_authorized_course` | 15 | the course, and one source per collected lesson |
+| `tier_b_authorized_course` | 36 | the course, and one source per collected lesson |
 | `tier_c_external_practitioner` | 26 | Kevin Kos, Morgenthaler, clear ice, FDA, Serious Eats, Notion registers |
 | `tier_d_inspiration` | 1 | The Alchemist — recorded, deliberately not ingested |
 
@@ -58,352 +58,94 @@ control.** Retrievability is not approval; that stayed a separate human step,
 and the ingest never overwrites `rights_status`, `operational_status` or
 `review_status` on a re-run.
 
-### Course coverage: 14 of 39 items HAVE CONTENT
+### Course coverage: 35 of 39 items HAVE CONTENT
 
-**Content coverage and manifest coverage are different numbers and must never be
-conflated.** All 39 manifest rows have existed since the register was ingested;
-that says nothing about what Brix can answer from. `beverage_knowledge_coverage`
-(migration 115) reports them separately:
+Collected 2026-08-31 from Ashley's authenticated Art of Drink session. **Content
+coverage and manifest coverage are still different numbers** and are still
+reported separately by `beverage_knowledge_coverage`:
 
 | | |
 |---|---|
-| manifest items | **39** — every row present, always was |
-| **with content** | **14** — 12 captions + 2 page-text. **This is the real number.** |
-| register-only | **4** — the quizzes. No knowledge to hold; the course's own guidance is that a quiz is metadata, not material to answer from. Counting one as a gap misreports it; inventing content to move the number would be worse. |
-| **not collected** | **21** — 19 videos + 2 text lessons. The genuine gap. |
+| manifest items | **39** |
+| **with content** | **35** — 23 captions + 12 page-text |
+| register-only | **4** — the four quizzes |
+| **not collected** | **0** |
 
-Each item carries `content_kind`: `captions`, `page_text`, `register_only` or
-`none`. Run `coverage`; never recite a number from a document.
+**The four quizzes are the only items without content, and that is correct.** A
+quiz carries no knowledge to hold; the course's own ingestion guidance is that
+quizzes are indexed as course metadata, not as material to answer from.
+Fabricating content for them to reach 39/39 would be the exact dishonesty this
+whole coverage split exists to prevent.
 
-#### Local caption material is fully ingested — verified cue by cue
+#### How the remaining 21 items were collected
 
-Every `.vtt` on disk is accounted for. Cue counts divided into 12-cue chunks
-predict exactly the 158 caption chunks stored:
+The lesson pages gave up the Bunny player id; the existing
+`extract_authorized_course_caption.sh` logic then fetched the player and the
+caption track. Two Bunny libraries are in play and they behave differently:
 
-```
-4726:70→6  4736:75→7  4746:325→28  4751:99→9   4761:225→19  4786:127→11
-4801:138→12 4806:109→10 5841:216→18 6006:301→26 6476:79→7   6486:53→5
-                                                    total predicted = 158 = stored
-```
+- **library 4056** — auto-caption tracks exist. All newly captioned lessons came
+  from here.
+- **library 177015** — newer, and exposes **no** `en-auto.vtt`. Those lessons
+  fall back to page text.
 
-The 13th file, `lesson_01_introduction.en.vtt`, is a **byte-identical duplicate**
-of `lesson_6486.en-auto.vtt` (same md5) — not extra content, and correctly not
-double-ingested.
+**11 lessons yielded real caption tracks**: About Your Instructor, How to Develop
+a Beverage, Chemistry of Beverages, Natural vs Artificial Flavours, Equipment and
+Ingredients, Essences, Extracts, Flavourist Formulating, Mineral Salts,
+Bitterness, Completion & What is Next. Caption chunks went 158 → **336**.
 
-### The original coverage line
+**10 lessons had no caption track and were ingested as page text**: What is
+Flavour?, Science of Taste, Terpenes, HLB, Tincture, Ageing Flavours, Safety
+Summary, Jargon File, Suppliers, Flavour Starter Kit. Page-text chunks went
+9 → **44**.
 
-Captions exist for lessons 1, 5, 6, 7, 14, 16, 18, 23, 27, 31, 32 and 36 —
-Introduction, Safety, Food Grade Ingredients, Regulations, Solubility,
-Emulsions, Density, Prototyping a Flavour, Flavour Levels and Calculations,
-Sugar, Acids & Acidity, and Putting It All Together.
+Five of those ten have **no video on the page at all** — Safety Summary, HLB,
+Flavour Starter Kit, Jargon File and Suppliers returned zero `<iframe>` and zero
+`<video>` elements, so their written body is the whole lesson.
 
-Two more — 13 "Solvents for Flavours" and 22 "Documentation" — are ingested
-from their **lesson page text**, added 2026-08-31. Their players never exposed
-a caption track, so they carry section-and-paragraph citations instead of
-timestamps. See "Page-text lessons" below.
+#### The method was verified against known-good data before it was trusted
 
-**25 items have no captured content at all**, including What is Flavour?,
-Chemistry of Beverages, Science of Taste, Terpenes, HLB, Natural vs Artificial
-Flavours, Equipment and Ingredients, Essences, Extracts, Tincture, Ageing
-Flavours, Flavourist Formulating, Mineral Salts, Bitterness, Suppliers, and all
-four quizzes.
+Before concluding that any lesson lacked captions, the URL-construction was run
+against **lesson 6486, which was already collected**. The reconstructed URL
+returned HTTP 200 and the file's md5 (`526b7113…`) **matched the stored VTT
+byte-for-byte**. Only then was a 404 read as "this lesson genuinely has no
+caption track" rather than "the method is broken".
 
-Do not read that list back to anyone — run `coverage`. The list is true today
-and stale the moment someone collects another lesson.
+#### The reconstructed pages were checked against the live page
 
-### Page-text lessons
+The 10 page-text lessons could not be curled (the course is Cloudflare-protected)
+so their bodies were read out of the authenticated browser in slices and
+reassembled. That hand-assembly is the least deterministic step in the whole
+job, so it was verified rather than assumed: the stored text was compared to a
+fresh read of the live page, sampling head, tail **and a mid-offset** — a
+dropped or duplicated slice shifts every later offset, so a matching mid-sample
+is the real proof.
 
-`server/knowledgeLessonPages.ts`. Two lessons had no caption track, so the only
-authorised text is the lesson's written body. It is ingested, and it is cited
-honestly:
+| lesson | stored | live | drift |
+|---|---|---|---|
+| 5446 Science of Taste (8 slices) | 4838 | 4838 | **0** |
+| 4906 What is Flavour? (9 slices) | 5681 | 5680 | +1 |
+| 5136 Jargon File (7 slices) | 3856 | 3854 | +2 |
 
-- `retrieval_type: "page_text_only"` on every chunk.
-- **No `timestamp`, `start_seconds` or `end_seconds` key exists on them at
-  all** — a consumer wanting a clock finds nothing rather than a guess.
-- The locator carries the section heading and the paragraph range, both of
-  which a reader can go and verify on the page. Chunks never straddle a
-  heading, and paragraphs are numbered across the whole page.
-- Chunk keys are `aod-fbd-<lesson>-p001`, so they cannot collide with the
-  `-001` caption keys.
+Head, mid and tail samples matched in all three. The 1-2 character drift is
+inline-tag spacing (`<a>`, `<sub>`), not lost content. All ten bodies are within
+3% of the length the browser reported, the shortfalls being trailing
+`<p>&nbsp;</p>` blocks deliberately dropped.
 
-Rendered citation:
+#### Every timestamp was checked against its source
 
-> `Flavour & Beverage Development Course, lesson 13 "Solvents for Flavours" (lesson page, "Water", paragraphs 13-14) — https://…/6066`
-
-Extraction anchors on the video `<div>` and the nav buttons, **not** on a
-content class: MasterStudy reuses its content class names inside `<link>` tags,
-so the first textual match for the class is a stylesheet URL, not the lesson.
-
-The video narration in these two lessons is still uncaptured. This is the
-written body, not a substitute transcript, and the source summary says so.
-
-To collect more: `extract_authorized_course_caption.sh` and
-`vtt_to_knowledge_records.py` in the zip are the reproducible path. Both were
-read before use and neither touches this database — the shell script fetches a
-caption track from an already-saved lesson page, the Python script is a pure
-VTT-to-JSONL transform. Save the lesson page from an authorised browser session,
-run the two, drop the new records into `data/knowledge/`, re-run the ingest.
-
----
-
-## How retrieval works
+All **336** caption chunks were re-verified against the raw `.vtt` files: each
+chunk's `start_seconds` and `end_seconds` must coincide with a real cue boundary
+in the source transcript.
 
 ```
-beverage.py knowledge --query "why did my emulsion separate"
-  → GET /api/hermes/knowledge?q=…
-    → embed the question locally (nomic-embed-text, 768-dim, via Ollama)
-      → public.beverage_search_knowledge(…)
+caption chunks checked:                                   336
+timestamps matching a REAL cue boundary in the source:    336
+mismatches:                                                 0
 ```
 
-**Hybrid, over infrastructure that already existed.** pgvector 0.8.0 was already
-installed and `public.memory` had been running the same `vector(768)` +
-`tsvector` pattern in this database for months. `nomic-embed-text` was already
-pulled into the local Ollama. So this added no API key, no vendor and no
-per-call cost. The CRM memory *pattern* is reused; none of its 1,213 rows are.
-
-Score is `0.6 × cosine similarity + 0.4 × clamped ts_rank` — weighted toward
-meaning, because nobody asks a question in the caption's vocabulary.
-
-**When the embedding service is down**, search still runs on full text alone and
-the response says `search_mode: "text_only"`. A narrower answer is still an
-answer; a silent downgrade would read as a thin corpus.
-
-### Two result kinds, and the difference is a rights boundary
-
-- **`quotable: true`** — course transcript. `text` is the real caption and may
-  be read out, attributed.
-- **`quotable: false`** — a public source we may only cite. `text` is a governed
-  summary someone already wrote, and **there is no fuller text behind it**.
-
-### Citations are composed by the service, not the model
-
-Every result carries a finished `citation`:
-
-> `Flavour & Beverage Development Course, lesson 32 "Acids & Acidity" at 2:15-3:30 — https://edu.artofdrink.com/…/4801`
-
-built from the stored locator in `hermesRoutes.ts`. A model asked to cite a
-lesson and timestamp will mostly do it and occasionally invent a plausible one,
-and a fabricated timestamp on a real lesson is worse than no citation — it looks
-checkable. So the string is handed over finished. Verified: the citation above
-matches cue `00:02:15.120` of `lesson_4801.en-auto.vtt` verbatim.
-
----
-
-## The boundary, and where quantities come from
-
-The course's own ingestion handoff set the rule, and it is returned on every
-search response as `boundary` rather than left for the agent to remember:
-
-> Tier B training reference material. It must never silently alter a formula,
-> approve an ingredient, authorize a shelf-life claim, determine a preservation
-> plan, or release a batch.
-
-**CRM stays authoritative for recipe quantities.** Nothing in migrations 111-113
-reads or writes `formula_versions`, `formula_components`, `formula_drafts` or
-`public.recipes`. The knowledge lane and the formula lane share only an identity
-check. Verified: asked "how much sugar goes in the jalapeño syrup", the
-knowledge route returns Tier B/C reference passages and no measure, while
-`/api/hermes/formulas` still returns the approved `Jalapeno v1` —
-Citric acid 30 gr · Jalapenos 5400 gr · Preservative 30 gr · Water 18000 ml.
-
----
-
-## Migrations
-
-| file | what |
-|---|---|
-| `111_beverage_knowledge_retrieval.sql` | `knowledge_chunks`, ingest RPCs, `beverage_search_knowledge`, `beverage_knowledge_coverage` |
-| `112_knowledge_source_embeddings.sql` | source embeddings — fixes a real defect 111 shipped with, see below |
-| `113_backfill_source_embeddings.sql` | embed any source some other path created |
-| `114_search_excludes_bookkeeping_sources.sql` | stop coverage stubs competing with real content; let `citation_required` re-sync |
-
-All three applied to `ctyxnhcljruyciebkwef` and registered in
-`supabase_migrations.schema_migrations`. They continue the shared number line —
-CRM's highest file is still 104. See `db/baseline/DRIFT.md` §2.
-
-### The defect 112 shipped with, found by review
-
-An independent Simplifier review of the merged work found two substantive
-issues. The first was worse than the review estimated.
-
-**Coverage stubs were taking 45.8% of result slots.** `source_hits` treated
-every source with a non-empty `governed_summary` as citable. That is right for
-the 29 external sources, where the summary IS the content. It was wrong for the
-14 per-lesson and 1 course bookkeeping rows, whose summary reads *"Lesson 5 of
-the Flavour & Beverage Development course. 6 time-coded passages covering 1:03
-of 7 minutes."*
-
-Measured across 8 ordinary questions at the default limit of 6, before 114:
-
-| question | stub results |
-|---|---|
-| what does the course say about safety | **4 of 6** |
-| how long is the sugar lesson | **6 of 6** — no real content at all |
-| what is in the … course | **6 of 6** — no real content at all |
-| **overall** | **22 of 48 slots (45.8%)** |
-
-After 114: **0 of 48**, with external cite-only sources still returning
-correctly and the safety question now answering from real transcript.
-
-The predicate is semantic, not a key list: a source that **has chunks** is
-already represented in search by those chunks, so its summary is metadata; the
-course register has no chunks but is identified by the `lesson_manifest` it
-carries. The two Notion intake rows keep competing, correctly — no chunks, and
-their summaries are real statements rather than counts.
-
-**`citation_required` could never be corrected.** It was in the insert list but
-missing from `on conflict do update set`, so a corrected value in the corpus file
-would never land. `rights_status` and `operational_status` are excluded
-deliberately and documented; this one was an oversight. No wrong data resulted —
-all 44 rows are `true` — but the idempotency contract was broken for one column.
-
-### A second review round, on the page-text module
-
-The page-text work landed after the first review started, so a second pass
-covered it. Two more real defects, both latent rather than active:
-
-- **A nested `<ul>` inside an `<li>` silently dropped text.** The block regex
-  `<(p|li|h[2-4])>(.*?)</\1>` closes on the FIRST `</li>`, which is the inner
-  one. Given `<li>Item A<ul><li>Sub 1</li><li>Sub 2</li></ul>trailing text</li>`
-  it produced `["Item A Sub 1", "Sub 2"]` — "Sub 1" welded onto the outer item
-  and "trailing text" gone from the corpus without a trace. Neither collected
-  lesson uses sub-bullets so nothing was corrupted, but a technical course will.
-  Replaced with a scanner that walks block tags in order; nested lists flatten
-  into sequential items and trailing text lands. Verified the two real pages
-  still produce identical block counts (15 paragraphs / 5 headings, 5 / 1).
-- **`&#8216;` and `&#8217;` both decoded to `’`**, so `‘like this’` became
-  `’like this’` — a corrupted byte in text the system treats as verbatim.
-
-Plus: `review_status` is no longer forwarded for cite-only sources, where the
-RPC echoes `operational_status` into it and it reads as a review state it is
-not.
-
-### The defect 111 shipped with
-
-111 gave chunks and sources different reach. Chunks were pulled in wholesale
-whenever an embedding was supplied, so they had full semantic recall; sources
-matched on full text only. `websearch_to_tsquery` ANDs its terms, so *"how do I
-make clear ice at home"* became `'make' & 'clear' & 'ice' & 'home'` — which one
-source satisfied, while the bare phrase *"clear ice"* matched three.
-
-Measured before 112: that question returned three Art of Drink chunks about
-sugar and tasting, and **zero** of the three clear-ice sources. The corpus held
-exactly the right material and the search could not reach it. 112 embeds the
-title, summary and topics — text already stored, so no new text about anyone's
-work — and makes both kinds reachable the same way. After: all three clear-ice
-sources return first.
-
----
-
-## Verification
-
-| check | result |
-|---|---|
-| `tsc --noEmit` | clean |
-| `vitest run` | **211 passing**, 11 files (was 151/8) |
-| ingest idempotency | second run `0 inserted, 37 updated`; third identical |
-| citation accuracy | spot-checked against `lesson_4801.en-auto.vtt` cue `00:02:15.120` — exact |
-| recipe boundary | knowledge route returns no MTL Craft measure; formula route unchanged |
-| live agent path | `beverage.py knowledge` and `coverage` verified against Brix's own configured URL |
-
-### Questions that now answer well, with citations
-
-- *"What order should I add acid in?"* → lesson 32 at 2:15 — "you should always
-  add your acid at the end"
-- *"Why did my emulsion separate and go cloudy?"* → lesson 16, three passages
-- *"How do I make clear ice at home?"* → all three clear-ice sources, cite-only
-- *"What is super juice and how does it work?"* → four Kevin Kos sources
-- *"How do I fix a syrup that came out too thin?"* → Morgenthaler's Syrup Fixer
-- *"What ppm should I dose a flavour at?"* → lesson 27 at 8:03
-
----
-
-## The exposed service-account key — resolved 2026-08-31
-
-`.manus-recovery/SOURCES.md` reported a GCP service-account private key pasted
-into the public Manus share. Verified rather than assumed, then acted on.
-
-**Status was real.** Key `786c9b3b…` on
-`claude-code@atomic-rune-450718-q5.iam.gserviceaccount.com` was `USER_MANAGED`,
-never-expiring, and **not disabled**. The account holds **`roles/owner`** plus
-`roles/accessapproval.approver` on the project — a full project-owner
-credential, publicly downloadable.
-
-**Blast radius checked before touching it.** The key id appears in no config,
-env file or code anywhere on the machine — only in SOURCES.md itself and in
-gcloud's own logs. No GitHub repo carries a GCP secret. The only SA key file on
-disk is the replacement, `91ffbc15…`.
-
-**Revoked by disabling, not deleting.** Disabling is instantly reversible, so a
-missed consumer fails visibly and is restored in one command. Confirmed from the
-raw API: `disabled: true`,
-`disableReason: SERVICE_ACCOUNT_KEY_DISABLE_REASON_USER_INITIATED`. (The
-`gcloud … keys list` table does not render the column — check the JSON.)
-
-**Affected services verified after.** The replacement key still mints a token
-and still reads the live **Inventory Database** sheet, tested in an isolated
-`CLOUDSDK_CONFIG` so Ashley's own gcloud session was untouched.
-
-### Closed 2026-08-31 (second pass)
-
-- **Replacement key secured.** Was `-rw-r--r--` (world-readable) in `~/Downloads`
-  with a quarantine xattr. Now `~/.config/gcloud/keys/` at `600` inside a `700`
-  directory, xattrs cleared, verified byte-identical before the Downloads copy
-  was deleted. Nothing on this machine referenced the old path.
-- **Owner removed.** `claude-code@` held `roles/owner` + `roles/accessapproval.approver`;
-  it now holds only `roles/serviceusage.serviceUsageConsumer`. Safe because
-  every consumer uses **Workspace user-data APIs** (Sheets, Drive, Calendar,
-  Gmail) authorised by OAuth scopes and document sharing — **zero GCP resource
-  SDKs** are used, and project IAM governs resources nothing here touches.
-  Two human owners remain, so the project cannot be orphaned. Verified after
-  propagation: Sheets read still `200`, all three scopes still mint, and
-  `getIamPolicy` as the SA now returns **403**. Policy backed up first.
-- **No key material left loose.** The only SA key file on disk is the secured
-  one. `RAILWAY_FIX.md` and the `test_google_*` files matched a
-  service-account grep but contain **zero** `BEGIN PRIVATE KEY` blocks and zero
-  long base64 blobs — placeholders only.
-- **All five recovered Manus artifacts scanned** for PEM keys, JWTs, Google API
-  keys, `sk-`/`sk_live_`, GitHub tokens, Slack tokens and Postgres URLs:
-  **zero matches**, counts only, no values printed.
-
-### Why the third key could not be resolved
-
-`fa1c0c3c…` (2025-06-26, never-expiring, `USER_MANAGED`) is **still enabled**,
-deliberately. The evidence channel that would settle it is switched off:
-
-- `auditConfigs: NONE` — **Data Access audit logging is disabled** on the
-  project, so ordinary API reads are never logged.
-- `serviceAccountKeyLastAuthentication` returns **no records for any key**.
-- Searching 400 days of logs finds **0** references to `fa1c0c3c…` — but also
-  **0 authentication entries for `91ffbc15…`**, the key we *know* Railway uses.
-
-So absence of evidence here is a property of the configuration, not of the key.
-Disabling it on that basis would be acting on a signal already proven blind, and
-Railway — the one consumer that cannot be enumerated from this machine — needs
-an interactive login. Left enabled and reported rather than guessed at.
-
-**A related find:** the audit log shows a `DisableServiceAccountKey` on
-2026-01-14 by `gcp-compromised-key-response@system.gserviceaccount.com` —
-Google's automated leaked-credential response — against a key on the
-**`google-sheets@`** service account. This project has had a key leak before.
-
-**Also excessive:** `n8n-instance@` holds `roles/owner` and has **never
-authenticated** (no `lastAuthenticatedTime` at all).
-
-### Still Ashley's on this item
-
-- **The share is still public.** Restricting it needs the Manus owner login;
-  the browser here sees only the viewer menu ("Report"), not share settings.
-  Losing the files is no longer a risk — the corpus is in the database and in
-  gitignored `data/knowledge/`.
-- **The key was pasted into the conversation transcript**, not into a file
-  (`pasted_content.txt` is only Firecrawl docs). Worth scanning the transcript
-  for anything else pasted the same way — a Supabase `service_role` key would be
-  far more damaging than the GCP one, and that session touched Supabase.
-- **Deletion**, if wanted, is irreversible and was not done.
-- **An undocumented third key**, `fa1c0c3c…` (created 2025-06-26,
-  never-expiring, `USER_MANAGED`), is active and referenced nowhere on this
-  machine. Not mentioned in any handoff. Worth identifying or retiring.
+And in the database: **0** page-text chunks carry a `timestamp` or
+`start_seconds` key, **0** caption chunks are missing one, **0** chunks or
+sources are unembedded, **0** duplicate chunk keys, **0** approved sources.
 
 ## Linked course documents — citations, not text
 
@@ -427,27 +169,34 @@ inferred from its URL. The two that could not be read carry
 `summary_grounded_in_document: false` and say so in their summary — they are
 registered so the gap is visible, not to imply knowledge nobody has.
 
-## The access blocker on the remaining 21 items
+## The access blocker — resolved 2026-08-31
 
-The 19 uncollected videos and 2 text lessons cannot be collected from here.
-`https://edu.artofdrink.com/user-account/` returns a **Sign In form** — there is
-no authenticated Art of Drink session in this Chrome profile, and entering
-Ashley's password is not something this session will do. The Cloudflare
-interstitial clears on its own; the missing thing is the login itself.
+The 21 uncollected items needed an authenticated Art of Drink session, which the
+environment did not have; `user-account/` rendered a Sign In form and entering
+the password was never an option. Ashley signed in, and collection then ran
+through the existing pipeline with no new code.
 
-Once signed in, the collection path is unchanged and already proven:
-`batch1/extract_authorized_course_caption.sh` per lesson, then
-`vtt_to_knowledge_records.py`, then re-run the ingest. No new code is needed.
+Two things worth keeping for next time:
+
+- The **LMS curriculum API is not a shortcut**. `/wp-json/masterstudy-lms/v2/
+  courses/3206/curriculum` returns `unauthorized_access` even from inside an
+  authenticated browser session — it wants a nonce. Per-lesson it is.
+- **Cloudflare clears itself.** The interstitial resolves on its own within
+  ~10s; it was never bypassed, and it intermittently reappears mid-run, so a
+  retry is normal.
 
 ## Still open
 
-1. **Nothing is approved.** All 44 sources are `pending_review` or
+1. **Nothing is approved.** All 71 sources are `pending_review` or
    `reference_only`. That is correct and deliberate — promoting one is a human
    decision in the console, and no route here can do it.
-2. **25 course items have no captured content**: 21 video lessons, 2 text
-   lessons, and 4 quizzes (quizzes are course metadata, not knowledge). The
-   collection path is reproducible; it needs an authorised browser session per
-   lesson. The two page-text lessons still have **uncaptured video narration**.
+2. **4 course items have no content, and all four are quizzes** — correctly
+   register-only, not a gap and not fabricated. Every non-quiz item now carries
+   content.
+   **12 of the 35 are page text rather than transcript**, because their Bunny
+   library (177015) exposes no auto-caption track. Their **video narration
+   remains uncaptured**; the written body is what is held, and it is cited by
+   section and paragraph, never by a timestamp.
 3. **`Supplier.pdf`** (33 KB, lesson 6) and five linked FEMA/Perfumer & Flavorist
    PDFs are registered in `transcripts/downloadable_assets.tsv` and not
    ingested. The course host is Cloudflare-protected against server-side fetch.

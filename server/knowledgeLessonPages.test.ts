@@ -86,6 +86,29 @@ describe("extractLessonPage", () => {
     }
   });
 
+  // CO<sub>2</sub> became "CO 2 :" — a corrupted chemical formula in text the
+  // system treats as verbatim. Inline tags sit inside a word; they must vanish.
+  it("does not insert a space where an inline tag sat inside a word", () => {
+    const html = page("<p>CO<sub>2</sub>: Carbon dioxide and H<sub>2</sub>O</p>");
+    expect(extractLessonPage(html, "6066").blocks[0].text).toBe(
+      "CO2: Carbon dioxide and H2O"
+    );
+  });
+
+  it("does not pad a list wrapped in anchors", () => {
+    const html = page("<p><a>New Directions</a> (<a>AU</a>, <a>CA</a>, <a>US</a>) - oils</p>");
+    expect(extractLessonPage(html, "6066").blocks[0].text).toBe(
+      "New Directions (AU, CA, US) - oils"
+    );
+  });
+
+  it("still treats <br> as a separator, because it separates lines", () => {
+    const html = page("<p>Polysorbate 20 HLB: 16.7<br>Polysorbate 60 HLB: 14.9</p>");
+    expect(extractLessonPage(html, "6066").blocks[0].text).toBe(
+      "Polysorbate 20 HLB: 16.7 Polysorbate 60 HLB: 14.9"
+    );
+  });
+
   it("keeps an opening single quote opening", () => {
     const html = page("<p>&#8216;proof of concept&#8217; and it&#8217;s fine</p>");
     expect(extractLessonPage(html, "6066").blocks[0].text).toBe(

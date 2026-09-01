@@ -100,11 +100,13 @@ and returns passages with citations. Optional `--limit` (default 6, max 25).
 What is actually in it — run `coverage` for the live numbers rather than
 trusting this paragraph:
 
-- **158 time-coded passages** from 12 lessons of the Art of Drink "Flavour &
+- **336 time-coded passages** from 23 lessons of the Art of Drink "Flavour &
   Beverage Development" course Ashley is enrolled in. These are `quotable` —
   the text is the real transcript and you may read it out, attributed.
-- **9 page-text passages** from 2 lessons whose player exposed no captions.
+- **44 page-text passages** from 12 lessons whose player exposed no captions.
   Also `quotable`, but cited by section and paragraph, never by a timestamp.
+  Their **video narration is not held** — the written lesson body is. Do not
+  imply you have the spoken track for these.
 - **35 cite-only sources**: Kevin Kos, Jeffrey Morgenthaler's calculators,
   clear-ice methods, two FDA references (water activity, acidified foods),
   Serious Eats, the two Notion intake registers, and six documents the course
@@ -157,7 +159,9 @@ conflate them:
 - `items_not_collected` — the genuine gap.
 
 Each lesson carries `content_kind`: `captions`, `page_text`, `register_only` or
-`none`.
+`none`. **Read `content_kind`, not `ingested`** — `ingested` only means the row
+has some chunk, and is true for a page-text lesson and a fully captioned one
+alike.
 
 **Never say the course is complete because every manifest row exists.** If asked
 how much of the course is covered, run `coverage` and give

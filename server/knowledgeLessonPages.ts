@@ -111,6 +111,13 @@ function scanBlocks(body: string): PageBlock[] {
     const raw = body.slice(textStart, end);
     const text = decodeEntities(
       raw
+        // Inline tags sit INSIDE a word and must vanish, not become a space.
+        // `CO<sub>2</sub>: Carbon dioxide` became "CO 2 : Carbon dioxide" —
+        // a corrupted chemical formula in text this system treats as verbatim
+        // and quotable. Anchors did the same to a list: "( AU , CA , US )".
+        // `<br>` is deliberately NOT in this set: it separates lines and the
+        // space it leaves behind is correct.
+        .replace(/<\/?(?:a|sub|sup|strong|b|em|i|span|u|code|small|mark)\b[^>]*>/gi, "")
         .replace(/<[^>]+>/g, " ")
         // The body is sliced at the nav-button marker, which lands INSIDE that
         // tag, so the last fragment is an unterminated `<div class="`. Strip a

@@ -15,7 +15,7 @@ Updated 2026-08-31 after the knowledge-retrieval work. Knowledge detail lives in
 | | |
 |---|---|
 | commit | see `git log` — PR #9, *Simplifier findings fixed* |
-| tests | **211 passing**, 11 files |
+| tests | **226 passing**, 12 files |
 | typecheck | `tsc --noEmit` clean |
 | build | `npm run build` clean |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
@@ -30,11 +30,11 @@ agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
 
 | | |
 |---|---|
-| `beverage.knowledge_sources` | **50** — all `pending_review` / `reference_only`, none approved |
-| `beverage.knowledge_chunks` | **167** — 158 caption + 9 page-text, all embedded |
-| course CONTENT coverage | **14 of 39** — 12 captions + 2 page-text |
-| course register-only | **4** — the quizzes; no knowledge to hold |
-| course NOT COLLECTED | **21** — 19 videos + 2 text lessons. The real gap. |
+| `beverage.knowledge_sources` | **71** — all `pending_review` / `reference_only`, none approved |
+| `beverage.knowledge_chunks` | **380** — 336 caption + 44 page-text, all embedded |
+| course CONTENT coverage | **35 of 39** — 23 captions + 12 page-text |
+| course register-only | **4** — the quizzes; no knowledge to hold, none fabricated |
+| course NOT COLLECTED | **0** |
 | approved formulas | still **1** (`Jalapeno v1`) — unchanged, and a human step |
 
 ---
@@ -115,14 +115,15 @@ it, do not reconcile CRM against Notion, do not overwrite CRM recipes from Notio
 
 Manus's course work was found, not missing: the share is still live and its
 sandbox files survive. The session had simply run out of credits at step 2 of 4
-before it could load anything. Recovered and ingested — 42 knowledge sources and
-158 time-coded course passages, all embedded, reachable through a fifth tool
+before it could load anything. Recovered and ingested — now 71 knowledge sources and
+380 course passages (336 time-coded + 44 page-text), all embedded, reachable through a fifth tool
 (`knowledge`) and a sixth (`coverage`). Every answer carries a citation composed
-by the service. Nothing is approved: all 42 rows remain `pending_review` or
+by the service. Nothing is approved: all 71 rows remain `pending_review` or
 `reference_only`.
 
-12 of the course's 39 items have captions; the other 27 were never collected.
-Run `coverage` for the current split rather than trusting any prose.
+23 of the course's 39 items have captions and 12 more carry page text — 35 with
+content, 0 uncollected, and the 4 quizzes stay register-only. Run `coverage` for
+the current split rather than trusting any prose.
 
 The four findings below were accurate when written and are kept as the record of
 what was true before that work.
@@ -253,18 +254,19 @@ of the known `@rollup/rollup-darwin-x64` arch drift. Prefix with
 
 Detail in `docs/BRIX_KNOWLEDGE.md`. The short version:
 
-- **Nothing in the corpus is approved.** All 44 sources sit `pending_review` or
+- **Nothing in the corpus is approved.** All 71 sources sit `pending_review` or
   `reference_only`, by design. Promoting one is a console decision; no route
   here can do it.
-- **25 of 39 course items have no captured content** — 21 video lessons, 2 text
-  lessons, 4 quizzes. Each needs an authorised browser session; the collection
-  scripts are in `data/knowledge/batch1/` and are reproducible.
-- **The two page-text lessons still have uncaptured video narration.** Their
+- **4 of 39 course items have no content, and all four are quizzes** —
+  register-only by design, never fabricated. Every non-quiz item has content.
+- **The 12 page-text lessons still have uncaptured video narration.** Their
   written body is ingested and cited by section and paragraph; the spoken track
-  is not there and must not be implied.
-- **`Supplier.pdf` and five linked FEMA / Perfumer & Flavorist PDFs** are
-  registered in `transcripts/downloadable_assets.tsv` and not ingested. The host
-  is Cloudflare-protected against server-side fetch.
+  is not there and must not be implied. Their Bunny library (177015) exposes no
+  auto-caption track, so this is a source limitation, not a collection gap.
+- **`Supplier.pdf`** is registered and **not** ingested — the host returns 403 to
+  server-side fetch. The **USDA** publication is registered and not summarised —
+  it is a 26-page scan with no text layer. The four other linked PDFs carry
+  governed summaries read from the documents themselves.
 - **Corpus files are not in git** (`data/knowledge/`, gitignored). The database
   is the store of record; recovery steps are in `docs/BRIX_KNOWLEDGE.md`.
 
