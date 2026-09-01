@@ -219,6 +219,15 @@ export function courseSource(
   const lessonsWithCaptions = new Set(chunks.map(c => c.lesson_id));
   const videoCount = manifest.filter(l => l.lesson_type === "video").length;
 
+  // Time-coded text now arrives from two places — the publisher's caption track
+  // and local transcription of lessons that never had one. The register counts
+  // them separately, because "we hold captions for 30 lessons" would be false
+  // for the seven this machine transcribed itself.
+  const lessonsByOrigin: Record<string, number> = {};
+  for (const [origin, lessonIds] of groupLessonIdsByOrigin(chunks)) {
+    lessonsByOrigin[origin] = lessonIds.size;
+  }
+
   return {
     source_key: COURSE_SOURCE_KEY,
     title: "Art of Drink — Flavour & Beverage Development Course",
@@ -234,19 +243,71 @@ export function courseSource(
     citation_required: true,
     governed_summary:
       `Enrolled course, ${manifest.length} curriculum items (${videoCount} video). ` +
-      `Time-coded captions collected for ${lessonsWithCaptions.size} lessons, ` +
+      `Time-coded text held for ${lessonsWithCaptions.size} lessons, ` +
       `yielding ${chunks.length} citable passages. Tier B training reference: ` +
       `it explains technique and never supplies an approved measure.`,
     source_metadata: {
       lms_course_id: 3206,
       lesson_manifest: manifest,
       lessons_total: manifest.length,
+      // Kept under its original name for callers written against it, but it has
+      // always meant "lessons with time-coded text" — see lessons_by_origin for
+      // how much of that is actually the publisher's caption track.
       lessons_with_captions: lessonsWithCaptions.size,
+      lessons_by_origin: lessonsByOrigin,
       chunk_count: chunks.length,
       recovered_from: provenance.recoveredFrom,
       recovered_at: provenance.recoveredAt,
     },
   };
+}
+
+/**
+ * How a lesson's time-coded text was obtained, in words, for the summary.
+ *
+ * The summary is what a reader sees and what the source embedding is built
+ * from, so "7 time-coded passages" alone is not enough: a publisher's caption
+ * track and a transcript this machine guessed at are both time-coded, and only
+ * one of them is the publisher's own words. Conflating them is how a machine
+ * transcription ends up quoted as though Darcy O'Neil had written it.
+ *
+ * An unrecognised origin is named verbatim rather than described. Unlike the
+ * rights and status mappings below — where an unknown value throws, because
+ * guessing a rights posture is unsafe — an unknown origin here is only a
+ * missing sentence, and printing the raw value is more honest than either
+ * inventing a description or failing the ingest.
+ */
+export const LOCAL_TRANSCRIPT_ORIGIN_PREFIX = "local_whisper_";
+
+/**
+ * Is this chunk's text a local machine transcript rather than the publisher's
+ * own caption track?
+ *
+ * Shared so the ingest, the summary sentence and the citation string cannot
+ * drift apart. They encoded the prefix independently once; a change on one side
+ * would have made `captionOriginNote` fall through to its generic branch and
+ * silently drop the "unreviewed machine output" disclaimer, with no error.
+ *
+ * Takes `unknown` because the one caller that matters reads it off a `locator`
+ * JSON blob, where the field may be absent or any type.
+ */
+export function isLocalTranscript(origin: unknown): boolean {
+  return typeof origin === "string" && origin.startsWith(LOCAL_TRANSCRIPT_ORIGIN_PREFIX);
+}
+
+export function captionOriginNote(origin: string): string {
+  if (origin === "native_en_auto_vtt") {
+    return "Text is the publisher's own auto-caption track.";
+  }
+  if (isLocalTranscript(origin)) {
+    const model = origin.slice(LOCAL_TRANSCRIPT_ORIGIN_PREFIX.length).replace(/_/g, ".");
+    return (
+      `Text was transcribed locally from the lesson audio by Whisper ${model} ` +
+      `because the player exposed no caption track. It is unreviewed machine ` +
+      `output: timestamps come from the audio, wording may contain errors.`
+    );
+  }
+  return `Caption origin: ${origin}.`;
 }
 
 /** One source per lesson that actually has captured passages. */
@@ -263,6 +324,13 @@ export function lessonSources(
       const row = manifestById.get(lessonId);
       const first = lessonChunks[0];
       const spanSeconds = Math.max(...lessonChunks.map(c => c.end_seconds));
+      // Describe EVERY origin present, not just the first chunk's. A lesson
+      // holding both a vendor caption track and a local transcript would
+      // otherwise have its whole summary claim whichever chunk happened to be
+      // pushed first — the source-level version of passing a machine guess off
+      // as the publisher's words. No lesson is mixed today; nothing prevents
+      // one, and the ordering that protects us is incidental.
+      const origins = [...new Set(lessonChunks.map(c => c.caption_origin))].sort();
       return {
         source_key: lessonSourceKey(lessonId),
         title: `${first.lesson_title} — Flavour & Beverage Development`,
@@ -276,7 +344,8 @@ export function lessonSources(
         governed_summary:
           `Lesson ${first.lesson_number} of the Flavour & Beverage Development ` +
           `course. ${lessonChunks.length} time-coded passages covering ` +
-          `${formatClock(spanSeconds)} of ${row?.duration_or_marker ?? "video"}.`,
+          `${formatClock(spanSeconds)} of ${row?.duration_or_marker ?? "video"}. ` +
+          origins.map(captionOriginNote).join(" "),
         source_metadata: {
           course_source_key: COURSE_SOURCE_KEY,
           course_title: first.course_title,
@@ -284,7 +353,11 @@ export function lessonSources(
           lesson_number: first.lesson_number,
           lesson_type: row?.lesson_type ?? "video",
           duration_or_marker: row?.duration_or_marker ?? null,
-          caption_origin: first.caption_origin,
+          // Singular for the ordinary one-origin lesson, so existing readers
+          // and `isLocalTranscript` checks keep working unchanged; the full set
+          // sits beside it rather than being lost.
+          caption_origin: origins.length === 1 ? origins[0] : origins.join(","),
+          caption_origins: origins,
         },
       };
     });
@@ -325,6 +398,19 @@ export function lessonChunkPayloads(
     );
   }
   return out;
+}
+
+/** Distinct lesson ids per `caption_origin`, for the register's breakdown. */
+function groupLessonIdsByOrigin(
+  chunks: CourseChunkRecord[]
+): Map<string, Set<string>> {
+  const byOrigin = new Map<string, Set<string>>();
+  for (const chunk of chunks) {
+    const set = byOrigin.get(chunk.caption_origin);
+    if (set) set.add(chunk.lesson_id);
+    else byOrigin.set(chunk.caption_origin, new Set([chunk.lesson_id]));
+  }
+  return byOrigin;
 }
 
 function groupChunksByLesson(

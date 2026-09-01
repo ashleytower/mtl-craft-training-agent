@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  appendPageChunks,
   extractLessonPage,
   pageChunkPayloads,
   pageLessonSource,
+  withPageTextNoted,
 } from "./knowledgeLessonPages";
-import type { LessonManifestRow } from "./knowledgeCorpus";
+import type { ChunkPayload, LessonManifestRow, SourcePayload } from "./knowledgeCorpus";
 
 const LESSON: LessonManifestRow = {
   lesson_number: "13",
@@ -219,5 +221,103 @@ describe("pageLessonSource", () => {
 
   it("does not claim a caption origin", () => {
     expect(built.source_metadata).not.toHaveProperty("caption_origin");
+  });
+});
+
+describe("withPageTextNoted", () => {
+  const timeCoded: SourcePayload = {
+    source_key: "aod-fbd-lesson-6066",
+    title: "Solvents for Flavours — Flavour & Beverage Development",
+    publisher: "Art of Drink Education",
+    creator: "Darcy O'Neil",
+    source_url: "https://edu.artofdrink.com/x/6066",
+    authority_tier: "tier_b_authorized_course",
+    rights_status: "authorized_private",
+    operational_status: "pending_review",
+    citation_required: true,
+    governed_summary: "Lesson 13 of the course. 7 time-coded passages covering 10:21 of 10 minutes.",
+    source_metadata: { lesson_id: "6066", caption_origin: "local_whisper_small_en" },
+  };
+
+  it("declares the page passages the row also answers from", () => {
+    const merged = withPageTextNoted(timeCoded, 7);
+    expect(merged.governed_summary).toMatch(/Also holds 7 passages of the lesson's written page/);
+    expect(merged.governed_summary).toMatch(/section and paragraph rather than by timestamp/);
+    expect(merged.source_metadata.page_text_chunks).toBe(7);
+    expect(merged.source_metadata.retrieval_types).toEqual(["time_coded", "page_text_only"]);
+  });
+
+  it("says passage, not passages, for one", () => {
+    expect(withPageTextNoted(timeCoded, 1).governed_summary).toMatch(/Also holds 1 passage of/);
+  });
+
+  it("leaves a row with no page text exactly as it was", () => {
+    expect(withPageTextNoted(timeCoded, 0)).toBe(timeCoded);
+  });
+
+  it("keeps the provenance the time-coded row already carried", () => {
+    // The merged row must not lose caption_origin: it is the only thing
+    // distinguishing a machine transcript from the publisher's own captions.
+    const merged = withPageTextNoted(timeCoded, 7);
+    expect(merged.source_metadata.caption_origin).toBe("local_whisper_small_en");
+    expect(merged.operational_status).toBe("pending_review");
+    expect(merged.rights_status).toBe("authorized_private");
+  });
+});
+
+describe("appendPageChunks", () => {
+  const timeCoded: ChunkPayload[] = [1, 2, 3].map(n => ({
+    chunk_key: `aod-fbd-6066-t00${n}`,
+    ordinal: n,
+    body: `transcript ${n}`,
+    locator: { lesson_id: "6066", timestamp: "0:00-1:00" },
+    embedding: null,
+  }));
+  const pageText: ChunkPayload[] = [1, 2].map(n => ({
+    chunk_key: `aod-fbd-6066-p00${n}`,
+    ordinal: n,
+    body: `page ${n}`,
+    locator: { lesson_id: "6066", retrieval_type: "page_text_only" },
+    embedding: null,
+  }));
+
+  it("keeps the page passages instead of dropping them for the transcript", () => {
+    // This is the regression the whole merge exists for: the ingest previously
+    // skipped a lesson's page the moment it had time-coded text.
+    const merged = appendPageChunks(timeCoded, pageText);
+    expect(merged).toHaveLength(5);
+    expect(merged.map(c => c.chunk_key)).toContain("aod-fbd-6066-p001");
+    expect(merged.map(c => c.chunk_key)).toContain("aod-fbd-6066-p002");
+  });
+
+  it("renumbers page ordinals to follow the time-coded ones", () => {
+    const merged = appendPageChunks(timeCoded, pageText);
+    expect(merged.map(c => c.ordinal)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("never rewrites a chunk key", () => {
+    // Keys are the upsert's identity. Renumbering them would orphan every page
+    // row already in the database under a key nothing writes again.
+    const merged = appendPageChunks(timeCoded, pageText);
+    expect(merged.slice(3).map(c => c.chunk_key)).toEqual([
+      "aod-fbd-6066-p001",
+      "aod-fbd-6066-p002",
+    ]);
+  });
+
+  it("leaves the page locator's absent timestamp absent", () => {
+    // A page passage has no clock. Merging it beside timestamped passages must
+    // not tempt anything into giving it one.
+    const merged = appendPageChunks(timeCoded, pageText);
+    expect(merged[3].locator).not.toHaveProperty("timestamp");
+    expect(merged[3].locator.retrieval_type).toBe("page_text_only");
+  });
+
+  it("numbers from 1 when the lesson has only page text", () => {
+    expect(appendPageChunks([], pageText).map(c => c.ordinal)).toEqual([1, 2]);
+  });
+
+  it("returns the time-coded chunks untouched when there is no page text", () => {
+    expect(appendPageChunks(timeCoded, [])).toEqual(timeCoded);
   });
 });

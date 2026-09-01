@@ -9,17 +9,17 @@ Manus design/context: https://manus.im/share/5BNfPHDbcgJbvdHmeTZo9E
 
 ## Verified state
 
-Updated 2026-08-31 after the knowledge-retrieval work. Knowledge detail lives in
+Updated 2026-09-01 after the page-text merge. Knowledge detail lives in
 **`docs/BRIX_KNOWLEDGE.md`**; this file stays the one-page picture.
 
 | | |
 |---|---|
 | commit | see `git log` — PR #9, *Simplifier findings fixed* |
-| tests | **226 passing**, 12 files |
+| tests | **272 passing**, 14 files |
 | typecheck | `tsc --noEmit` clean |
 | build | `npm run build` clean |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
-| beverage migrations | 110-114 in `db/migrations/`, all applied and registered |
+| beverage migrations | 110-118 in `db/migrations/`, all applied; **118** is the live `beverage_knowledge_coverage` |
 
 Recent merges: #8 `902d105` page-text lessons · #7 `0379dd4` cited knowledge
 corpus · #5 `b30712e` CRM-backed cocktail measures · #4 `ef5e408` message noun
@@ -30,9 +30,10 @@ agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
 
 | | |
 |---|---|
-| `beverage.knowledge_sources` | **71** — all `pending_review` / `reference_only`, none approved |
-| `beverage.knowledge_chunks` | **380** — 336 caption + 44 page-text, all embedded |
-| course CONTENT coverage | **35 of 39** — 23 captions + 12 page-text |
+| `beverage.knowledge_sources` | **71** — 38 `pending_review`, 32 `reference_only`, 1 `inspiration_only`; **none approved** |
+| `beverage.knowledge_chunks` | **463** — 336 caption + 127 page-text, all embedded |
+| course CONTENT coverage | **35 of 39** — 23 with a clock + 12 page-text-only |
+| lessons holding page text | **24** — 12 page-only + **12 mixed** (both kinds under one source) |
 | course register-only | **4** — the quizzes; no knowledge to hold, none fabricated |
 | course NOT COLLECTED | **0** |
 | approved formulas | still **1** (`Jalapeno v1`) — unchanged, and a human step |
@@ -116,14 +117,15 @@ it, do not reconcile CRM against Notion, do not overwrite CRM recipes from Notio
 Manus's course work was found, not missing: the share is still live and its
 sandbox files survive. The session had simply run out of credits at step 2 of 4
 before it could load anything. Recovered and ingested — now 71 knowledge sources and
-380 course passages (336 time-coded + 44 page-text), all embedded, reachable through a fifth tool
+463 course passages (336 time-coded + 127 page-text), all embedded, reachable through a fifth tool
 (`knowledge`) and a sixth (`coverage`). Every answer carries a citation composed
 by the service. Nothing is approved: all 71 rows remain `pending_review` or
 `reference_only`.
 
-23 of the course's 39 items have captions and 12 more carry page text — 35 with
-content, 0 uncollected, and the 4 quizzes stay register-only. Run `coverage` for
-the current split rather than trusting any prose.
+23 of the course's 39 items have time-coded text and 24 hold page text (12 of
+them holding both) — 35 with content, 0 uncollected, and the 4 quizzes stay
+register-only. Run `coverage` for the current split rather than trusting any
+prose.
 
 The four findings below were accurate when written and are kept as the record of
 what was true before that work.
@@ -259,10 +261,24 @@ Detail in `docs/BRIX_KNOWLEDGE.md`. The short version:
   here can do it.
 - **4 of 39 course items have no content, and all four are quizzes** —
   register-only by design, never fabricated. Every non-quiz item has content.
-- **The 12 page-text lessons still have uncaptured video narration.** Their
-  written body is ingested and cited by section and paragraph; the spoken track
-  is not there and must not be implied. Their Bunny library (177015) exposes no
-  auto-caption track, so this is a source limitation, not a collection gap.
+- **Only 7 of the 12 page-text lessons actually have video** — corrected
+  2026-09-01. The earlier wording implied all 12 had uncaptured narration. Five
+  do not: **7966** (Safety Summary), **7736** (HLB) and **5726** (Flavour
+  Starter Kit) are marked `video` in the manifest with a duration, but their
+  pages contain no player, no iframe, and no CDN reference after a full page
+  settle; **5136** (Jargon File) and **7561** (Suppliers) are manifest
+  `lesson_type: text`. 7736's page holds one UUID, and it is a `notionvc:`
+  comment left in pasted content, not a video id. For these five the page text
+  is not a substitute for narration — there is no narration.
+- **The 7 that do have video have no caption track to collect.** Their Bunny
+  library (177015) serves an embed containing no `.vtt` reference of any kind,
+  where library 4056's embeds do. This is a source limitation, not a
+  collection gap.
+- **Their audio is collected and duration-verified; the transcription run is
+  blocked on machine resources.** All 7 lessons' audio was pulled from the
+  enrolled session and every duration matches the manifest (60.6 minutes
+  total). Transcription itself could not run: see "Local transcription" under
+  Traps.
 - **`Supplier.pdf`** is registered and **not** ingested — the host returns 403 to
   server-side fetch. The **USDA** publication is registered and not summarised —
   it is a 26-page scan with no text layer. The four other linked PDFs carry
@@ -304,9 +320,24 @@ never-expiring key (`fa1c0c3c…`, 2025-06-26) is active and referenced nowhere.
 - **`node` on this machine is x64** and breaks vitest/tsx. Prefix commands with
   `PATH=/usr/local/bin:$PATH`.
 - **A bot cannot appear in a Telegram chat list until the user messages it first.**
-- **A page chunk has no clock.** Lessons 13 and 22 are page text, not
-  transcripts. `retrieval_type: "page_text_only"` and there is deliberately no
-  `timestamp` key at all — do not add one, and do not let the agent infer one.
+- **A page chunk has no clock.** `retrieval_type: "page_text_only"` and there is
+  deliberately no `timestamp` key at all — do not add one, and do not let the
+  agent infer one. This now holds for 24 lessons, 12 of which also carry
+  time-coded passages under the same source row.
+- **Local transcription needs a quiet machine, and this one is not.** On
+  2026-09-01, with load average 40-62 and 0.3-0.8% idle CPU, Whisper could not
+  transcribe 170 seconds of audio in 420 seconds. The binding constraint is CPU
+  starvation, not model size: `tiny.en` (39 MB) also timed out at 300s on the
+  same clip, which the same machine had done in 2:47 the night before. The
+  resident consumers were `chroma-mcp` (claude-mem's vector store, ~1.2 GB,
+  100-140% CPU, and **it respawns within seconds of being killed** because
+  `uv tool uvx` supervises it), Google Drive, VS Code, ChatGPT/Codex and Ollama.
+  Check `top -l 1 -n 0 | grep -E "CPU usage|PhysMem"` for real idle CPU before
+  starting a run.
+- **Do not send this audio to a cloud transcription service.** It is
+  `authorized_private` course material under Ashley's enrolment. Local-only is
+  a rights constraint, not a preference — an offline machine is the fix, not a
+  faster API.
 - **MasterStudy reuses content class names inside `<link>` tags.** The first
   textual match for `masterstudy-course-player-lesson-video` in a saved lesson
   page is a stylesheet URL, not the lesson. Anchor on the `<div …>`.
