@@ -44,7 +44,7 @@ ingest.
 
 ```
 beverage.knowledge_sources   71 rows   (5 pre-existing + 1 course + 35 lessons + 24 external + 6 linked docs)
-beverage.knowledge_chunks   380 rows   336 caption + 44 page-text, all embedded and full-text indexed
+beverage.knowledge_chunks   463 rows   336 caption + 127 page-text, all embedded and full-text indexed
 ```
 
 | tier | rows | what |
@@ -53,8 +53,9 @@ beverage.knowledge_chunks   380 rows   336 caption + 44 page-text, all embedded 
 | `tier_c_external_practitioner` | 26 | Kevin Kos, Morgenthaler, clear ice, FDA, Serious Eats, Notion registers |
 | `tier_d_inspiration` | 1 | The Alchemist — recorded, deliberately not ingested |
 
-**Every row is `pending_review` or `reference_only`. Nothing is an approved
-control.** Retrievability is not approval; that stayed a separate human step,
+**Nothing is an approved control** — 38 `pending_review`, 32 `reference_only`,
+1 `inspiration_only` (`PUB-ALCH-001`, The Alchemist, a *lower* trust tier than
+reference_only, not an approval). Retrievability is not approval; that stayed a separate human step,
 and the ingest never overwrites `rights_status`, `operational_status` or
 `review_status` on a re-run.
 
@@ -67,7 +68,7 @@ reported separately by `beverage_knowledge_coverage`:
 | | |
 |---|---|
 | manifest items | **39** |
-| **with content** | **35** — 23 captions + 12 page-text |
+| **with content** | **35** — 23 captions + 12 page-text (12 of the captioned lessons also carry page text) |
 | register-only | **4** — the four quizzes |
 | **not collected** | **0** |
 
@@ -146,6 +147,108 @@ mismatches:                                                 0
 And in the database: **0** page-text chunks carry a `timestamp` or
 `start_seconds` key, **0** caption chunks are missing one, **0** chunks or
 sources are unembedded, **0** duplicate chunk keys, **0** approved sources.
+
+## The captionless lessons: what has video, and what does not
+
+Established 2026-09-01, against the live authenticated session. The earlier
+handoff called these "the 12 captionless lesson videos". **Only 7 of the 12 are
+videos at all.**
+
+| lesson | # | title | media | evidence |
+|---|---|---|---|---|
+| 4906 | 10 | What is Flavour? | video 23:26 | Bunny embed, library 177015 |
+| 5446 | 12 | Science of Taste | video 5:19 | Bunny embed |
+| 6066 | 13 | Solvents for Flavours | video 10:21 | Bunny embed |
+| 6381 | 15 | Terpenes | video 7:27 | Bunny embed |
+| 5551 | 22 | Documentation | video 3:52 | Bunny embed |
+| 4776 | 26 | Tincture | video 2:50 | Bunny embed |
+| 5256 | 28 | Ageing Flavours | video 7:20 | Bunny embed |
+| 7966 | 8 | Safety Summary | **none** | 0 iframes, 0 UUIDs, no CDN reference |
+| 7736 | 17 | HLB | **none** | 0 iframes; its 1 UUID is a `notionvc:` comment |
+| 5726 | 39 | Flavour Starter Kit | **none** | 0 iframes, 0 UUIDs |
+| 5136 | 4 | Jargon File | **none** | manifest `lesson_type: text` |
+| 7561 | 38 | Suppliers | **none** | manifest `lesson_type: text` |
+
+7966, 7736 and 5726 are marked `video` in the manifest **with a duration**, which
+is what produced the wrong count. Their pages carry no player. An early check
+read 0 iframes for several of these while Cloudflare was still serving its
+interstitial; every row above was re-read after an 8-second settle, and the three
+that genuinely have no player were additionally confirmed by scanning the full
+page source for `mediadelivery`, `bunny` and any UUID.
+
+**There is no caption track to collect for the 7 that do have video.** Their
+embed document contains no `.vtt` reference of any kind — library 4056's embeds
+do. That is a property of the library, not of the collection method.
+
+### Audio is collected and duration-verified
+
+All 7 were pulled from the enrolled session — the embed is referrer-locked
+(a direct fetch returns 403), so acquisition replicates the lesson-page referer
+the browser sends, then takes the audio stream only. Every duration matches the
+manifest:
+
+```
+lesson  measured   manifest
+4906    23:26      23 minutes
+5446     5:19      5 min
+6066    10:21      10 minutes
+6381     7:27      7 minutes
+5551     3:52      4 minutes
+4776     2:50      3 minutes
+5256     7:20      7 minutes
+                   total 60.6 minutes
+```
+
+One file was caught truncated: an interrupted run left `5446.wav` at 188s. The
+tell was a surviving `embed_5446.html` — the fetch script deletes that marker
+only on clean completion — and the re-fetch produced the correct 319s. That
+marker convention is why the truncation did not reach the corpus.
+
+### Transcription itself is blocked — machine, not method
+
+Whisper could not run at usable speed on 2026-09-01. Measured, not assumed:
+
+```
+small.en, 170s audio, 2 concurrent passes   >20 min, no output   (load 27)
+small.en, 170s audio, single pass           >35 min, no output   (load 48)
+small.en, 170s audio, after freeing 1.2 GB   420s timeout        (load 30)
+tiny.en   170s audio (39 MB model)           300s timeout        (load 62)
+same clip, same machine, previous night      2:47 complete
+```
+
+`tiny.en` failing is the decisive datum: **the constraint is CPU starvation, not
+model memory.** Idle CPU sat at 0.3-0.8% with 66-74% in the kernel. `chroma-mcp`
+(claude-mem's vector store) held ~1.2 GB at 100-140% CPU and **respawns within
+seconds of being killed**, because `uv tool uvx` supervises it.
+
+The pipeline is complete and tested — `server/knowledgeTranscripts.ts`, the
+merge in `scripts/ingest-knowledge.ts`, and 24 tests. Finishing is one command
+on a quiet machine:
+
+```
+scratchpad/transcribe.sh                       # writes pass_primed/lesson_<id>.vtt
+cp pass_primed/*.vtt data/knowledge/local_transcripts/
+scratchpad/verify_terms.py                     # unprimed re-check of every biased term
+PATH=/usr/local/bin:$PATH npx tsx scripts/ingest-knowledge.ts
+```
+
+The audio must **not** be sent to a cloud transcription service: it is
+`authorized_private` material under Ashley's enrolment.
+
+### How the glossary prompt is kept honest
+
+Whisper is primed with an `--initial_prompt` built from the course's own Jargon
+File (lesson 5136) plus domain terms grepped out of the saved lesson pages —
+every biased term is attested in real course material, none invented. The pilot
+showed why it is needed: unprimed `small.en` rendered **gentian** as "genshin",
+and *gentian* appears twice in lesson 6066's own page text.
+
+Bias can also put a word where nobody said it, so `verify_terms.py` re-cuts the
+audio around **every** occurrence of a biased term and re-transcribes that window
+with **no prompt**. A term the unprimed decoder also produces is confirmed by the
+audio; one it does not is recorded `UNCONFIRMED` rather than silently kept — and
+never silently "corrected" from the glossary. It also flags prompt echo, where
+Whisper recites its own instructions during silence.
 
 ## Linked course documents — citations, not text
 
