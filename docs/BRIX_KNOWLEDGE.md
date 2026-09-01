@@ -110,6 +110,27 @@ returned HTTP 200 and the file's md5 (`526b7113…`) **matched the stored VTT
 byte-for-byte**. Only then was a 404 read as "this lesson genuinely has no
 caption track" rather than "the method is broken".
 
+#### The reconstructed pages were checked against the live page
+
+The 10 page-text lessons could not be curled (the course is Cloudflare-protected)
+so their bodies were read out of the authenticated browser in slices and
+reassembled. That hand-assembly is the least deterministic step in the whole
+job, so it was verified rather than assumed: the stored text was compared to a
+fresh read of the live page, sampling head, tail **and a mid-offset** — a
+dropped or duplicated slice shifts every later offset, so a matching mid-sample
+is the real proof.
+
+| lesson | stored | live | drift |
+|---|---|---|---|
+| 5446 Science of Taste (8 slices) | 4838 | 4838 | **0** |
+| 4906 What is Flavour? (9 slices) | 5681 | 5680 | +1 |
+| 5136 Jargon File (7 slices) | 3856 | 3854 | +2 |
+
+Head, mid and tail samples matched in all three. The 1-2 character drift is
+inline-tag spacing (`<a>`, `<sub>`), not lost content. All ten bodies are within
+3% of the length the browser reported, the shortfalls being trailing
+`<p>&nbsp;</p>` blocks deliberately dropped.
+
 #### Every timestamp was checked against its source
 
 All **336** caption chunks were re-verified against the raw `.vtt` files: each
