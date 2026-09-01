@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isPromptEcho,
   parseVtt,
   transcriptChunkRecords,
   transcriptSpanSeconds,
@@ -205,5 +206,40 @@ describe("parseVtt clock integrity", () => {
        "00:05.000 --> 00:09.000", "two", ""].join("\n")
     );
     expect(cues.map(c => c.text)).toEqual(["one", "two"]);
+  });
+});
+
+describe("isPromptEcho", () => {
+  it("recognises the decoder reciting its own glossary", () => {
+    // Whisper emits its conditioning text as speech when it meets silence. In
+    // this corpus that lands as a timestamped, quotable passage attributed to
+    // the instructor, and it passes every term check because the words in it
+    // ARE the vocabulary the checker treats as attested.
+    expect(
+      isPromptEcho(
+        "Flavour and beverage development course. Terms: ABV, ABW, Brix, CAS, " +
+          "cloud agent, Codex Alimentarius, CO2, EtOH, FCC, FEMA, GRAS."
+      )
+    ).toBe(true);
+  });
+
+  it("leaves a genuine spoken list alone", () => {
+    // A flavour course really does enumerate ingredients. Throwing that away
+    // would delete real narration, so the test is narrow on purpose.
+    expect(
+      isPromptEcho("We use lemon, lime, orange, grapefruit, yuzu and bergamot in this one.")
+    ).toBe(false);
+  });
+
+  it("does not fire on ordinary narration that mentions terms", () => {
+    expect(isPromptEcho("Tinctures are ten parts solvent to one part herb.")).toBe(false);
+    expect(isPromptEcho("")).toBe(false);
+  });
+
+  it("needs both signals, not either one", () => {
+    // "terms:" with no list is a speaker introducing vocabulary.
+    expect(isPromptEcho("Let me define some terms: it will help later.")).toBe(false);
+    // A long comma run with no preamble is a spoken enumeration.
+    expect(isPromptEcho("a, b, c, d, e, f, g, h")).toBe(false);
   });
 });

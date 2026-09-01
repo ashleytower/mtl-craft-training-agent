@@ -188,6 +188,29 @@ function round3(value: number): number {
 }
 
 /**
+ * Does this cue look like the decoder reciting its own `--initial_prompt`?
+ *
+ * Transcription primes Whisper with a comma-separated glossary of course terms.
+ * Whisper is known to emit its conditioning text as though it were speech when
+ * it meets silence, and the result is catastrophic here rather than merely
+ * untidy: the glossary lands in the corpus as a passage with a real timestamp,
+ * indistinguishable from narration, and gets quoted back verbatim as something
+ * the instructor said. It would also sail through every term check, because the
+ * words in it are by construction the exact words the checker treats as
+ * attested course vocabulary.
+ *
+ * The test is deliberately narrow — the prompt's own preamble plus a long
+ * comma run. A flavour course really does say things like "lemon, lime, orange,
+ * grapefruit and yuzu", and a looser rule would throw that away. Callers REFUSE
+ * on a hit rather than dropping the cue, so a false positive costs a human
+ * glance and a false negative is what must not happen.
+ */
+export function isPromptEcho(text: string): boolean {
+  const low = text.toLowerCase();
+  return low.includes("terms:") && (low.match(/,/g)?.length ?? 0) >= 5;
+}
+
+/**
  * The last moment any cue covers, for checking a transcript against its media.
  *
  * Returns 0 for an empty transcript rather than `-Infinity`, which is what

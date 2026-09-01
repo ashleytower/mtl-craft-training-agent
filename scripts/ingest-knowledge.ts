@@ -41,6 +41,7 @@ import {
   withPageTextNoted,
 } from "../server/knowledgeLessonPages";
 import {
+  isPromptEcho,
   parseVtt,
   transcriptChunkRecords,
   transcriptSpanSeconds,
@@ -125,6 +126,21 @@ function loadLocalTranscripts(
     if (!Number.isFinite(mediaSeconds) || mediaSeconds <= 0) {
       throw new Error(
         `Unreadable media duration "${durationFile.trim()}" for lesson ${lesson.lesson_id}.`
+      );
+    }
+
+    // The decoder reciting its own glossary is not narration. Left alone it
+    // would enter the corpus as a timestamped, quotable passage and then pass
+    // every term check, because the words in it ARE the checker's vocabulary.
+    // Refused rather than dropped: a cue this file cannot vouch for is a human
+    // decision, not something to silently delete from a lesson.
+    const echo = cues.find(cue => isPromptEcho(cue.text));
+    if (echo) {
+      throw new Error(
+        `Lesson ${lesson.lesson_id} transcript contains what looks like the decoder ` +
+          `reciting its own initial_prompt at ${echo.startSeconds}s: ` +
+          `"${echo.text.slice(0, 120)}". Refusing to ingest it as narration. ` +
+          `Check the audio at that timestamp, then delete the cue or the file.`
       );
     }
 

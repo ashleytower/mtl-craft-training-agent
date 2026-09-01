@@ -70,11 +70,20 @@ TERMS = [
     "percolation", "macerated", "tincture", "solvent", "emulsion", "HLB",
 ]
 # Acronyms whose lowercase form is an ordinary word or word-fragment. Matching
-# these case-insensitively turns "ta" in "take" into a TA hit. Word boundaries
-# alone are not enough: "TA" IS a standalone word in "a ta value".
+# these case-insensitively turns "ta" in "take" into a TA hit, or French "gras"
+# into a GRAS hit. Word boundaries alone are not enough: "TA" IS a standalone
+# word in "a ta value".
+#
+# EtOH is deliberately NOT here, unlike every other acronym in the list. It is
+# the one term with internal lowercase, and a speech decoder will not reproduce
+# that casing reliably — "ETOH" or "Etoh" is at least as likely. Matched
+# case-sensitively it would simply never appear in `occurrences` at all: not
+# unconfirmed, invisible, with the report silently claiming full coverage of a
+# term it never once looked at. "etoh" collides with no English word, so
+# matching it case-insensitively costs nothing.
 CASE_SENSITIVE = {"TA", "CAS", "TTB", "USP", "RDA", "RTD", "SKU", "FCC", "FMP",
                   "PPM", "ABV", "ABW", "GRAS", "GMP", "FEMA", "MOQ", "MSDS",
-                  "WONF", "HLB", "EtOH", "FIDS", "JECFA"}
+                  "WONF", "HLB", "FIDS", "JECFA"}
 
 WINDOW_PAD = 4.0   # seconds either side; a bare 2s clip decodes badly out of context
 
@@ -125,12 +134,36 @@ def parse_vtt(path):
 INLINE_TAGS = re.compile(
     r"</?(?:a|sub|sup|strong|b|em|i|span|u|code|small|mark)\b[^>]*>", re.I)
 
+# KEEP IN SYNC WITH `BODY_START` / `BODY_END` in server/knowledgeLessonPages.ts.
+#
+# Scoping to the lesson body is not tidiness, it is the whole validity of this
+# stage. A saved lesson page is ~344,000 characters of which ~4,100 are the
+# lesson; the rest is WordPress chrome plus a MasterStudy curriculum sidebar
+# that lists EVERY lesson title in the course, repeated on every page. Searching
+# the raw file therefore finds "Tincture", "HLB" and "Terpenes" on all 24 pages
+# — as navigation labels, not content.
+#
+# That made attestation almost unfalsifiable: any fabricated word that happened
+# to match a lesson title anywhere in the 39-item syllabus counted as attested
+# and was demoted to the low-risk bucket that rarely gets an audio check. Since
+# the biased vocabulary is drawn largely from this course's own titles, that was
+# not a remote edge case.
+BODY_START = '<div class="masterstudy-course-player-lesson-video">'
+BODY_END = "masterstudy-nav-button"
+
 
 def course_text():
     blobs = {}
     for page in sorted(PAGES.glob("lesson_*.html")):
         raw = page.read_text(encoding="utf-8", errors="replace")
-        text = INLINE_TAGS.sub("", raw)
+        start = raw.find(BODY_START)
+        if start == -1:
+            # Not a lesson page shape. Contributing nothing is right: an
+            # unparseable page must not silently widen what counts as attested.
+            continue
+        end = raw.find(BODY_END, start)
+        body = raw[start:] if end == -1 else raw[start:end]
+        text = INLINE_TAGS.sub("", body)
         text = re.sub(r"<[^>]+>", " ", text)
         text = re.sub(r"\s+", " ", text)
         blobs[page.stem.replace("lesson_", "")] = text
@@ -166,6 +199,14 @@ for vtt in sorted(VTT_DIR.glob("lesson_*.vtt")):
         # reciting its initial_prompt during silence, not the speaker talking.
         if "terms:" in low and low.count(",") >= 5:
             echoes.append({"lesson": lesson, "start": round(start, 3), "text": text})
+            # And it must NOT be mined for term occurrences. Every word in a
+            # recited prompt is by construction a term this script treats as
+            # attested vocabulary, so a single echoed cue manufactures ~15
+            # occurrences that pass the documentary stage with certainty and
+            # could then be "confirmed" by re-transcribing the same silence.
+            # That is the one outcome this script exists to prevent: reporting
+            # a fabricated word as verified.
+            continue
         for term, pat in PATTERNS:
             if pat.search(text):
                 occurrences.append({
@@ -186,14 +227,24 @@ def risk_key(o):
     return (0 if not o["attested_in_course"] else 1, o["lesson"], o["term"], o["start"])
 
 
-ordered, seen = [], set()
+# Membership is tracked by identity, not by value. `occ in ordered` compares
+# dict CONTENTS, so two genuinely separate occurrences that happen to carry the
+# same lesson, term, clock and text — exactly what a repeated Whisper cue
+# produces — collapse into one. The duplicate then never enters the queue, never
+# gets an `audio_check` key, and the rollup buckets it as "not_sampled",
+# indistinguishable from an honest budget cutoff. A scheduling bug that reports
+# itself as a budget limit is the kind that survives for months.
+# (It was also O(n^2): a linear scan of a growing list, per occurrence.)
+ordered, seen_pairs, queued = [], set(), set()
 for occ in sorted(occurrences, key=risk_key):
-    key = (occ["lesson"], occ["term"])
-    if key not in seen:
-        seen.add(key)
+    pair = (occ["lesson"], occ["term"])
+    if pair not in seen_pairs:
+        seen_pairs.add(pair)
+        queued.add(id(occ))
         ordered.append(occ)
 for occ in sorted(occurrences, key=risk_key):
-    if occ not in ordered:
+    if id(occ) not in queued:
+        queued.add(id(occ))
         ordered.append(occ)
 
 checked = 0
@@ -253,7 +304,15 @@ for o in unconfirmed:
     print(f"    lesson {o['lesson']} @ {o['start']}s  term={o['term']}")
     print(f"      primed:   {o['primed_text'][:110]}")
     print(f"      unprimed: {o.get('unprimed_text','')[:110]}")
-print(f"prompt echoes: {len(echoes)}")
+if echoes:
+    print(f"\nPROMPT ECHOES: {len(echoes)} — the decoder recited its own glossary.")
+    print("  These cues are NOT narration and are excluded from term counts above.")
+    print("  scripts/ingest-knowledge.ts refuses a transcript containing one, so the")
+    print("  corpus cannot hold them. Inspect the audio at these timestamps:")
+    for e in echoes:
+        print(f"    lesson {e['lesson']} @ {e['start']}s: {e['text'][:100]}")
+else:
+    print("prompt echoes: 0")
 
 (VTT_DIR / "term_verification.json").write_text(json.dumps({
     "audio_budget": AUDIO_BUDGET,

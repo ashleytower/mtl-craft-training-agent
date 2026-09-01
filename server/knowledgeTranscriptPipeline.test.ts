@@ -33,6 +33,15 @@ function verifiedTerms(): string[] {
   return [...match[1].matchAll(/"([^"]+)"/g)].map(m => m[1]);
 }
 
+/** The acronyms the Python matches case-sensitively, because their lowercase
+ *  form is an ordinary word or fragment. */
+function caseSensitiveTerms(): Set<string> {
+  const py = readFileSync(resolve(REPO, "scripts/verify-transcript-terms.py"), "utf8");
+  const match = py.match(/^CASE_SENSITIVE = \{([\s\S]*?)\}/m);
+  if (!match) throw new Error("CASE_SENSITIVE set not found in verify-transcript-terms.py");
+  return new Set([...match[1].matchAll(/"([^"]+)"/g)].map(m => m[1]));
+}
+
 describe("transcription pipeline vocabulary", () => {
   it("verifies every term it biases the decoder toward", () => {
     const biased = biasedTerms();
@@ -53,6 +62,22 @@ describe("transcription pipeline vocabulary", () => {
     // empty and the two tests above would pass vacuously.
     expect(biasedTerms().length).toBeGreaterThan(20);
     expect(verifiedTerms().length).toBeGreaterThan(20);
+  });
+
+  it("captures the PRIME list to its real end, not to an embedded full stop", () => {
+    // `biasedTerms` captures non-greedily up to the first `.` after "Terms:".
+    // No term contains a period today, so it reaches the closing quote — but
+    // adding one ("U.S.P.", an "e.g." aside) would silently truncate the list.
+    // A length floor cannot catch that: 25 of 41 terms still clears it, and the
+    // sync tests would then report "in sync" while 16 terms went unchecked.
+    //
+    // So compare against the raw PRIME line: every quoted term must survive.
+    const sh = readFileSync(resolve(REPO, "scripts/collect-lesson-transcripts.sh"), "utf8");
+    const line = sh.match(/^PRIME="([\s\S]*?)"$/m);
+    expect(line).not.toBeNull();
+    const commasInFullLine = (line![1].match(/,/g) ?? []).length;
+    // n comma-separated terms produce n-1 commas.
+    expect(biasedTerms().length).toBe(commasInFullLine + 1);
   });
 
   it("biases only toward terms attested in the course's own material", () => {
@@ -82,10 +107,35 @@ describe("transcription pipeline vocabulary", () => {
     }
     expect(pages.length).toBeGreaterThan(0);
 
+    // Matched exactly as verify-transcript-terms.py matches at runtime:
+    // case-SENSITIVE for the acronyms whose lowercase form is an ordinary word.
+    // Testing every term case-insensitively checked a weaker predicate than the
+    // code it is meant to keep honest — "GRAS" would count as attested because
+    // some lesson contains the French "gras", while the Python, matching
+    // case-sensitively, would find nothing and correctly call it unattested.
+    const caseSensitive = caseSensitiveTerms();
     const unattested = biasedTerms().filter(term => {
-      const pattern = new RegExp(`\\b${term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const pattern = new RegExp(`\\b${escaped}\\b`, caseSensitive.has(term) ? "" : "i");
       return !pages.some(page => pattern.test(page));
     });
     expect(unattested).toEqual([]);
+  });
+
+  it("scopes attestation to the lesson body, not the whole saved page", () => {
+    // A saved page is ~344,000 characters of which ~4,100 are the lesson. The
+    // rest includes a curriculum sidebar listing every lesson title in the
+    // course, on every page — so searching the raw file finds "Tincture",
+    // "HLB" and "Terpenes" everywhere, as navigation labels.
+    //
+    // The Python must scope with the same two markers the TypeScript extractor
+    // uses. If it drifts back to scanning raw HTML, attestation becomes nearly
+    // unfalsifiable and this test is what says so.
+    const py = readFileSync(resolve(REPO, "scripts/verify-transcript-terms.py"), "utf8");
+    const ts = readFileSync(resolve(REPO, "server/knowledgeLessonPages.ts"), "utf8");
+    const bodyStart = ts.match(/const BODY_START = ('[^']+'|"[^"]+");/)![1].slice(1, -1);
+    const bodyEnd = ts.match(/const BODY_END = ("[^"]+"|'[^']+');/)![1].slice(1, -1);
+    expect(py).toContain(bodyStart);
+    expect(py).toContain(bodyEnd);
   });
 });
