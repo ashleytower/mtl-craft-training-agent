@@ -33,8 +33,16 @@ TWO STAGES, DELIBERATELY DIFFERENT IN COST AND COVERAGE
      documentary attestation go first, because those are the ones the glossary
      could have invented outright.
 
+The audio stage returns three verdicts, not two: `confirmed` (the unprimed
+decoder produced the term), `variant` (it produced the same word spelt
+differently, so the speaker said it and the prime only fixed the spelling), and
+`absent` (nothing resembling it, so a human must look). Only `absent` is
+evidence of a possible insertion. A plain pass/fail split would file the prime's
+most valuable correction — gentian, which unprimed Whisper renders "genshin" —
+as a failure, indistinguishable from a genuine fabrication.
+
 Neither stage edits a transcript. Nothing here rewrites audio to match the
-glossary; the output is evidence, and an UNCONFIRMED row stays UNCONFIRMED.
+glossary; the output is evidence, and an `absent` row stays `absent`.
 
 Writes term_verification.json beside the transcripts.
 """
@@ -42,6 +50,7 @@ import json
 import re
 import subprocess
 import sys
+from difflib import SequenceMatcher
 from pathlib import Path
 
 args = [a for a in sys.argv[1:]]
@@ -91,6 +100,54 @@ WINDOW_PAD = 4.0   # seconds either side; a bare 2s clip decodes badly out of co
 def pattern(term):
     flags = 0 if term in CASE_SENSITIVE else re.IGNORECASE
     return re.compile(r"\b" + re.escape(term) + r"\b", flags)
+
+
+# How close a word has to be to the term to count as the same word misspelt.
+#
+# Measured, not assumed — an earlier 0.72 was set from a guessed ratio and threw
+# away the exact case this classifier exists for:
+#
+#   gentian / genshin    0.71   real, the miss the prime corrects
+#   terpenes / terpines  0.88   real, a plausible spelling slip
+#   gentian / stand      0.17   unrelated
+#   tincture / store     0.29   unrelated
+#
+# Genuine ASR variants of a word cluster around 0.7-0.9 because they share most
+# of their characters; unrelated vocabulary sits below 0.4. 0.65 falls in the
+# empty gap between the two, so it is not balanced on either group's edge.
+VARIANT_RATIO = 0.65
+
+
+def audio_verdict(term, unprimed):
+    """
+    Three outcomes, because two are not enough.
+
+    A plain confirmed/unconfirmed split conflates the two things this check
+    exists to tell apart. Unprimed Whisper renders "gentian" as "genshin" — that
+    is the whole reason the glossary prime exists — so an exact-match test
+    reports the prime's most valuable correction as a failure, right beside a
+    genuine fabrication, and a reader cannot tell which is which.
+
+      confirmed  the unprimed decoder produced the term itself
+      variant    it produced something close enough to be the same word spelt
+                 differently, so the speaker did say it and the prime only
+                 fixed the spelling — the intended use of the bias
+      absent     it produced nothing resembling the term, so the audio does not
+                 support it and a human must look
+
+    Only `absent` is evidence of a possible insertion.
+    """
+    if pattern(term).search(unprimed):
+        return "confirmed", None
+    head = term.split()[0].lower()
+    best, best_word = 0.0, None
+    for word in re.findall(r"[A-Za-z][A-Za-z'-]*", unprimed):
+        ratio = SequenceMatcher(None, head, word.lower()).ratio()
+        if ratio > best:
+            best, best_word = ratio, word
+    if best >= VARIANT_RATIO:
+        return "variant", best_word
+    return "absent", best_word
 
 
 PATTERNS = [(t, pattern(t)) for t in TERMS]
@@ -269,26 +326,33 @@ for occ in ordered:
     out = WORK / f"{clip.stem}.txt"
     unprimed = out.read_text().strip() if out.exists() else ""
     occ["unprimed_text"] = unprimed
-    occ["audio_check"] = "confirmed" if pattern(occ["term"]).search(unprimed) else "unconfirmed"
+    verdict, nearest = audio_verdict(occ["term"], unprimed)
+    occ["audio_check"] = verdict
+    occ["nearest_unprimed_word"] = nearest
     clip.unlink(missing_ok=True)
     out.unlink(missing_ok=True)
     checked += 1
+    near = (f" (heard ~{occ['nearest_unprimed_word']})"
+            if occ.get("nearest_unprimed_word") and occ["audio_check"] != "confirmed" else "")
     print(f"  audio {occ['lesson']} {occ['start']:8.2f} {occ['term']:20} "
-          f"{occ['audio_check']}", flush=True)
+          f"{occ['audio_check']}{near}", flush=True)
 
 # ---------------------------------------------------------------- report
+VERDICT_KEY = {"confirmed": "audio_confirmed", "variant": "audio_variant",
+               "absent": "audio_absent"}
+
 by_term = {}
 for occ in occurrences:
     row = by_term.setdefault(occ["term"], {
         "occurrences": 0, "attested_in_course": occ["attested_in_course"],
-        "audio_confirmed": 0, "audio_unconfirmed": 0, "audio_not_sampled": 0})
+        "audio_confirmed": 0, "audio_variant": 0, "audio_absent": 0,
+        "audio_not_sampled": 0})
     row["occurrences"] += 1
-    key = {"confirmed": "audio_confirmed", "unconfirmed": "audio_unconfirmed"}.get(
-        occ.get("audio_check"), "audio_not_sampled")
-    row[key] += 1
+    row[VERDICT_KEY.get(occ.get("audio_check"), "audio_not_sampled")] += 1
 
 unattested = sorted(t for t, r in by_term.items() if not r["attested_in_course"])
-unconfirmed = [o for o in occurrences if o.get("audio_check") == "unconfirmed"]
+absent = [o for o in occurrences if o.get("audio_check") == "absent"]
+variants = [o for o in occurrences if o.get("audio_check") == "variant"]
 
 print()
 print(f"biased-term occurrences across {len(list(VTT_DIR.glob('lesson_*.vtt')))} transcripts: "
@@ -298,12 +362,18 @@ print(f"terms attested in the course's own written material: "
       f"{len(by_term) - len(unattested)}/{len(by_term)}")
 print(f"terms NOT attested in writing: {unattested or 'none'}")
 print(f"audio re-checked (unprimed): {checked} of {len(occurrences)}")
-print(f"  confirmed by unprimed audio: {sum(1 for o in occurrences if o.get('audio_check') == 'confirmed')}")
-print(f"  UNCONFIRMED: {len(unconfirmed)}")
-for o in unconfirmed:
-    print(f"    lesson {o['lesson']} @ {o['start']}s  term={o['term']}")
-    print(f"      primed:   {o['primed_text'][:110]}")
-    print(f"      unprimed: {o.get('unprimed_text','')[:110]}")
+print(f"  confirmed  — unprimed decoder produced the term: "
+      f"{sum(1 for o in occurrences if o.get('audio_check') == 'confirmed')}")
+print(f"  variant    — same word, different spelling (the bias doing its job): {len(variants)}")
+for o in variants:
+    print(f"      lesson {o['lesson']} @ {o['start']}s  {o['term']} ~ "
+          f"{o.get('nearest_unprimed_word')}")
+print(f"  ABSENT     — audio does not support the term, needs a human: {len(absent)}")
+for o in absent:
+    print(f"      lesson {o['lesson']} @ {o['start']}s  term={o['term']} "
+          f"(nearest: {o.get('nearest_unprimed_word')})")
+    print(f"        primed:   {o['primed_text'][:104]}")
+    print(f"        unprimed: {o.get('unprimed_text','')[:104]}")
 if echoes:
     print(f"\nPROMPT ECHOES: {len(echoes)} — the decoder recited its own glossary.")
     print("  These cues are NOT narration and are excluded from term counts above.")
