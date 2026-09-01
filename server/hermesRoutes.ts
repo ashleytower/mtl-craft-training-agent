@@ -12,6 +12,7 @@ import { hermesIdentityFromRequest } from "./_core/hermesService";
 import * as beverage from "./beverageClient";
 import { scaleFormula, type NormalizedFormula } from "./beverageScaling";
 import { embedToLiteral } from "./knowledgeEmbedding";
+import { isLocalTranscript } from "./knowledgeCorpus";
 import { methodForAgent, type StoredMethod } from "@shared/method";
 
 type ApprovedFormula = {
@@ -66,7 +67,7 @@ function toNormalized(formula: ApprovedFormula): NormalizedFormula {
  * lesson is worse than no citation at all — it looks checkable and isn't. So
  * the string is built from the stored locator and handed over finished.
  */
-function citationFor(result: beverage.KnowledgeResult): string {
+export function citationFor(result: beverage.KnowledgeResult): string {
   const locator = result.locator ?? {};
   const url = typeof locator.source_url === "string" ? locator.source_url : null;
 
@@ -80,7 +81,7 @@ function citationFor(result: beverage.KnowledgeResult): string {
         : (lessonTitle ?? result.source_title);
 
     // A caption chunk has a clock; a page-text chunk does not and must never be
-    // given one. Two lessons had no caption track, so their body is prose on a
+    // given one. Some lessons had no caption track, so their body is prose on a
     // page — cited by section and paragraph, which a reader can actually check.
     const where =
       locator.retrieval_type === "page_text_only"
@@ -89,7 +90,20 @@ function citationFor(result: beverage.KnowledgeResult): string {
           ? ` at ${locator.timestamp}`
           : "";
 
-    return `${course}, ${lesson}${where}${url ? ` — ${url}` : ""}`;
+    // Not every clock comes from the publisher. Seven lessons' narration was
+    // transcribed on this machine because their player exposes no caption
+    // track, and a Whisper guess must not read as the publisher's own words.
+    //
+    // This has to happen HERE. The source row's governed summary carries the
+    // same disclaimer, but that is written once per lesson at ingest time,
+    // whereas this string is the one a reader sees against an actual quote —
+    // and by this function's own reasoning, it is built rather than left to the
+    // model to infer from a raw `caption_origin` field it may never read.
+    const provenance = isLocalTranscript(locator.caption_origin)
+      ? " (local transcript, unreviewed machine output)"
+      : "";
+
+    return `${course}, ${lesson}${where}${provenance}${url ? ` — ${url}` : ""}`;
   }
 
   const publisher = result.publisher ? `${result.publisher}, ` : "";

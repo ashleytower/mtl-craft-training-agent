@@ -6,6 +6,8 @@ import {
   formatClock,
   lessonChunkPayloads,
   lessonSourceKey,
+  captionOriginNote,
+  isLocalTranscript,
   lessonSources,
   parseJsonl,
   parseLessonManifest,
@@ -316,5 +318,102 @@ describe("parseJsonl", () => {
       { a: 1 },
       { a: 2 },
     ]);
+  });
+});
+
+describe("captionOriginNote", () => {
+  it("names the publisher's own caption track as such", () => {
+    expect(captionOriginNote("native_en_auto_vtt")).toBe(
+      "Text is the publisher's own auto-caption track."
+    );
+  });
+
+  it("says plainly that a local transcript is unreviewed machine output", () => {
+    // This sentence is the whole reason the function exists: it goes into the
+    // governed summary a reader sees and the embedding is built from.
+    const note = captionOriginNote("local_whisper_small_en");
+    expect(note).toMatch(/transcribed locally/);
+    expect(note).toMatch(/unreviewed machine output/);
+    expect(note).toMatch(/Whisper small\.en/);
+  });
+
+  it("names an unrecognised origin verbatim instead of describing it", () => {
+    // Unlike the rights mappings, an unknown origin must not throw — but it
+    // must not be silently described as something it isn't either.
+    expect(captionOriginNote("some_future_source")).toBe(
+      "Caption origin: some_future_source."
+    );
+  });
+});
+
+describe("isLocalTranscript", () => {
+  it("recognises any local_whisper_ model", () => {
+    expect(isLocalTranscript("local_whisper_small_en")).toBe(true);
+    expect(isLocalTranscript("local_whisper_medium_en")).toBe(true);
+  });
+
+  it("does not mistake the publisher's captions for a transcript", () => {
+    expect(isLocalTranscript("native_en_auto_vtt")).toBe(false);
+  });
+
+  it("is safe on the junk a locator can actually hold", () => {
+    // It reads a field off a JSON blob, where absent or wrongly-typed is normal.
+    expect(isLocalTranscript(undefined)).toBe(false);
+    expect(isLocalTranscript(null)).toBe(false);
+    expect(isLocalTranscript(42)).toBe(false);
+    expect(isLocalTranscript({})).toBe(false);
+  });
+});
+
+describe("lessonSources provenance", () => {
+  const manifest = parseLessonManifest(MANIFEST_CSV);
+
+  it("puts the origin sentence in the lesson summary", () => {
+    const [source] = lessonSources(manifest, [chunk()]);
+    expect(source.governed_summary).toMatch(/publisher's own auto-caption track/);
+    expect(source.source_metadata.caption_origin).toBe("native_en_auto_vtt");
+  });
+
+  it("describes a locally transcribed lesson as machine output", () => {
+    const [source] = lessonSources(manifest, [
+      chunk({ caption_origin: "local_whisper_small_en" }),
+    ]);
+    expect(source.governed_summary).toMatch(/unreviewed machine output/);
+  });
+
+  it("describes EVERY origin when a lesson holds more than one", () => {
+    // Ordering within a lesson is incidental. Attributing the whole lesson to
+    // whichever chunk landed first is the source-level version of passing a
+    // machine guess off as the publisher's words.
+    const [source] = lessonSources(manifest, [
+      chunk({ chunk_id: "aod-fbd-4726-001", caption_origin: "native_en_auto_vtt" }),
+      chunk({ chunk_id: "aod-fbd-4726-t001", caption_origin: "local_whisper_small_en" }),
+    ]);
+    expect(source.governed_summary).toMatch(/publisher's own auto-caption track/);
+    expect(source.governed_summary).toMatch(/unreviewed machine output/);
+    expect(source.source_metadata.caption_origins).toEqual([
+      "local_whisper_small_en",
+      "native_en_auto_vtt",
+    ]);
+  });
+});
+
+describe("courseSource origin breakdown", () => {
+  const manifest = parseLessonManifest(MANIFEST_CSV);
+
+  it("counts lessons per origin so 'captions' cannot absorb transcripts", () => {
+    const source = courseSource(
+      manifest,
+      [
+        chunk({ chunk_id: "aod-fbd-4726-001", lesson_id: "4726" }),
+        chunk({ chunk_id: "aod-fbd-6486-t001", lesson_id: "6486", lesson_number: "1",
+                caption_origin: "local_whisper_small_en" }),
+      ],
+      PROVENANCE
+    );
+    expect(source.source_metadata.lessons_by_origin).toEqual({
+      native_en_auto_vtt: 1,
+      local_whisper_small_en: 1,
+    });
   });
 });

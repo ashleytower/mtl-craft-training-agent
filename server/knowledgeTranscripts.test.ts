@@ -158,3 +158,52 @@ describe("transcriptSpanSeconds", () => {
     expect(transcriptSpanSeconds([])).toBe(0);
   });
 });
+
+describe("parseVtt clock integrity", () => {
+  it("refuses a malformed clock instead of dropping the cue", () => {
+    // Skipping would lose narration from the middle of a lesson silently, and
+    // the enclosing chunk's range would then span text it no longer holds.
+    expect(() =>
+      parseVtt(["WEBVTT", "", "00:0x.000 --> 00:04.000", "damaged", ""].join("\n"))
+    ).toThrow(/Unreadable transcript clock/);
+  });
+
+  it("refuses an empty clock component rather than reading it as zero", () => {
+    // Number("") is 0, not NaN. Without an explicit shape check "::05.000"
+    // parses as 5 seconds — a clock invented out of a damaged one.
+    expect(() =>
+      parseVtt(["WEBVTT", "", "::05.000 --> 00:09.000", "damaged", ""].join("\n"))
+    ).toThrow(/Unreadable transcript clock/);
+  });
+
+  it("refuses cues that jump backwards through the file", () => {
+    // Whisper can loop on silence and emit a segment that goes back in time.
+    // Each cue is internally consistent, so the per-cue check passes, and the
+    // media-duration guard is a max and passes too. Only ordering catches it.
+    expect(() =>
+      parseVtt(
+        [
+          "WEBVTT", "",
+          "00:30.000 --> 00:35.000", "later", "",
+          "00:10.000 --> 00:15.000", "earlier", "",
+        ].join("\n")
+      )
+    ).toThrow(/must run forward/);
+  });
+
+  it("names the offending header line in the error", () => {
+    // The body scan advances the loop index, so an error built from the
+    // post-scan position would point at the wrong line.
+    expect(() =>
+      parseVtt(["WEBVTT", "", "00:10.000 --> 00:04.000", "a", "b", "c", ""].join("\n"))
+    ).toThrow(/00:10\.000 --> 00:04\.000/);
+  });
+
+  it("accepts a normal forward-running file", () => {
+    const cues = parseVtt(
+      ["WEBVTT", "", "00:00.000 --> 00:05.000", "one", "",
+       "00:05.000 --> 00:09.000", "two", ""].join("\n")
+    );
+    expect(cues.map(c => c.text)).toEqual(["one", "two"]);
+  });
+});

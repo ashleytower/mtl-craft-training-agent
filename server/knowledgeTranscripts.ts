@@ -65,8 +65,49 @@ export function parseVtt(vtt: string): TranscriptCue[] {
 
     // Cue settings (`align:start position:0%`) trail the end time on the same
     // line. Splitting on whitespace and taking the first token drops them.
+    const header = lines[i].trim();
     const start = lines[i].slice(0, arrow).trim().split(/\s+/)[0];
     const end = lines[i].slice(arrow + 3).trim().split(/\s+/)[0];
+
+    // The clocks are validated before the body is read, so an error names the
+    // header line that is actually wrong rather than whatever index the body
+    // scan finished on.
+    const startSeconds = clockToSeconds(start);
+    const endSeconds = clockToSeconds(end);
+    // A malformed clock is evidence of a corrupt file, so it is refused rather
+    // than skipped. Dropping the cue quietly would lose narration from the
+    // middle of a lesson with nothing to show for it, and the enclosing chunk's
+    // start/end would then span text the chunk no longer contains.
+    if (startSeconds === null || endSeconds === null) {
+      throw new Error(
+        `Unreadable transcript clock in "${header}". Refusing to build a ` +
+          `citation from a file this damaged.`
+      );
+    }
+    // A cue that ends before it starts is a corrupt clock, and a corrupt clock
+    // in this corpus produces a citation that looks checkable and isn't. Refuse
+    // the file rather than store one.
+    if (endSeconds < startSeconds) {
+      throw new Error(
+        `Transcript cue ends before it starts (${header}). Refusing to ` +
+          `build a citation from a corrupt clock.`
+      );
+    }
+    // Cues must run forward through the file. Whisper can loop or hallucinate
+    // on silence and emit a segment that jumps backwards; each such cue is
+    // internally consistent, so the per-cue check above passes, and the
+    // media-duration guard is a max over all cues and passes too. The damage
+    // shows up only at chunk level, where `start_seconds` comes from the first
+    // cue and `end_seconds` from the last: out of order, that range no longer
+    // bounds the text it is attached to.
+    const previous = cues[cues.length - 1];
+    if (previous && startSeconds < previous.startSeconds) {
+      throw new Error(
+        `Transcript cue "${header}" starts before the cue before it ` +
+          `(${previous.startSeconds}s). Cues must run forward, or a ` +
+          `chunk's time range will not bound its own text.`
+      );
+    }
 
     const body: string[] = [];
     i += 1;
@@ -78,18 +119,6 @@ export function parseVtt(vtt: string): TranscriptCue[] {
     const text = body.filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
     if (!text) continue;
 
-    const startSeconds = clockToSeconds(start);
-    const endSeconds = clockToSeconds(end);
-    if (startSeconds === null || endSeconds === null) continue;
-    // A cue that ends before it starts is a corrupt clock, and a corrupt clock
-    // in this corpus produces a citation that looks checkable and isn't. Refuse
-    // the file rather than store one.
-    if (endSeconds < startSeconds) {
-      throw new Error(
-        `Transcript cue ends before it starts (${start} --> ${end}). Refusing to ` +
-          `build a citation from a corrupt clock.`
-      );
-    }
     cues.push({ startSeconds, endSeconds, text });
   }
 
@@ -99,6 +128,10 @@ export function parseVtt(vtt: string): TranscriptCue[] {
 function clockToSeconds(clock: string): number | null {
   const parts = clock.replace(",", ".").split(":");
   if (parts.length < 2 || parts.length > 3) return null;
+  // Every component must actually be a number. `Number("")` is 0, not NaN, so
+  // a NaN check alone lets "::05.000" through as 5 seconds — a clock invented
+  // out of a damaged one, which is precisely what must not happen here.
+  if (parts.some(part => !/^\d+(\.\d+)?$/.test(part.trim()))) return null;
   const numbers = parts.map(Number);
   if (numbers.some(Number.isNaN)) return null;
   return parts.length === 2

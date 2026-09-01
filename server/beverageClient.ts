@@ -261,7 +261,19 @@ export function searchKnowledge(
  * ingestion guidance says quizzes are course metadata, not material to answer
  * from, so counting one as a gap would misreport it. `none` is the real gap.
  */
-export type CourseContentKind = "captions" | "page_text" | "register_only" | "none";
+/**
+ * `mixed` is a lesson holding BOTH time-coded passages and its written page.
+ * That became possible when the ingest stopped treating the page as a fallback
+ * for missing captions; 12 lessons are mixed today. Before it existed, such a
+ * lesson reported as plain `captions` and its page passages were invisible to
+ * every per-item count. See db/migrations/118.
+ */
+export type CourseContentKind =
+  | "captions"
+  | "page_text"
+  | "mixed"
+  | "register_only"
+  | "none";
 
 export type KnowledgeCoverage = {
   sources: Array<{
@@ -278,8 +290,13 @@ export type KnowledgeCoverage = {
     items_total: number;
     /** Items we can actually answer from. This is CONTENT coverage. */
     items_with_content: number;
+    /** Has time-coded text of any origin. Includes `mixed`. */
     items_with_captions: number;
+    /** STRICTLY page text and nothing else. Excludes `mixed`. */
     items_page_text_only: number;
+    /** Holds page text at all — `page_text` + `mixed`. The honest total. */
+    items_with_page_text: number;
+    items_mixed: number;
     items_register_only: number;
     items_not_collected: number;
     lessons: Array<{
@@ -289,6 +306,9 @@ export type KnowledgeCoverage = {
       lesson_type: string;
       duration_or_marker: string | null;
       chunks: number;
+      /** The split behind `content_kind`, so it never has to be inferred. */
+      time_coded_chunks: number;
+      page_chunks: number;
       content_kind: CourseContentKind;
       /**
        * MANIFEST-level: "this row has at least one chunk". It is NOT the
@@ -299,7 +319,16 @@ export type KnowledgeCoverage = {
       ingested: boolean;
     }>;
   };
-  chunks: { total: number; embedded: number; caption: number; page_text: number };
+  chunks: {
+    total: number;
+    embedded: number;
+    /** Time-coded, whatever produced the clock. */
+    caption: number;
+    page_text: number;
+    /** Of `caption`, how many this machine transcribed rather than the
+     *  publisher captioning. Both have a clock; only one is their own words. */
+    local_transcript: number;
+  };
 };
 
 /**

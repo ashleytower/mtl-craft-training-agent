@@ -307,8 +307,9 @@ export function pageLessonSource(
     governed_summary:
       `Lesson ${lesson.lesson_number} of the Flavour & Beverage Development ` +
       `course. The player exposed no caption track, so this is the lesson's ` +
-      `written page text in ${chunkCount} passages, cited by section and ` +
-      `paragraph. It is not a transcript of the ${lesson.duration_or_marker} video.`,
+      `written page text in ${chunkCount} passage${chunkCount === 1 ? "" : "s"}, ` +
+      `cited by section and paragraph. It is not a transcript of the ` +
+      `${lesson.duration_or_marker} video.`,
     source_metadata: {
       course_source_key: COURSE_SOURCE_KEY,
       course_title: courseTitle,

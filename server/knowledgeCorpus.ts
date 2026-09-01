@@ -277,12 +277,30 @@ export function courseSource(
  * missing sentence, and printing the raw value is more honest than either
  * inventing a description or failing the ingest.
  */
+export const LOCAL_TRANSCRIPT_ORIGIN_PREFIX = "local_whisper_";
+
+/**
+ * Is this chunk's text a local machine transcript rather than the publisher's
+ * own caption track?
+ *
+ * Shared so the ingest, the summary sentence and the citation string cannot
+ * drift apart. They encoded the prefix independently once; a change on one side
+ * would have made `captionOriginNote` fall through to its generic branch and
+ * silently drop the "unreviewed machine output" disclaimer, with no error.
+ *
+ * Takes `unknown` because the one caller that matters reads it off a `locator`
+ * JSON blob, where the field may be absent or any type.
+ */
+export function isLocalTranscript(origin: unknown): boolean {
+  return typeof origin === "string" && origin.startsWith(LOCAL_TRANSCRIPT_ORIGIN_PREFIX);
+}
+
 export function captionOriginNote(origin: string): string {
   if (origin === "native_en_auto_vtt") {
     return "Text is the publisher's own auto-caption track.";
   }
-  if (origin.startsWith("local_whisper_")) {
-    const model = origin.slice("local_whisper_".length).replace(/_/g, ".");
+  if (isLocalTranscript(origin)) {
+    const model = origin.slice(LOCAL_TRANSCRIPT_ORIGIN_PREFIX.length).replace(/_/g, ".");
     return (
       `Text was transcribed locally from the lesson audio by Whisper ${model} ` +
       `because the player exposed no caption track. It is unreviewed machine ` +
@@ -306,6 +324,13 @@ export function lessonSources(
       const row = manifestById.get(lessonId);
       const first = lessonChunks[0];
       const spanSeconds = Math.max(...lessonChunks.map(c => c.end_seconds));
+      // Describe EVERY origin present, not just the first chunk's. A lesson
+      // holding both a vendor caption track and a local transcript would
+      // otherwise have its whole summary claim whichever chunk happened to be
+      // pushed first — the source-level version of passing a machine guess off
+      // as the publisher's words. No lesson is mixed today; nothing prevents
+      // one, and the ordering that protects us is incidental.
+      const origins = [...new Set(lessonChunks.map(c => c.caption_origin))].sort();
       return {
         source_key: lessonSourceKey(lessonId),
         title: `${first.lesson_title} — Flavour & Beverage Development`,
@@ -320,7 +345,7 @@ export function lessonSources(
           `Lesson ${first.lesson_number} of the Flavour & Beverage Development ` +
           `course. ${lessonChunks.length} time-coded passages covering ` +
           `${formatClock(spanSeconds)} of ${row?.duration_or_marker ?? "video"}. ` +
-          captionOriginNote(first.caption_origin),
+          origins.map(captionOriginNote).join(" "),
         source_metadata: {
           course_source_key: COURSE_SOURCE_KEY,
           course_title: first.course_title,
@@ -328,7 +353,11 @@ export function lessonSources(
           lesson_number: first.lesson_number,
           lesson_type: row?.lesson_type ?? "video",
           duration_or_marker: row?.duration_or_marker ?? null,
-          caption_origin: first.caption_origin,
+          // Singular for the ordinary one-origin lesson, so existing readers
+          // and `isLocalTranscript` checks keep working unchanged; the full set
+          // sits beside it rather than being lost.
+          caption_origin: origins.length === 1 ? origins[0] : origins.join(","),
+          caption_origins: origins,
         },
       };
     });
