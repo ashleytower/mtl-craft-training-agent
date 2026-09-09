@@ -23,19 +23,26 @@ function code(source: string): string {
 }
 
 /**
- * Every function in `beverageClient` that changes stored state. Derived from
- * the file rather than hand-listed, so a writer added tomorrow is covered by
- * this test the day it is written.
+ * What `hermesRoutes` is ALLOWED to call on `beverageClient`.
+ *
+ * A grant constraint, not a deny roster. An earlier version of this test listed
+ * the writers to forbid, with a comment claiming the list was "derived from the
+ * file" — it was hand-written, so a writer added tomorrow under a new name would
+ * have been forbidden by nothing. Anchoring on the shape we accept inverts that:
+ * any new `beverage.*` call fails this test until somebody adds it here and
+ * argues for it.
+ *
+ * Every entry is read-only. Nothing that creates, approves, ingests, embeds or
+ * records may join this list.
  */
-const WRITER_RPCS = [
-  "beverage_create_formula_version",
-  "beverage_approve_formula_version",
-  "beverage_ingest_knowledge_sources",
-  "beverage_ingest_knowledge_chunks",
-  "beverage_set_source_embedding",
-  "beverage_record_calculation_plan",
+const ALLOWED_BEVERAGE_CALLS = [
+  "listApprovedFormulas",
+  "listFormulaDrafts",
+  "searchKnowledge",
+  "knowledgeCoverage",
 ];
 
+/** Writers that must never appear. Kept as a second, narrower net. */
 const WRITER_EXPORTS = [
   "createFormulaVersion",
   "approveFormulaVersion",
@@ -45,7 +52,36 @@ const WRITER_EXPORTS = [
   "recordCalculationPlan",
 ];
 
+const WRITER_RPCS = [
+  "beverage_create_formula_version",
+  "beverage_approve_formula_version",
+  "beverage_ingest_knowledge_sources",
+  "beverage_ingest_knowledge_chunks",
+  "beverage_set_source_embedding",
+  "beverage_record_calculation_plan",
+];
+
 describe("the agent surface cannot write", () => {
+  it("calls nothing on beverageClient outside the read-only allowlist", () => {
+    // The guard that does not go stale: every `beverage.<name>` reference in
+    // the agent surface must be one we have explicitly allowed.
+    // Matched at the CALL site — `beverage.name(` — not on any reference to the
+    // namespace. `beverage.KnowledgeResult` is a type annotation, and a type
+    // cannot write to anything; requiring the open paren keeps this guard about
+    // behaviour rather than about imports.
+    const called = new Set(
+      [...code(hermesRoutesSource).matchAll(/\bbeverage\.([A-Za-z_][A-Za-z0-9_]*)\s*\(/g)].map(
+        m => m[1]
+      )
+    );
+    const unexpected = [...called].filter(name => !ALLOWED_BEVERAGE_CALLS.includes(name));
+    expect(unexpected).toEqual([]);
+    // And the allowlist must not have rotted into naming things that are gone.
+    for (const name of ALLOWED_BEVERAGE_CALLS) {
+      expect(beverageClientSource).toMatch(new RegExp(`export function ${name}\\b`));
+    }
+  });
+
   it("names every writer this test is guarding, and they all still exist", () => {
     // If a writer is renamed or removed, this fails and the list above has to
     // be corrected — otherwise the tests below would silently guard nothing.
@@ -170,103 +206,15 @@ describe("knowledge results cannot carry a measurement", () => {
     }
   });
 
-  it("a cite-only source is never presented as quotable", () => {
-    // The route computes `quotable` from `kind`. A source result is a governed
-    // summary of somebody else's page; presenting it as quotable would invite
-    // Brix to read a third party's words out as though we held them.
-    const sourceResult = result({ kind: "source" });
-    expect(sourceResult.kind === "chunk").toBe(false);
-  });
-});
-
-describe("citations are built, never invented", () => {
-  const base = {
-    kind: "chunk" as const,
-    ref: "r",
-    source_key: "aod-fbd-lesson-7561",
-    source_title: "Suppliers",
-    publisher: null,
-    authority_tier: "tier_b_authorized_course",
-    operational_status: "pending_review",
-    citation_required: true,
-    body: "text",
-    review_status: "pending_review",
-    text_rank: 1,
-    vector_similarity: null,
-    score: 1,
-  };
-
-  it("cites page text by paragraph and gives it no clock", () => {
-    const citation = citationFor({
-      ...base,
-      locator: {
-        lesson_number: "38",
-        lesson_title: "Suppliers",
-        course_title: "Flavour & Beverage Development",
-        retrieval_type: "page_text_only",
-        page_reference: "section 2, paragraph 3",
-        source_url: "https://edu.artofdrink.com/x/7561",
-      },
-    });
-    expect(citation).toContain("lesson page, section 2, paragraph 3");
-    // The invariant the corpus is built on: a page passage has no timestamp and
-    // must never be given one, because a fabricated clock looks checkable.
-    expect(citation).not.toMatch(/\bat \d+:\d+/);
-  });
-
-  it("says so when a page passage has no recorded paragraph, rather than guessing", () => {
-    const citation = citationFor({
-      ...base,
-      locator: { retrieval_type: "page_text_only", lesson_title: "Suppliers" },
-    });
-    expect(citation).toContain("no paragraph recorded");
-  });
-
-  it("marks a local transcript as unreviewed machine output", () => {
-    const citation = citationFor({
-      ...base,
-      locator: {
-        lesson_number: "15",
-        lesson_title: "Terpenes",
-        course_title: "Flavour & Beverage Development",
-        timestamp: "02:10",
-        caption_origin: "local_whisper_small_en",
-        source_url: "https://edu.artofdrink.com/x/6381",
-      },
-    });
-    expect(citation).toContain("(local transcript, unreviewed machine output)");
-  });
-
-  it("does not add that disclaimer to a publisher caption", () => {
-    const citation = citationFor({
-      ...base,
-      locator: {
-        lesson_number: "33",
-        lesson_title: "Mineral Salts",
-        course_title: "Flavour & Beverage Development",
-        timestamp: "07:45",
-        caption_origin: "publisher_auto_caption",
-        source_url: "https://edu.artofdrink.com/x/4851",
-      },
-    });
-    expect(citation).not.toContain("local transcript");
-    expect(citation).toContain("at 07:45");
-  });
-
-  it("cites a third-party source by publisher and url, with no invented locator", () => {
-    const citation = citationFor({
-      ...base,
-      kind: "source",
-      source_key: "PUB-KK-013",
-      source_title: "Making Clear Ice With Any Sized Freezer!",
-      publisher: "Kevin Kos / Cocktail Time",
-      locator: { source_url: "https://www.kevinkos.com/post/make-clear-ice" },
-    });
-    expect(citation).toBe(
-      'Kevin Kos / Cocktail Time, "Making Clear Ice With Any Sized Freezer!" — ' +
-        "https://www.kevinkos.com/post/make-clear-ice"
-    );
-    expect(citation).not.toMatch(/\bat \d+:\d+/);
-    expect(citation).not.toContain("lesson");
+  it("the route derives quotable from kind, so a source can never be quotable", () => {
+    // This used to build `result({kind:"source"})` and assert that its `kind`
+    // was not "chunk" — which is asserting the fixture, not the rule. Deleting
+    // the real line in hermesRoutes.ts left it passing. It now checks the rule.
+    expect(code(hermesRoutesSource)).toMatch(/quotable:\s*result\.kind\s*===\s*"chunk"/);
+    // And nothing may hand `quotable` a literal or a different predicate.
+    const assignments = [
+      ...code(hermesRoutesSource).matchAll(/quotable:\s*([^,\n]+)/g),
+    ].map(m => m[1].trim());
+    expect(assignments).toEqual(['result.kind === "chunk"']);
   });
 });

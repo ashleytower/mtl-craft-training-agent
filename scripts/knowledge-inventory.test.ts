@@ -280,6 +280,20 @@ describe("renderInventory", () => {
     expect(renderInventory(agreeing)).not.toContain("do not reconcile");
   });
 
+  // `citable` is 513/513 in production, so without this the renderer's ratio
+  // column would never have been exercised against a shortfall — and a column
+  // that has only ever rendered the happy value is not evidence it would show
+  // the unhappy one.
+  it("shows a citable shortfall rather than rounding it away", () => {
+    const short = {
+      ...coverage,
+      sources: [{ ...coverage.sources[0], citable: 15 }, coverage.sources[1]],
+    } as unknown as KnowledgeCoverage;
+    const out = renderInventory(short);
+    expect(out).toContain("15/18");
+    expect(out).toContain("| — citable (a reference a reader can check) | 15 of 18 |");
+  });
+
   it("is deterministic — the same coverage renders identically", () => {
     expect(renderInventory(coverage)).toBe(rendered);
   });

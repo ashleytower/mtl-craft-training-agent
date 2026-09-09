@@ -74,9 +74,9 @@ type KnowledgeResponse = {
 const RETRIEVAL_CASES: Array<{
   query: string;
   group: string;
-  minResults: number;
-  requireQuotable: boolean;
-  forbidQuotable: boolean;
+  minResults?: number;
+  requireQuotable?: boolean;
+  forbidQuotable?: boolean;
   expectSourcePrefix?: string;
   expectSourceKey?: string;
   expectZero?: boolean;
@@ -140,9 +140,8 @@ const RETRIEVAL_CASES: Array<{
     // whole point is that nothing has been collected and nothing invented.
     query: "Art of Drink Patreon exclusive post",
     group: "Art of Drink Patreon",
-    minResults: 0,
-    requireQuotable: false,
-    forbidQuotable: true,
+    // No minResults/requireQuotable here: `expectZero` returns before either is
+    // read, and leaving them set implied a threshold that was never applied.
     expectZero: true,
   },
 ];
@@ -189,9 +188,10 @@ async function retrievalChecks() {
       continue;
     }
 
+    const minResults = testCase.minResults ?? 1;
     check(
-      `${testCase.group}: returns at least ${testCase.minResults}`,
-      found.count >= testCase.minResults,
+      `${testCase.group}: returns at least ${minResults}`,
+      found.count >= minResults,
       `count=${found.count}`
     );
 
@@ -445,7 +445,7 @@ async function formulaBoundaryChecks() {
 }
 
 async function coverageChecks() {
-  console.log("\ncoverage — reports the corpus honestly");
+  console.log("\ncoverage — invariants, not a census");
   const { status, body } = await api("/api/hermes/knowledge/coverage");
   check("coverage route answers", status === 200, `HTTP ${status}`);
 
@@ -453,80 +453,78 @@ async function coverageChecks() {
   const chunks = (body.chunks ?? {}) as Record<string, number>;
   const course = (body.course ?? {}) as Record<string, number>;
 
+  // Deliberately NOT asserting 71 sources / 513 passages / 35+36 / 50 local.
+  // Those were a snapshot of one day's data. Pinning them here would mean the
+  // next legitimate ingest — the Art of Drink Patreon material, once Ashley
+  // signs in — fails QA for growing the corpus, which is the opposite of a
+  // gate. The exact census belongs in the generated inventory, where
+  // `knowledge-inventory --check` already fails on any drift and prints a diff.
+  // What must hold at ANY corpus size is below.
+  const summed = sources.reduce((n, s) => n + Number(s.chunks), 0);
+  const citable = sources.reduce((n, s) => n + Number(s.citable), 0);
   const withPassages = sources.filter(s => s.holding === "passages").length;
   const citationOnly = sources.filter(s => s.holding === "citation_only").length;
+  const keys = sources.map(s => String(s.source_key));
 
-  check("reports every source", sources.length === 71, `got ${sources.length}`);
-  check(
-    "separates held passages from citation-only sources",
-    withPassages === 35 && citationOnly === 36,
-    `passages=${withPassages} citation_only=${citationOnly}`
-  );
-  check("passage total is 513", chunks.total === 513, `got ${chunks.total}`);
+  check("the corpus is not empty", chunks.total > 0 && sources.length > 0,
+    `${sources.length} sources, ${chunks.total} passages`);
   check("nothing is unembedded", chunks.embedded === chunks.total,
     `${chunks.embedded}/${chunks.total}`);
   check("no orphaned passages", chunks.orphaned === 0, `got ${chunks.orphaned}`);
-  check(
-    "the per-source sum reconciles with the corpus total",
-    sources.reduce((n, s) => n + Number(s.chunks), 0) === chunks.total
-  );
-  check(
-    "every passage is citable",
-    sources.reduce((n, s) => n + Number(s.citable), 0) === chunks.total,
-    `citable=${sources.reduce((n, s) => n + Number(s.citable), 0)} of ${chunks.total}`
-  );
-  check(
-    "course content coverage is 35 of 39 with 4 register-only and 0 uncollected",
-    course.items_with_content === 35 &&
-      course.items_total === 39 &&
-      course.items_register_only === 4 &&
-      course.items_not_collected === 0,
-    JSON.stringify(course.items_with_content) +
-      "/" + course.items_total + " reg=" + course.items_register_only +
-      " uncollected=" + course.items_not_collected
-  );
+  check("no course item is uncollected", course.items_not_collected === 0,
+    `got ${course.items_not_collected}`);
+  check("the per-source sum reconciles with the corpus total", summed === chunks.total,
+    `${summed} vs ${chunks.total}`);
+  check("every passage can produce a citation", citable === chunks.total,
+    `citable ${citable} of ${chunks.total}`);
+  check("no source is reported twice", new Set(keys).size === keys.length,
+    keys.filter((k, i) => keys.indexOf(k) !== i).join(","));
   check(
     "no source is approved",
     sources.every(s =>
       ["pending_review", "reference_only", "inspiration_only"].includes(String(s.operational_status))
-    )
+    ),
+    sources.filter(s => String(s.operational_status) === "approved").map(s => s.source_key).join(",")
   );
-  check(
-    "every source requires a citation",
-    sources.every(s => s.citation_required === true)
-  );
-  check(
-    "local transcripts are counted separately from publisher captions",
-    chunks.local_transcript === 50,
-    `got ${chunks.local_transcript}`
-  );
+  check("every source requires a citation", sources.every(s => s.citation_required === true));
 
-  // No source appears twice. The database enforces this with
-  // `knowledge_sources_organization_id_source_key_key` and
-  // `knowledge_chunks_source_id_chunk_key_key`, so a duplicate here would mean
-  // either the constraint was dropped or coverage is double-counting a join —
-  // the second is a real risk, since `source_rows` joins `source_counts`.
-  const keys = sources.map(s => String(s.source_key));
+  // The rights split must EXIST, at whatever size. Both halves being non-empty
+  // is the invariant; their exact sizes are not.
+  check("the corpus holds quotable material", withPassages > 0, `${withPassages}`);
   check(
-    "no source is reported twice",
-    new Set(keys).size === keys.length,
-    keys.filter((k, i) => keys.indexOf(k) !== i).join(",")
+    "and holds citation-only sources, the rights posture being intact",
+    citationOnly > 0,
+    `${citationOnly}`
+  );
+  check(
+    "every citation-only source can still say something",
+    sources
+      .filter(s => s.holding === "citation_only")
+      .every(s => s.has_governed_summary === true && Number(s.chunks) === 0)
+  );
+  console.log(
+    `        census (reported, not asserted): ${sources.length} sources ` +
+      `(${withPassages} with passages, ${citationOnly} citation-only), ` +
+      `${chunks.total} passages, ${chunks.local_transcript} local-transcript, ` +
+      `course content ${course.items_with_content}/${course.items_total}`
   );
 }
 
-async function healthChecks() {
-  console.log("\nhealth and loaded revision");
+/**
+ * Records which build was tested. It does NOT gate on the revision:
+ * `scripts/brix-status.sh --expect-revision <sha>` owns that check and is
+ * stricter, because it also requires the revision to come from a build stamp
+ * rather than a guess. Two scripts asserting the same thing to different
+ * standards is how the weaker one ends up being the one people run.
+ */
+async function recordBuildUnderTest() {
   const response = await fetch(`${BASE}/api/hermes/health`);
   const body = (await response.json()) as Record<string, unknown>;
-  check("health answers without a token", response.status === 200);
-  check("status is ok", body.status === "ok");
-  check("the Hermes boundary is enabled", body.hermes_service === "enabled");
-  check(
-    "the loaded revision is a build stamp, not a guess",
-    body.revision_source === "build_stamp" && /^[0-9a-f]{40}$/.test(String(body.revision)),
-    `revision=${body.revision} source=${body.revision_source}`
+  check("the API answers and its agent boundary is on", body.hermes_service === "enabled",
+    `hermes_service=${body.hermes_service}`);
+  console.log(
+    `        build under test: ${body.revision} (source: ${body.revision_source})`
   );
-  console.log(`        loaded revision: ${body.revision}`);
 }
 
 async function main() {
@@ -536,7 +534,7 @@ async function main() {
   }
   console.log(`Brix live QA against ${BASE}`);
 
-  await healthChecks();
+  await recordBuildUnderTest();
   await retrievalChecks();
   await citationStabilityChecks();
   await formulaBoundaryChecks();

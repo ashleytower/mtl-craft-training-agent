@@ -211,11 +211,45 @@ print(
 )
 PY
 )"
+    # `summary` is only the human-readable line. The verdict comes from
+    # `verdict` below, which asserts actual invariants — an earlier version of
+    # this check passed whenever the JSON merely parsed, which is not a gate.
+    verdict="$(python3 - "$cov_file" <<'PY' 2>/dev/null
+import json, sys
+d = json.load(open(sys.argv[1]))
+c, ch, srcs = d.get("course", {}), d.get("chunks", {}), d.get("sources", [])
+problems = []
+total, embedded = int(ch.get("total", -1)), int(ch.get("embedded", -1))
+if total <= 0:
+    problems.append(f"corpus holds {total} passages")
+if embedded != total:
+    problems.append(f"{total - embedded} passages unembedded")
+if int(ch.get("orphaned", -1)) != 0:
+    problems.append(f"{ch.get('orphaned')} orphaned passages")
+if int(c.get("items_not_collected", -1)) != 0:
+    problems.append(f"{c.get('items_not_collected')} course items not collected")
+summed = sum(int(s.get("chunks", 0)) for s in srcs)
+if summed != total:
+    problems.append(f"per-source sum {summed} != corpus total {total}")
+citable = sum(int(s.get("citable", 0)) for s in srcs)
+if citable != total:
+    problems.append(f"{total - citable} passages cannot produce a citation")
+approved = [s["source_key"] for s in srcs if s.get("operational_status") == "approved"]
+if approved:
+    problems.append(f"sources marked approved: {','.join(approved)}")
+keys = [s.get("source_key") for s in srcs]
+if len(set(keys)) != len(keys):
+    problems.append("a source is reported twice")
+print("; ".join(problems) if problems else "OK")
+PY
+)"
     rm -f "$cov_file"
-    if [ -n "$summary" ]; then
+    if [ -z "$summary" ] || [ -z "$verdict" ]; then
+      fail "corpus" "coverage response could not be parsed"
+    elif [ "$verdict" = "OK" ]; then
       pass "corpus" "$summary"
     else
-      fail "corpus" "coverage response could not be parsed"
+      fail "corpus" "$verdict"
     fi
   fi
 
@@ -224,11 +258,20 @@ PY
   if [ -z "$formulas" ]; then
     fail "approved formulas" "formulas route returned nothing"
   else
-    n="$(printf '%s' "$formulas" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("count","?"))' 2>/dev/null)"
-    # One approved formula is the correct, expected state. This reports it; it
-    # does not treat "only one" as a failure, because approving another is a
-    # human decision and not this script's business.
-    pass "approved formulas" "$n approved and scalable"
+    # An earlier version printed PASS unconditionally, including when the count
+    # came back as the literal "?" because parsing had failed. It reports the
+    # number and requires it to BE a number; it deliberately does not treat
+    # "only one approved" as a failure, because approving another is a human
+    # decision and not this script's business.
+    n="$(printf '%s' "$formulas" | python3 -c '
+import json, sys
+v = json.load(sys.stdin).get("count")
+print(v if isinstance(v, int) else "")' 2>/dev/null)"
+    if [ -n "$n" ]; then
+      pass "approved formulas" "$n approved and scalable"
+    else
+      fail "approved formulas" "formulas route returned no usable count"
+    fi
   fi
 fi
 

@@ -59,6 +59,13 @@
 --                                      'citation_only' summary + citation only
 --                                      'registered'    neither: a declared gap
 --
+-- KEEP IN SYNC: `citable`'s predicate below re-states, in SQL, the locator rule
+-- that `citationFor` in server/hermesRoutes.ts applies in TypeScript — a source
+-- URL, plus a clock for time-coded text or a section/paragraph for page text.
+-- If one changes and the other does not, `citable` reports on a rule the
+-- citation builder no longer follows. Same hazard as sourceEmbeddingText and
+-- migration 113, and handled the same way: a note in both files.
+--
 -- `holding` is derived here rather than in the report generator so that every
 -- reader of this RPC — the inventory, the console, and Brix itself — gets the
 -- same answer, and so a source with no passages can never be silently rendered

@@ -68,6 +68,10 @@ function toNormalized(formula: ApprovedFormula): NormalizedFormula {
  * lesson is worse than no citation at all — it looks checkable and isn't. So
  * the string is built from the stored locator and handed over finished.
  */
+// KEEP IN SYNC: the locator fields this function requires to build a checkable
+// reference are counted as `citable` by db/migrations/124_coverage_source_
+// provenance.sql, which re-states the same rule in SQL. Change the rule here and
+// that counter starts reporting on a rule this function no longer follows.
 export function citationFor(result: beverage.KnowledgeResult): string {
   const locator = result.locator ?? {};
   const url = typeof locator.source_url === "string" ? locator.source_url : null;
