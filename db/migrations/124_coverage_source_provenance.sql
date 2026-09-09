@@ -35,9 +35,17 @@
 --
 -- WHAT CHANGES
 --
--- Only the `sources` array gains keys. `course` and `chunks` are untouched and
+-- Additive only. `chunks` is untouched; `course` and `sources` gain keys and
 -- every existing key keeps its exact meaning and value, so `KnowledgeCoverage`
 -- consumers and Brix's `coverage` tool continue to work unchanged.
+--
+-- Each course lesson gains `local_transcript_chunks`: how many of ITS time-coded
+-- passages this machine transcribed rather than the publisher captioning. 118
+-- reported that split corpus-wide only, so answering "is this lesson's clock the
+-- publisher's or a Whisper guess?" required a hand-kept list of seven lesson
+-- ids. A hand-kept list is wrong the moment an eighth lesson is transcribed, and
+-- it is wrong in the worst direction — silently presenting machine output as the
+-- publisher's own words. Derived from the data, it cannot go stale.
 --
 --   creator, publisher, source_url   provenance, straight from the row
 --   rights_status                    what we may do with it
@@ -106,7 +114,16 @@ begin
       ) as page_chunks,
       count(*) filter (
         where c.locator->>'retrieval_type' is distinct from 'page_text_only'
-      ) as time_coded_chunks
+      ) as time_coded_chunks,
+      -- Which lessons this machine transcribed, not just how many passages
+      -- corpus-wide. Without this, a reader has to consult a hand-kept list of
+      -- lesson ids to know whether a clock is the publisher's caption track or
+      -- a Whisper guess — and a hand-kept list silently mislabels the eighth
+      -- lesson somebody transcribes as the publisher's own words, which is the
+      -- exact dishonesty `citationFor`'s provenance note exists to prevent.
+      count(*) filter (
+        where c.locator->>'caption_origin' like 'local\_whisper\_%'
+      ) as local_transcript_chunks
     from beverage.knowledge_chunks c
     where c.organization_id = v_org_id
       and c.locator ? 'lesson_id'
@@ -118,6 +135,7 @@ begin
       coalesce(h.chunks, 0) as chunks,
       coalesce(h.page_chunks, 0) as page_chunks,
       coalesce(h.time_coded_chunks, 0) as time_coded_chunks,
+      coalesce(h.local_transcript_chunks, 0) as local_transcript_chunks,
       case
         -- A quiz carries no knowledge; the course's own guidance is that a quiz
         -- is course metadata, not material to answer from.
@@ -152,6 +170,7 @@ begin
         'chunks', chunks,
         -- The split, per item, so a reader never has to infer it from the label.
         'time_coded_chunks', time_coded_chunks,
+        'local_transcript_chunks', local_transcript_chunks,
         'page_chunks', page_chunks,
         'content_kind', content_kind,
         -- Retained for older callers. Means "represented", the MANIFEST question.

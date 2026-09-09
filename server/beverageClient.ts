@@ -333,6 +333,14 @@ export type KnowledgeCoverage = {
       chunks: number;
       /** The split behind `content_kind`, so it never has to be inferred. */
       time_coded_chunks: number;
+      /**
+       * Of `time_coded_chunks`, how many this machine transcribed rather than
+       * the publisher captioning. Per lesson, so nothing has to consult a
+       * hand-kept list of lesson ids — which would be wrong the moment an
+       * eighth lesson is transcribed, and wrong in the direction of presenting
+       * machine output as the publisher's own words.
+       */
+      local_transcript_chunks: number;
       page_chunks: number;
       content_kind: CourseContentKind;
       /**

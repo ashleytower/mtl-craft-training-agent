@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   DECLARED_GAPS,
-  LOCAL_TRANSCRIPT_LESSON_IDS,
   collectionState,
   contentForm,
   groupOf,
@@ -118,29 +117,51 @@ describe("collectionState", () => {
 });
 
 describe("contentForm", () => {
-  const local = LOCAL_TRANSCRIPT_LESSON_IDS;
+  const lesson = (over: Record<string, unknown> = {}) =>
+    ({
+      content_kind: "captions",
+      time_coded_chunks: 10,
+      local_transcript_chunks: 0,
+      ...over,
+    }) as Parameters<typeof contentForm>[1];
 
   it("distinguishes the publisher's captions from this machine's transcript", () => {
-    const captioned = source({ source_key: "aod-fbd-lesson-4851", chunks: 43, holding: "passages" });
-    expect(contentForm(captioned, "captions", local)).toBe("publisher captions");
+    const held = source({ source_key: "aod-fbd-lesson-4851", chunks: 43, holding: "passages" });
+    expect(contentForm(held, lesson())).toBe("publisher captions");
+    expect(
+      contentForm(held, lesson({ content_kind: "mixed", local_transcript_chunks: 10 }))
+    ).toBe("local transcript (unreviewed) + page text");
+  });
 
-    const transcribed = source({ source_key: "aod-fbd-lesson-6381", chunks: 9, holding: "passages" });
-    expect(contentForm(transcribed, "mixed", local)).toBe(
-      "local transcript (unreviewed) + page text"
-    );
+  // The provenance now comes from the lesson's own counts, so a lesson
+  // transcribed tomorrow is labelled correctly with no code change. A hand-kept
+  // list of lesson ids used to decide this and would have called an eighth
+  // transcribed lesson "publisher captions" — the one error this must not make.
+  it("labels a newly transcribed lesson without any list being updated", () => {
+    const brandNew = source({ source_key: "aod-fbd-lesson-9999", chunks: 4, holding: "passages" });
+    expect(
+      contentForm(brandNew, lesson({ time_coded_chunks: 4, local_transcript_chunks: 4 }))
+    ).toBe("local transcript (unreviewed)");
+  });
+
+  it("does not collapse a lesson holding both kinds of clock into one label", () => {
+    const held = source({ source_key: "aod-fbd-lesson-4851", chunks: 10, holding: "passages" });
+    expect(
+      contentForm(held, lesson({ time_coded_chunks: 10, local_transcript_chunks: 4 }))
+    ).toBe("publisher captions + local transcript (unreviewed)");
   });
 
   it("marks a linked document as an attachment summary", () => {
-    expect(contentForm(source({ source_key: "AOD-ASSET-4736-1" }), null, local)).toBe(
+    expect(contentForm(source({ source_key: "AOD-ASSET-4736-1" }), null)).toBe(
       "attachment — governed summary"
     );
   });
 
   it("never claims a cite-only source holds text", () => {
     for (const kind of [null, "captions", "mixed", "page_text"]) {
-      expect(contentForm(source({ holding: "citation_only" }), kind, local)).toBe(
-        "governed summary"
-      );
+      expect(
+        contentForm(source({ holding: "citation_only" }), kind ? lesson({ content_kind: kind }) : null)
+      ).toBe("governed summary");
     }
   });
 });
@@ -185,6 +206,7 @@ describe("renderInventory", () => {
           duration_or_marker: "15 minutes",
           chunks: 18,
           time_coded_chunks: 12,
+          local_transcript_chunks: 0,
           page_chunks: 6,
           content_kind: "mixed",
           ingested: true,

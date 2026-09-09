@@ -44,6 +44,7 @@ type Group =
   | "Internal registers";
 
 type Source = KnowledgeCoverage["sources"][number];
+type Lesson = KnowledgeCoverage["course"]["lessons"][number];
 
 export function groupOf(source: Pick<Source, "source_key" | "publisher">): Group {
   const key = source.source_key;
@@ -98,19 +99,31 @@ export function collectionState(source: Source, contentKind: string | null): str
   return "registered — no summary yet";
 }
 
-/** How the material is held, in the brief's vocabulary. */
+/**
+ * How the material is held, in the brief's vocabulary.
+ *
+ * Whether a lesson's clock is the publisher's caption track or a Whisper
+ * transcript comes from the lesson's own `local_transcript_chunks`, never from
+ * a list of lesson ids kept here. A hand-kept list is wrong the moment an
+ * eighth lesson is transcribed, and wrong in the worst direction: it would
+ * describe machine output as the publisher's own words.
+ */
 export function contentForm(
   source: Source,
-  contentKind: string | null,
-  localTranscriptLessons: Set<string>
+  lesson: Pick<Lesson, "content_kind" | "time_coded_chunks" | "local_transcript_chunks"> | null
 ): string {
-  const lessonId = source.source_key.replace("aod-fbd-lesson-", "");
+  const contentKind = lesson?.content_kind ?? null;
   if (source.holding === "passages") {
     const parts: string[] = [];
     if (contentKind === "captions" || contentKind === "mixed") {
-      parts.push(
-        localTranscriptLessons.has(lessonId) ? "local transcript (unreviewed)" : "publisher captions"
-      );
+      const local = lesson?.local_transcript_chunks ?? 0;
+      const timeCoded = lesson?.time_coded_chunks ?? 0;
+      if (local === 0) parts.push("publisher captions");
+      else if (local >= timeCoded) parts.push("local transcript (unreviewed)");
+      // A lesson holding both kinds of clock is not a state that exists today,
+      // but it is one ingest away, and collapsing it to either label would be
+      // a lie about half the passages.
+      else parts.push("publisher captions + local transcript (unreviewed)");
     }
     if (contentKind === "page_text" || contentKind === "mixed") parts.push("page text");
     return parts.join(" + ") || "passages";
@@ -142,17 +155,6 @@ export function renderInventory(coverage: KnowledgeCoverage): string {
   const lessonByKey = new Map(
     coverage.course.lessons.map(l => [`aod-fbd-lesson-${l.lesson_id}`, l])
   );
-  // Which lessons hold text this machine produced rather than the publisher's
-  // own captions. The RPC gives the corpus-wide count; the per-lesson answer
-  // comes from the lesson having time-coded chunks whose source is a local
-  // transcript, which is recorded on the source row's metadata at ingest.
-  const localTranscriptLessons = new Set(
-    coverage.course.lessons
-      .filter(l => l.content_kind === "mixed" || l.content_kind === "captions")
-      .filter(l => LOCAL_TRANSCRIPT_LESSON_IDS.has(l.lesson_id))
-      .map(l => l.lesson_id)
-  );
-
   const byGroup = new Map<Group, Source[]>();
   for (const source of coverage.sources) {
     const group = groupOf(source);
@@ -248,7 +250,7 @@ export function renderInventory(coverage: KnowledgeCoverage): string {
     );
     lines.push("|---|---|---|---|---:|---:|---|---|");
     for (const source of sources.sort((a, b) => a.source_key.localeCompare(b.source_key))) {
-      const lesson = lessonByKey.get(source.source_key);
+      const lesson = lessonByKey.get(source.source_key) ?? null;
       const kind = lesson?.content_kind ?? null;
       const attribution = [source.creator, source.publisher].filter(Boolean).join(" / ");
       lines.push(
@@ -260,7 +262,7 @@ export function renderInventory(coverage: KnowledgeCoverage): string {
           escapeCell(collectionState(source, kind)),
           String(source.chunks),
           source.chunks === 0 ? "—" : `${source.citable}/${source.chunks}`,
-          escapeCell(contentForm(source, kind, localTranscriptLessons)),
+          escapeCell(contentForm(source, lesson ?? null)),
           escapeCell(source.source_url),
           "",
         ].join(" | ").trim()
@@ -282,22 +284,6 @@ export function renderInventory(coverage: KnowledgeCoverage): string {
   lines.push("");
   return lines.join("\n");
 }
-
-/**
- * Lessons whose time-coded text this machine produced with Whisper rather than
- * the publisher captioning. Recorded here because the coverage RPC reports the
- * corpus-wide count but not which lessons; the seven are fixed and documented
- * in `docs/BRIX_KNOWLEDGE.md`, and a test pins this set against the database.
- */
-export const LOCAL_TRANSCRIPT_LESSON_IDS = new Set([
-  "4776",
-  "4906",
-  "5256",
-  "5446",
-  "5551",
-  "6066",
-  "6381",
-]);
 
 /** Gaps that are real and are not going to be closed by trying harder. */
 export const DECLARED_GAPS = [
