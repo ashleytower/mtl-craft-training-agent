@@ -186,20 +186,32 @@ else
   if [ -z "$coverage" ]; then
     fail "corpus" "coverage route returned nothing"
   else
-    summary="$(printf '%s' "$coverage" | python3 -c '
+    # The payload goes via a file, not a pipe. A quoted heredoc supplies the
+    # program on stdin, so piping the JSON in as well would have Python parse
+    # its own source — which is the bug this replaced, and it failed silently.
+    # The heredoc form itself is kept because double quotes inside an f-string
+    # cannot be escaped through a single-quoted `python3 -c` argument.
+    cov_file="$(mktemp -t brix-coverage)"
+    printf '%s' "$coverage" > "$cov_file"
+    summary="$(python3 - "$cov_file" <<'PY' 2>/dev/null
 import json, sys
-d = json.load(sys.stdin)
-c, ch = d.get("course", {}), d.get("chunks", {})
+d = json.load(open(sys.argv[1]))
+c = d.get("course", {})
+ch = d.get("chunks", {})
 srcs = d.get("sources", [])
 with_chunks = sum(1 for s in srcs if (s.get("chunks") or 0) > 0)
-print(f"{len(srcs)} sources ({with_chunks} with passages, "
-      f"{len(srcs) - with_chunks} citation-only), "
-      f"{ch.get(\"total\", \"?\")} passages, "
-      f"{ch.get(\"local_transcript\", \"?\")} local-transcript, "
-      f"course content {c.get(\"items_with_content\", \"?\")}/{c.get(\"items_total\", \"?\")}, "
-      f"unembedded {int(ch.get(\"total\", 0)) - int(ch.get(\"embedded\", 0))}, "
-      f"not collected {c.get(\"items_not_collected\", \"?\")}")
-' 2>/dev/null)"
+total = int(ch.get("total", 0))
+embedded = int(ch.get("embedded", 0))
+print(
+    f'{len(srcs)} sources ({with_chunks} with passages, '
+    f'{len(srcs) - with_chunks} citation-only), '
+    f'{total} passages, {ch.get("local_transcript", "?")} local-transcript, '
+    f'course content {c.get("items_with_content", "?")}/{c.get("items_total", "?")}, '
+    f'unembedded {total - embedded}, not collected {c.get("items_not_collected", "?")}'
+)
+PY
+)"
+    rm -f "$cov_file"
     if [ -n "$summary" ]; then
       pass "corpus" "$summary"
     else

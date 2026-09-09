@@ -275,6 +275,17 @@ export type CourseContentKind =
   | "register_only"
   | "none";
 
+/**
+ * Whether we hold a source's text, only a citation to it, or neither.
+ *
+ * `citation_only` is a resting state, not a gap. 36 of the 71 sources are
+ * third-party pages and videos we may cite and summarise but may not copy —
+ * every Kevin Kos item, the FDA guidance, the Morgenthaler calculators, the
+ * linked Perfumer & Flavorist and FEMA documents. Reporting them as missing
+ * would describe a deliberate rights posture as a collection failure.
+ */
+export type SourceHolding = "passages" | "citation_only" | "registered";
+
 export type KnowledgeCoverage = {
   sources: Array<{
     source_key: string;
@@ -284,6 +295,20 @@ export type KnowledgeCoverage = {
     summary_embedded: boolean;
     chunks: number;
     embedded: number;
+    /**
+     * Passages that can produce a reference a reader could check. Counted, not
+     * assumed: 513/513 today, and a future passage arriving without a locator
+     * shows up here as uncitable rather than entering the corpus unnoticed.
+     */
+    citable: number;
+    /** Provenance and rights, added by migration 124. */
+    creator: string | null;
+    publisher: string | null;
+    source_url: string | null;
+    rights_status: string;
+    citation_required: boolean;
+    has_governed_summary: boolean;
+    holding: SourceHolding;
   }>;
   course: {
     /** Rows in the 39-item manifest. This is MANIFEST coverage. */
