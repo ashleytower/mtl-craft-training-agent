@@ -29,6 +29,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as beverage from "../server/beverageClient";
+import { resolveDraftIngredients } from "../shared/ingredients";
 import type { OperatorIdentity } from "../server/_core/supabaseAuth";
 
 const INPUT = resolve(
@@ -100,11 +101,44 @@ function ingredientsOf(s: NotionSyrup) {
 }
 
 /**
+ * The shape an ingredient is STORED in, which is not the shape the code above
+ * works in.
+ *
+ * `resolveDraftIngredients`, the console and the versioning path all read
+ * `ingredient_name` / `quantity_normalized` / `unit_name` out of
+ * `original_recipe_json.ingredients` (shared/ingredients.ts, `DraftLike`). The
+ * first version of this importer stored `name` / `quantity` / `unit` instead.
+ * Every unit test passed, all 56 formulas landed, and not one could be opened,
+ * because nothing on the reading side could see a single ingredient.
+ *
+ * `quantity_normalized` is a STRING on that contract, not a number: the reader
+ * runs it through `exactDecimal`, which refuses a quantity with no finite
+ * decimal form rather than rounding it. Keep it a string.
+ *
+ * KEEP IN SYNC with `DraftLike` in shared/ingredients.ts.
+ */
+function storedIngredientsOf(s: NotionSyrup) {
+  return ingredientsOf(s).map(i => ({
+    ingredient_name: i.name,
+    quantity_normalized: i.quantity === null ? null : String(i.quantity),
+    unit_name: i.unit,
+    // The untouched Notion string, kept beside the parsed value so a quantity
+    // can always be checked against what was actually typed.
+    quantity_raw: i.quantity_raw,
+  }));
+}
+
+/**
  * Completeness, used only to choose between rows describing the same syrup.
  * An ingredient counts when it has a name, a parsable quantity and a unit.
  */
 function completeness(s: NotionSyrup): number {
-  return ingredientsOf(s).filter(i => i.name && i.quantity !== null && i.unit).length;
+  return ingredientsOf(s).filter(
+    // `UNKNOWN (deleted ingredient page, ...)` is a hole, not an ingredient.
+    // Counting it as complete made the Espresso merge keep the row whose fifth
+    // line was a deleted page and discard the row that still said "Espresso".
+    i => i.name && !/^UNKNOWN/i.test(i.name) && i.quantity !== null && i.unit
+  ).length;
 }
 
 export type MergedSyrup = {
@@ -133,7 +167,15 @@ export function mergeVariants(syrups: NotionSyrup[]): MergedSyrup[] {
 
   const out: MergedSyrup[] = [];
   for (const rows of groups.values()) {
-    const ranked = [...rows].sort((a, b) => completeness(b) - completeness(a));
+    // Array.prototype.sort is stable, so a tie on completeness would resolve to
+    // whatever order Notion happened to return the pages in — and the winner
+    // decides `original_source_hash`. A re-extraction in a different order would
+    // then INSERT a second draft for the same syrup and strand the first.
+    // The URL is the tie-break because it is the one thing about a Notion page
+    // that never changes.
+    const ranked = [...rows].sort(
+      (a, b) => completeness(b) - completeness(a) || a.notion_url.localeCompare(b.notion_url)
+    );
     const chosen = ranked[0];
     const warnings: string[] = [];
 
@@ -155,7 +197,9 @@ export function mergeVariants(syrups: NotionSyrup[]): MergedSyrup[] {
     out.push({
       canonical: canonicalName(chosen.name) || chosen.name.trim(),
       chosen,
-      mergedFrom: rows.map(r => r.name),
+      // Sorted for the same reason: `merged_from` is inside the content hash, so
+      // arrival order must not move it.
+      mergedFrom: rows.map(r => r.name).sort((a, b) => a.localeCompare(b)),
       warnings,
     });
   }
@@ -175,6 +219,7 @@ export function isBlocking(warning: string): boolean {
     warning.startsWith("NO INGREDIENTS") ||
     warning.includes("has no usable quantity") ||
     warning.includes("has a quantity but no unit") ||
+    warning.includes("has a quantity of 0") ||
     warning.includes("deleted Notion page") ||
     warning.includes("equally complete")
   );
@@ -193,6 +238,10 @@ export function auditWarnings(m: MergedSyrup): string[] {
       w.push(`Ingredient points at a deleted Notion page: ${i.name}`);
     } else if (i.quantity === null) {
       w.push(`"${i.name}" has no usable quantity in Notion (raw: ${JSON.stringify(i.quantity_raw)}).`);
+    } else if (i.quantity === 0) {
+      // "0" parses as a perfectly good number, so nothing upstream catches it.
+      // Blood Orange Cordial genuinely carries a 0 gr line beside a 550 gr one.
+      w.push(`"${i.name}" has a quantity of 0 in Notion, which is not a measurement.`);
     } else if (!i.unit) {
       w.push(`"${i.name}" has a quantity but no unit in Notion.`);
     }
@@ -225,7 +274,7 @@ function ownerIdentity(): OperatorIdentity {
 }
 
 export function buildDraft(m: MergedSyrup) {
-  const ingredients = ingredientsOf(m.chosen);
+  const ingredients = storedIngredientsOf(m.chosen);
   const recipe = {
     source: "notion",
     notion_url: m.chosen.notion_url,
@@ -238,10 +287,13 @@ export function buildDraft(m: MergedSyrup) {
   // meant a corrected yield in Notion hashed identically to the wrong one, so a
   // re-run reported "unchanged" and silently discarded the fix. Caught by
   // `hashes the SOURCE identity, not the content`.
-  // The hash covers exactly what is stored. Yields are excluded because they
-  // are not imported; if that ever changes, they belong back in here or a
-  // corrected yield would hash identically to the wrong one.
-  const content = JSON.stringify({ name: m.canonical, ...recipe });
+  // The hash covers exactly what is stored, and `warnings` is stored on the
+  // draft row. Leaving it out meant a fix to `auditWarnings` could never reach a
+  // row that already existed: the recipe hashed identically, the ingest RPC
+  // correctly reported "unchanged", and the stale warnings stayed forever. Same
+  // shape as the yield bug. If it is written to the row, it belongs in here.
+  const warnings = auditWarnings(m);
+  const content = JSON.stringify({ name: m.canonical, ...recipe, warnings });
   const contentHash = createHash("sha256").update(content).digest("hex");
 
   return {
@@ -259,17 +311,17 @@ export function buildDraft(m: MergedSyrup) {
     // Supabase as real batches are made, and Supabase becomes the source of truth.
     intended_yield_value: null,
     intended_yield_unit: null,
-    warnings: auditWarnings(m),
+    warnings,
   };
 }
 
-function renderReport(drafts: ReturnType<typeof buildDraft>[]): string {
+function renderReport(
+  drafts: ReturnType<typeof buildDraft>[],
+  nameOnly: ReturnType<typeof buildDraft>[] = []
+): string {
   const blocking = (d: { warnings: string[] }) => d.warnings.filter(isBlocking);
   const clean = drafts.filter(d => blocking(d).length === 0);
   const flagged = drafts.filter(d => blocking(d).length > 0);
-  const empty = drafts.filter(d =>
-    (d.original_recipe_json.ingredients ?? []).length === 0
-  );
 
   const lines: string[] = [];
   lines.push("# Brix — Notion syrup import, diff");
@@ -281,11 +333,24 @@ function renderReport(drafts: ReturnType<typeof buildDraft>[]): string {
   lines.push(`| formulas after collapsing variants | **${drafts.length}** |`);
   lines.push(`| ready to approve as-is | **${clean.length}** |`);
   lines.push(`| blocked, need something from you | **${flagged.length}** |`);
-  lines.push(`| no ingredients at all | ${empty.length} |`);
+  lines.push(`| in Notion with no recipe, NOT written | ${nameOnly.length} |`);
   lines.push(`| yields imported | 0 — every Notion spec is unreliable, set them after a real batch |`);
   lines.push("");
   lines.push("Nothing here is approved. Every row lands as `needs_review`.");
   lines.push("");
+
+  if (nameOnly.length > 0) {
+    lines.push("## In Notion, but with no recipe behind the name");
+    lines.push("");
+    lines.push(
+      "These pages exist in Notion and hold no ingredients at all, so they are " +
+        "**not written**. A draft with an empty ingredient list can never be " +
+        "versioned, and writing one only pads the approval queue."
+    );
+    lines.push("");
+    for (const d of nameOnly) lines.push(`- ${d.name} — ${d.external_recipe_id}`);
+    lines.push("");
+  }
 
   lines.push("## Formulas");
   lines.push("");
@@ -293,12 +358,14 @@ function renderReport(drafts: ReturnType<typeof buildDraft>[]): string {
   lines.push("|---|---|---|---|");
   for (const d of drafts) {
     const ings = (d.original_recipe_json.ingredients ?? []) as Array<{
-      name: string;
-      quantity: number | null;
-      unit: string | null;
+      ingredient_name: string;
+      quantity_normalized: string | null;
+      unit_name: string | null;
     }>;
     const recipe =
-      ings.map(i => `${i.name} ${i.quantity ?? "?"}${i.unit ?? ""}`).join(" + ") || "—";
+      ings
+        .map(i => `${i.ingredient_name} ${i.quantity_normalized ?? "?"}${i.unit_name ?? ""}`)
+        .join(" + ") || "—";
     const y =
       d.intended_yield_value === null
         ? "—"
@@ -337,12 +404,28 @@ async function main() {
   const raw = JSON.parse(readFileSync(INPUT, "utf8")) as NotionSyrup[];
   const active = raw.filter(s => !s.archived);
   const merged = mergeVariants(active);
-  const drafts = merged.map(buildDraft);
+  const all = merged.map(buildDraft);
 
-  writeFileSync(REPORT, renderReport(drafts), "utf8");
+  // A Notion page with no ingredient list at all is not a recipe — it is the
+  // blank template, or a name someone reserved. Writing it produces a draft that
+  // can never be versioned (the resolver blocks on an empty list) but that Brix
+  // still counts as "awaiting approval", so it pads the queue with rows nobody
+  // can act on. They stay in the report, under their own heading, so the fact
+  // that Notion holds a name with no recipe behind it is not lost.
+  const drafts = all.filter(
+    d => ((d.original_recipe_json.ingredients ?? []) as unknown[]).length > 0
+  );
+  const nameOnly = all.filter(d => !drafts.includes(d));
+
+  writeFileSync(REPORT, renderReport(drafts, nameOnly), "utf8");
   console.log(
     `${active.length} active Notion syrups -> ${drafts.length} formulas after collapsing variants`
   );
+  if (nameOnly.length > 0) {
+    console.log(
+      `not written (no ingredients in Notion): ${nameOnly.map(d => d.name).join(", ")}`
+    );
+  }
   console.log(`report: ${REPORT}`);
 
   if (!apply) {
@@ -361,6 +444,86 @@ async function main() {
     drafts,
   });
   console.log("\nwritten:", JSON.stringify(result, null, 2));
+
+  await reportStrays(drafts);
+  await verifyReadable(drafts);
+}
+
+/**
+ * Read back what was just written, through the reader that actually consumes it.
+ *
+ * This exists because of a bug that every other check missed. The importer wrote
+ * ingredients as {name, quantity, unit}; `resolveDraftIngredients`, the console
+ * and the versioning path all read {ingredient_name, quantity_normalized,
+ * unit_name}. 36 unit tests passed. The RPC reported 56 rows written. The
+ * database genuinely held 56 syrups. And not one of them could be opened,
+ * because nothing on the reading side could see a single ingredient.
+ *
+ * Nothing that inspects only this script's own output can catch that. The check
+ * has to fetch the stored row and run the real reader over it, which is what
+ * this does — and it exits non-zero, because an import that lands unreadable
+ * recipes has not succeeded, whatever the write count says.
+ */
+async function verifyReadable(written: ReturnType<typeof buildDraft>[]) {
+  const expected = new Set(written.map(d => d.external_recipe_id));
+  const stored = (await beverage.listFormulaDrafts(ownerIdentity())).filter(d => {
+    const url = (d.original_recipe_json as { notion_url?: string } | null)?.notion_url;
+    return url !== undefined && expected.has(url);
+  });
+
+  const unreadable = stored.filter(
+    d => resolveDraftIngredients(d as never, []).items.length === 0
+  );
+
+  console.log(
+    `\nread back ${stored.length} of ${written.length} written; ` +
+      `${stored.length - unreadable.length} resolve to a recipe.`
+  );
+  if (stored.length !== written.length || unreadable.length > 0) {
+    console.error(
+      `\nFAILED: ${unreadable.length} stored draft(s) hold ingredients that nothing ` +
+        `can read, and ${written.length - stored.length} were not found at all. ` +
+        `The rows exist; the recipes are invisible.`
+    );
+    for (const d of unreadable.slice(0, 10)) console.error(`  - ${d.name}`);
+    process.exitCode = 1;
+  }
+}
+
+/**
+ * Say which syrup drafts are in the database but no longer in Notion.
+ *
+ * This import is keyed on the Notion page URL, so a draft only ever updates in
+ * place while that page keeps winning its merge. The moment a merge resolves to
+ * a DIFFERENT page — because the recipe changed, or because the merge rule was
+ * corrected — the new page inserts a new draft and the old one is simply left
+ * behind, still `needs_review`, still offered to Brix for approval. Correcting
+ * the deleted-page bug did exactly that to Espresso Syrup: the stale row had
+ * `UNKNOWN (deleted ingredient page...)` where the real espresso should be.
+ *
+ * It reports and does not act. Superseding on absence would mean a partial
+ * extraction — Notion timing out halfway, an export written to the wrong path —
+ * quietly rejecting every recipe it failed to return. A list Ashley reads is
+ * worth more than an automatic write that can be catastrophically wrong.
+ */
+async function reportStrays(written: ReturnType<typeof buildDraft>[]) {
+  const known = new Set(written.map(d => d.external_recipe_id));
+  const existing = await beverage.listFormulaDrafts(ownerIdentity());
+  const strays = existing.filter(d => {
+    if (d.product_category !== "syrup_or_related_product") return false;
+    const url = (d.original_recipe_json as { notion_url?: string } | null)?.notion_url;
+    return !url || !known.has(url);
+  });
+
+  if (strays.length === 0) {
+    console.log("\nno stray drafts: every syrup in the database is one this run wrote.");
+    return;
+  }
+  console.log(
+    `\nSTRAY DRAFTS (${strays.length}). In the database, not in this extraction. ` +
+      `Brix still offers these for approval. Nothing was changed — decide each one:`
+  );
+  for (const d of strays) console.log(`  - ${d.name} [${d.draft_status}] ${d.id}`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

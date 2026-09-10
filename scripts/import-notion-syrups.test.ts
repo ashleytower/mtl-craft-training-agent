@@ -7,6 +7,7 @@ import {
   mergeVariants,
   parseQuantity,
 } from "./import-notion-syrups";
+import { resolveDraftIngredients } from "../shared/ingredients";
 
 const syrup = (over: Record<string, unknown> = {}) =>
   ({
@@ -257,18 +258,28 @@ describe("buildDraft", () => {
     );
   });
 
+  // These two asserted `name` / `quantity`, which is what the importer used to
+  // store and is exactly the field-name bug: nothing that reads a draft looks
+  // for those keys. They now assert the contract in shared/ingredients.ts.
   it("normalises the thousands separator into the stored quantity", () => {
     const d = buildDraft(m);
-    const sugar = (d.original_recipe_json.ingredients as Array<{ name: string; quantity: number }>)
-      .find(i => i.name === "Sugar");
-    expect(sugar?.quantity).toBe(20000);
+    const sugar = (
+      d.original_recipe_json.ingredients as Array<{
+        ingredient_name: string;
+        quantity_normalized: string;
+      }>
+    ).find(i => i.ingredient_name === "Sugar");
+    expect(sugar?.quantity_normalized).toBe("20000");
   });
 
   it("keeps the raw quantity beside the parsed one", () => {
     const d = buildDraft(m);
     const sugar = (
-      d.original_recipe_json.ingredients as Array<{ name: string; quantity_raw: string }>
-    ).find(i => i.name === "Sugar");
+      d.original_recipe_json.ingredients as Array<{
+        ingredient_name: string;
+        quantity_raw: string;
+      }>
+    ).find(i => i.ingredient_name === "Sugar");
     expect(sugar?.quantity_raw).toBe("20,000");
   });
 
@@ -299,5 +310,178 @@ describe("isBlocking", () => {
     expect(isBlocking('Collapsed 3 Notion rows into one formula. Kept "x" (5 complete ingredients); merged away "y" (3).')).toBe(false);
     expect(isBlocking("Notion claims a yield of 1 L. NOT imported — Notion specs are unreliable.")).toBe(false);
     expect(isBlocking("No yield in Notion. Set one in Supabase after a real batch.")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The contract between this importer and everything that reads a draft.
+//
+// These exist because the first version of this importer wrote
+// {name, quantity, unit} while `resolveDraftIngredients`, the console and the
+// versioning path all read {ingredient_name, quantity_normalized, unit_name}.
+// Every unit test passed. All 56 formulas landed in the database. And not one
+// of them could be opened, because nothing on the reading side could see a
+// single ingredient. A test that only checks what the importer produces cannot
+// catch that; it has to run the real reader over the real output.
+// ---------------------------------------------------------------------------
+describe("what buildDraft writes is what the reader reads", () => {
+  const jalapeno = mergeVariants([
+    syrup({
+      name: "Mosaiq Jalapeno (first run)",
+      ingredients: [
+        { name: "Sugar", qty: "20,000", unit: "gr" },
+        { name: "Jalapenos", qty: "5400", unit: "gr" },
+        { name: "Water", qty: "18,000", unit: "ml" },
+      ],
+    }),
+  ])[0];
+
+  it("hands resolveDraftIngredients a recipe it can actually read", () => {
+    const resolved = resolveDraftIngredients(buildDraft(jalapeno) as never, []);
+    expect(resolved.source).toBe("structured");
+    expect(resolved.items).toHaveLength(3);
+    expect(resolved.blocked).toBe(false);
+  });
+
+  it("carries the quantity across as an exact decimal, not a float", () => {
+    const resolved = resolveDraftIngredients(buildDraft(jalapeno) as never, []);
+    const sugar = resolved.items.find(i => i.name === "Sugar");
+    expect(sugar?.quantity).toBe("20000");
+    expect(sugar?.unit).toBe("gr");
+    expect(sugar?.issues).toEqual([]);
+  });
+
+  it("keeps the raw Notion string beside the parsed one, for provenance", () => {
+    const ings = buildDraft(jalapeno).original_recipe_json.ingredients as Array<{
+      quantity_raw: string | null;
+    }>;
+    expect(ings[0].quantity_raw).toBe("20,000");
+  });
+
+  // A blank quantity must survive as a VISIBLE hole all the way to the reader,
+  // not quietly become a zero or vanish.
+  it("passes a blank quantity through as blocked, not as a number", () => {
+    const m = mergeVariants([
+      syrup({
+        name: "Blood Orange Cordial",
+        ingredients: [{ name: "Water", qty: "", unit: null }],
+      }),
+    ])[0];
+    const resolved = resolveDraftIngredients(buildDraft(m) as never, []);
+    expect(resolved.blocked).toBe(true);
+    expect(resolved.items[0].quantity).toBeNull();
+  });
+});
+
+describe("merge order", () => {
+  // Notion decides what order it hands us pages in. If that order decides which
+  // row wins, a re-extraction silently INSERTS duplicate drafts under new source
+  // hashes and strands the current ones — so the merge has to be a function of
+  // the content, not of the arrival order.
+  const rows = [
+    syrup({
+      notion_url: "https://app.notion.com/p/bbb",
+      name: "Butterfly Pea",
+      ingredients: [{ name: "A", qty: "1", unit: "gr" }],
+    }),
+    syrup({
+      notion_url: "https://app.notion.com/p/aaa",
+      name: "Mosaiq Butterfly Pea (first run)",
+      ingredients: [{ name: "B", qty: "2", unit: "gr" }],
+    }),
+  ];
+
+  it("picks the same row whichever order Notion returns the pages in", () => {
+    const forward = mergeVariants(rows);
+    const reversed = mergeVariants([...rows].reverse());
+    expect(reversed[0].chosen.notion_url).toBe(forward[0].chosen.notion_url);
+  });
+
+  it("produces the same content hash whichever order the pages arrive in", () => {
+    const forward = buildDraft(mergeVariants(rows)[0]);
+    const reversed = buildDraft(mergeVariants([...rows].reverse())[0]);
+    expect(reversed.original_source_hash).toBe(forward.original_source_hash);
+    expect(reversed.original_recipe_json.content_sha256).toBe(
+      forward.original_recipe_json.content_sha256
+    );
+  });
+
+  // A row whose ingredient is a deleted Notion page is not "complete". Counting
+  // it as complete let the Espresso merge keep the row with the deleted page and
+  // discard the row that still had "Espresso 600 gr" in it.
+  it("does not count a deleted Notion page as a complete ingredient", () => {
+    const merged = mergeVariants([
+      syrup({
+        name: "Mosaiq Espresso Syrup (first run whole batch)",
+        ingredients: [
+          { name: "Coffee", qty: "28000", unit: "gr" },
+          { name: "UNKNOWN (deleted ingredient page, was x)", qty: "600", unit: "ml" },
+        ],
+      }),
+      syrup({
+        name: "Mosaiq Espresso Syrup (first run)",
+        ingredients: [
+          { name: "Coffee", qty: "28000", unit: "gr" },
+          { name: "Espresso", qty: "600", unit: "gr" },
+        ],
+      }),
+    ]);
+    expect(merged[0].chosen.ingredients.map(i => i.name)).toContain("Espresso");
+  });
+});
+
+describe("zero quantities", () => {
+  // Blood Orange Cordial genuinely carries "Blood Oranges ( Fresh ) 0 gr" beside
+  // a 550 gr row. Zero grams of an ingredient is not a measurement, and
+  // parseQuantity reads "0" as a perfectly good number, so the audit has to be
+  // the thing that catches it.
+  it("blocks on a zero quantity", () => {
+    const w = auditWarnings(
+      mergeVariants([
+        syrup({
+          name: "Blood Orange Cordial",
+          ingredients: [{ name: "Blood Oranges ( Fresh )", qty: "0", unit: "gr" }],
+        }),
+      ])[0]
+    );
+    expect(w.join(" ")).toContain("quantity of 0");
+    expect(w.filter(isBlocking).length).toBeGreaterThan(0);
+  });
+
+  it("still reads a real quantity of zero-point-something", () => {
+    const w = auditWarnings(
+      mergeVariants([
+        syrup({ name: "X", ingredients: [{ name: "Citric acid", qty: "0.5", unit: "gr" }] }),
+      ])[0]
+    );
+    expect(w.join(" ")).not.toContain("quantity of 0");
+  });
+});
+
+describe("the content hash covers everything that gets stored", () => {
+  // `warnings` is stored ON the draft row, and the ingest RPC skips a row whose
+  // content hash is unchanged. So anything stored but left out of the hash can
+  // never be repaired by a re-run: fix the audit, re-import, and the RPC
+  // correctly reports "unchanged" while the wrong warnings sit there forever.
+  // This is the same shape as the yield bug that an earlier test caught.
+  it("moves when only the warnings change", () => {
+    const m = mergeVariants([
+      syrup({
+        notion_url: "https://app.notion.com/p/hash-check",
+        name: "Thing",
+        ingredients: [{ name: "Sugar", qty: "1000", unit: "gr" }],
+      }),
+    ])[0];
+
+    const before = buildDraft(m);
+    // Same recipe, different derived warnings — exactly what a fix to
+    // auditWarnings produces.
+    const after = buildDraft({ ...m, warnings: [...m.warnings, "a new audit finding"] });
+
+    expect(after.original_source_hash).toBe(before.original_source_hash);
+    expect(after.warnings).not.toEqual(before.warnings);
+    expect(after.original_recipe_json.content_sha256).not.toBe(
+      before.original_recipe_json.content_sha256
+    );
   });
 });

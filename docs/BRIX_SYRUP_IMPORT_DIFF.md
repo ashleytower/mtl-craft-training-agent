@@ -4,19 +4,26 @@
 
 | | |
 |---|---|
-| formulas after collapsing variants | **56** |
-| ready to approve as-is | **49** |
-| blocked, need something from you | **7** |
-| no ingredients at all | 2 |
+| formulas after collapsing variants | **54** |
+| ready to approve as-is | **50** |
+| blocked, need something from you | **4** |
+| in Notion with no recipe, NOT written | 2 |
 | yields imported | 0 — every Notion spec is unreliable, set them after a real batch |
 
 Nothing here is approved. Every row lands as `needs_review`.
+
+## In Notion, but with no recipe behind the name
+
+These pages exist in Notion and hold no ingredients at all, so they are **not written**. A draft with an empty ingredient list can never be versioned, and writing one only pads the approval queue.
+
+- Real Passionfruit Syrup — https://app.notion.com/p/33e769d12d2740a6b944254f729674e4
+- Syrup Recipe — https://app.notion.com/p/176b1c7aa4408039b3f9f1278412445b
 
 ## Formulas
 
 | syrup | ingredients | yield | flags |
 |---|---|---|---|
-| Blood Orange Cordial | Sugar 550gr + Water ? + Blood Oranges ( Fresh ) 550gr + Blood Oranges ( Fresh ) 0gr | — | 1 blocking |
+| Blood Orange Cordial | Sugar 550gr + Water ? + Blood Oranges ( Fresh ) 550gr + Blood Oranges ( Fresh ) 0gr | — | 2 blocking |
 | Blueberry | Blueberries 2000gr + Sugar 2000gr + Water 1000ml | — | ready |
 | Butterfly Pea | Sugar 30000gr + Water 30000ml + Butterfly Peas 225gr | — | 1 blocking |
 | Cactus Pear | Cactus Pear 20000gr + Sugar 20000gr + Water 10000ml | — | ready |
@@ -29,7 +36,7 @@ Nothing here is approved. Every row lands as `needs_review`.
 | Cucumber | Cucumber 3500gr + Sugar 3500gr + Water 3500ml | — | ready |
 | Dragonfruit | Dragonfruit 1000ml + Sugar 1000gr | — | ready |
 | Eggnog | Eggs 64unit + Nutmeg 10unit + Sugar 2720gr + Cream 35% 3630ml + Brandy 1870ml + Rum Spiced 1870ml + Milk 5678ml | — | ready |
-| Espresso Syrup | Coffee 28000gr + Sugar 20000gr + Salt 50ml + vanilla 50ml + UNKNOWN (deleted ingredient page, was https://app.notion.com/p/135b1c7aa44080a09c58fe61e7e4d4c0) 600ml | — | 2 blocking |
+| Espresso Syrup | Coffee 28000gr + Sugar 20000gr + Salt 50ml + vanilla 50ml + Espresso 600gr | — | ready |
 | Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml + Preservative 22gr | — | ready |
 | Give Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml | — | ready |
 | Grapefruit Juice | Grapefruit Juice 1L | — | ready |
@@ -59,7 +66,6 @@ Nothing here is approved. Every row lands as `needs_review`.
 | Pineapple/Mint | Pineapple 1200gr + Sugar 600gr + Mint ( 4 bunches approx ) 60gr + Water 600ml | — | ready |
 | Plaintain | Fried Plantains 450gr + Sugar 300gr + Water 300ml | — | ready |
 | Raspberry | Raspberries 3000gr + Sugar 6000gr + Water 3000ml | — | ready |
-| Real Passionfruit Syrup | — | — | 1 blocking |
 | Rhubarb | Rhubarb 1000gr + Sugar 1000gr + Water 1000ml | — | ready |
 | Salted Grapefruit | Sugar 26000gr + Grapefruit Juice 13500ml + Lime Juice 6000ml + Water 6000ml + Salt 25gr | — | 1 blocking |
 | Salted Grapefruit1\`q | Sugar 26000gr + Grapefruit Juice 13500ml + Lime Juice 6000ml + Water 6000ml + Salt 25gr | — | ready |
@@ -69,7 +75,6 @@ Nothing here is approved. Every row lands as `needs_review`.
 | Spiced Crantr | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr | — | ready |
 | Spiced Syrup | Cinnamon 5gr + Nutmeg 5gr + Sugar 1000gr + Water 1000ml + Peppercorn 5gr | — | ready |
 | Strawberry | Strawberries 3000gr + Sugar 3000gr + Water 2000ml | — | ready |
-| Syrup Recipe | — | — | 1 blocking |
 | Tangerine | Tangerine 850gr + Sugar 850gr + Water 500ml | — | ready |
 | Watermelon | Watermelon 3000gr + Sugar 3000gr + Water 2000ml | — | ready |
 
@@ -77,25 +82,16 @@ Nothing here is approved. Every row lands as `needs_review`.
 
 **Blood Orange Cordial**
 - "Water" has no usable quantity in Notion (raw: "").
+- "Blood Oranges ( Fresh )" has a quantity of 0 in Notion, which is not a measurement.
 
 **Butterfly Pea**
 - Two merged rows were equally complete — confirm the kept one is right.
 
-**Espresso Syrup**
-- Two merged rows were equally complete — confirm the kept one is right.
-- Ingredient points at a deleted Notion page: UNKNOWN (deleted ingredient page, was https://app.notion.com/p/135b1c7aa44080a09c58fe61e7e4d4c0)
-
 **Kiwi**
 - "Xanthan Gum" has no usable quantity in Notion (raw: "").
 
-**Real Passionfruit Syrup**
-- NO INGREDIENTS in Notion — cannot be approved until a recipe is supplied.
-
 **Salted Grapefruit**
 - Two merged rows were equally complete — confirm the kept one is right.
-
-**Syrup Recipe**
-- NO INGREDIENTS in Notion — cannot be approved until a recipe is supplied.
 
 ## Context on every formula
 
@@ -108,7 +104,7 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 - Notion claims a yield of 2 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Butterfly Pea**
-- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Butterfly Pea (first run)" (3 complete ingredients); merged away "Mosaiq Butterfly Pea (first run total batch)" (3), "Butterfly Pea" (3). Batch-size variants are redundant because scaling is exact.
+- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Butterfly Pea (first run)" (3 complete ingredients); merged away "Butterfly Pea" (3), "Mosaiq Butterfly Pea (first run total batch)" (3). Batch-size variants are redundant because scaling is exact.
 - Notion claims a yield of 38 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Cactus Pear**
@@ -142,8 +138,8 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 - Notion claims a yield of 17 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Espresso Syrup**
-- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Espresso Syrup (first run whole batch)" (5 complete ingredients); merged away "Mosaiq Espresso Syrup (first run)" (5), "Espresso Syrup" (0). Batch-size variants are redundant because scaling is exact.
-- Notion claims a yield of 1 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
+- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Espresso Syrup (first run)" (5 complete ingredients); merged away "Mosaiq Espresso Syrup (first run whole batch)" (4), "Espresso Syrup" (0). Batch-size variants are redundant because scaling is exact.
+- Notion claims a yield of 44 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Ginger**
 - Collapsed 2 Notion rows into one formula. Kept "🫚Mosaiq Ginger (first run)" (4 complete ingredients); merged away "🫚Mosaiq Ginger (first run total batch)" (3). Batch-size variants are redundant because scaling is exact.
@@ -168,7 +164,7 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 - Notion claims a yield of 12 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Jalapeno**
-- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Jalapeno (first run)" (5 complete ingredients); merged away "Jalapeno" (3), "Mosaiq Jalapeno (first run whole batch)" (3). Batch-size variants are redundant because scaling is exact.
+- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Jalapeno (first run)" (5 complete ingredients); merged away "Mosaiq Jalapeno (first run whole batch)" (3), "Jalapeno" (3). Batch-size variants are redundant because scaling is exact.
 - Notion claims a yield of 30 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Kiwi**
@@ -234,14 +230,11 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 **Raspberry**
 - No yield in Notion. Set one in Supabase after a real batch.
 
-**Real Passionfruit Syrup**
-- No yield in Notion. Set one in Supabase after a real batch.
-
 **Rhubarb**
 - No yield in Notion. Set one in Supabase after a real batch.
 
 **Salted Grapefruit**
-- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Salted Grapefruit (first run whole batch)" (5 complete ingredients); merged away "Salted Grapefruit" (5), "Mosaiq Salted Grapefruit (first run)" (5). Batch-size variants are redundant because scaling is exact.
+- Collapsed 3 Notion rows into one formula. Kept "Mosaiq Salted Grapefruit (first run whole batch)" (5 complete ingredients); merged away "Mosaiq Salted Grapefruit (first run)" (5), "Salted Grapefruit" (5). Batch-size variants are redundant because scaling is exact.
 - Notion claims a yield of 1 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Salted Grapefruit1\`q**
@@ -263,9 +256,6 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 - No yield in Notion. Set one in Supabase after a real batch.
 
 **Strawberry**
-- No yield in Notion. Set one in Supabase after a real batch.
-
-**Syrup Recipe**
 - No yield in Notion. Set one in Supabase after a real batch.
 
 **Tangerine**
