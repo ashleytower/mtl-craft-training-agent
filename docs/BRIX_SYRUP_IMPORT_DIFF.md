@@ -4,10 +4,12 @@
 
 | | |
 |---|---|
-| formulas after collapsing variants | **54** |
-| ready to approve as-is | **50** |
+| formulas after collapsing variants | **55** |
+| ready to approve as-is | **51** |
 | blocked, need something from you | **4** |
 | in Notion with no recipe, NOT written | 2 |
+| carry a method from Notion | **35** |
+| carry a Hindi method | 9 |
 | yields imported | 0 — every Notion spec is unreliable, set them after a real batch |
 
 Nothing here is approved. Every row lands as `needs_review`.
@@ -18,6 +20,385 @@ These pages exist in Notion and hold no ingredients at all, so they are **not wr
 
 - Real Passionfruit Syrup — https://app.notion.com/p/33e769d12d2740a6b944254f729674e4
 - Syrup Recipe — https://app.notion.com/p/176b1c7aa4408039b3f9f1278412445b
+
+## Methods, as Notion has them
+
+Verbatim, including the typos. Read each one against its ingredients above: the two are recorded in different places in Notion (the ingredients are a relation, the method is prose in the page body) and nothing keeps them in agreement. The Jalapeno method says to add habanero and no Jalapeno ingredient list records any.
+
+### Blood Orange Cordial
+
+```
+1. The blood orange peels are 150g which came off of the oranges that we juiced!
+```
+
+### Butterfly Pea
+
+```
+1. Step 1 - Add water, sugar and butterfly peas.
+2. Step 2 - Bring to a boil and turn off and let cool. Let it sit for at least 5 hours.
+3. Step 3 - Add Presertivites . Total weight of the syrup X 0.001 is the amount of preservatives you need to add.
+4. DO NOT ADD CITRIC ACID TO THIS SYRUP.
+5. Step 4 - Bag or bottle.
+```
+
+### Cactus Pear
+
+```
+1. Step 1 - Cut them in half and take out the flesh and place into a food proseccor.
+2. Step 2 - Add the simple syrup and process it until smooth.
+3. Step 3 - Strain and bottle or bag.
+```
+
+### Chamomille Syrup
+
+```
+1. Add all into a pot and bring to a boil
+2. Let cool and bag or bottle
+```
+
+### Cherry Syrup
+
+```
+1. Add sugar and cherries and crush and let sit.
+2. Add warm water and stir.
+3. PH balance it.
+4. Strain and bag or bottle
+```
+
+### Coconut cream
+
+```
+1. Step 1 - Add coconut milk and simple syrup and mix until uniform.
+2. Step 2 - Strain and bottle or bag
+```
+
+### Cranberry
+
+```
+1. Step 1 - Add all into a pot and bring to a simmer.
+2. Step 2 - Simmer for 5 min.
+3. Step 3 - Turn off and let cool.
+4. Step 4 - Strain, bottle or bag.
+```
+
+### Cucumber (also in Hindi)
+
+```
+1. Step 1 - Peel the cucumber.
+2. Step 2 - Cut into thin strips using a peeler.
+3. Step 3 - Add sugar, stir and leave for 4 hours or overnight.
+4. Add the water and strain x2
+5. Add preservatives and citric acid. Take the total weight in kg of the syrup.
+6. Strain into another bucket to remove all the jalapenos
+Example: You have 6kg of syrup, this means you add 6g of preservitives and 6g of citric acid.
+Note: Always mesure the preservitives and citric acid with the small scale.
+```
+
+### Espresso Syrup
+
+```
+1. espresso was 600g
+```
+
+### Ginger (also in Hindi)
+
+```
+1. Step 1 - Weigh Ginger and put into a big clean bucket.
+2. Step 2 - Add sugar and hot water.
+3. Step 3 - Blend with the big hand blender.
+4. Step 4 - Strain 3-4 times into a new bucket. to get out most of the pieces out.
+5. Weight the syrup and add 0.01% of preservitives and 0.01% citric acid. Stir well.
+
+Example:
+8000 gr syrup ( 8 L ) = 8 gr presertivites and 8 gr citric acid.
+8000 x 0.001 = 8 gr.
+```
+
+### Give Ginger (also in Hindi)
+
+```
+1. Step 1 - Weigh Ginger and put into a big clean bucket.
+2. Step 2 - Add sugar and hot water.
+3. Step 3 - Blend with the big hand blender.
+4. Step 4 - Strain 3-4 times into a new bucket. to get out most of the pieces out.
+5. Weight the syrup and add 0.01% of preservitives and 0.01% citric acid. Stir well.
+
+Example:
+8000 gr syrup ( 8 L ) = 8 gr presertivites and 8 gr citric acid.
+8000 x 0.001 = 8 gr.
+```
+
+### Green Grape
+
+```
+1. Combine the green grapes and the sugar.
+2. Let it sit all day or overnight.
+3. Squeeze out some juice.
+4. Add in 800 g water.
+5. Strain.
+6. Add the citric acid and the preservative solution.
+Example: If it renders 2,000 g, that is 2 g of preservative and 2 g of citric acid.
+Note: Always mesure the preservitives and citric acid with the small scale.
+```
+
+### Grilled Pineapple
+
+```
+1. Step 1 - Grill pineapple.
+2. Step 2 - juice and weight the juice, add an equal amount of sugar.
+3. step 3 - add citric acid, Blend until sugar is disolved
+4. step 4- bag
+```
+
+### Guava
+
+```
+1. Add all to a pot and bring to a simmer.
+2. Simmer 10 min until soft.
+3. Let cool a bit and blend.
+4. Strain
+5. Citric and preseritives
+```
+
+### Hibiscus (also in Hindi)
+
+```
+Step 1
+1. Add cinnamon and cloves to a pot and Toast, Lightly for 1 min stiring constintly. ( Do Not Burn )
+2.  Add hibiscus and toast for 2 min. Stiring , do not burn.
+3. Add simple Syrup and let steep for 5 hours.
+4. Strain and put the strained hibiscus into a container.
+5.  Set aside the syrup until step 2 is finished.
+Step 2
+1. Add more simple syrup to the strained hibiscus and let sit overnight. ( Add simple syrup to cover the strained hibiscus )
+2. Once finished and strained , add the 2 syrups together.
+3. Weight them and add the preservitives and citric acid. stir.
+4. Bottle or bag.
+
+Example: You have 20kg of syrup, this means you add 20g of preservitives and 20g of citric acid.
+Note: Always mesure the preservitives and citric acid with the small scale.
+Storing the Syrup
+1. Transfer to a pot if we are hot filling bottles and heat the syrup while stiring to 185 degrees. Once it reaches 185 you can start hot filling the bottles, fill each bottle put the cap on immediately and flip it for 5 minutes.
+OR
+	Bag the syrup ( ONLY BAG COOLED SYRUP )
+	LABEL AND DATE EACH BAG OR BOTTLE.
+NOTE: We could be doing a mix of bagging and bottling.
+```
+
+### Jalapeno (also in Hindi)
+
+```
+1. Step 1 - boil water
+2. Step 2 - add sugar
+3. Step 3 - When all sugar is disulved add jalapeño and habanero and bring to a simmer. Simmer until peppers are soft, remove from heat and let cool.
+4. Step 4 - Once cooled transfer to a blender and blend in batches.
+5. Step 5 - Strain out the solides.
+6. Step 6 - Strain again.
+7. Step 7 - Add preservatives and citric acid. ( Take the total weight of the syrup and X by 0.001 to get the amount of preservitives and citric acid needed )
+8. Step 6 - Bottle syrup or bag.
+```
+
+### Kiwi
+
+```
+1. Add kiwis into a cambro, add sugar and let sit 4-24H.
+2. Add warm water and stir
+3. Strain
+4. weight and add 0.01% preservatives and 0.01% citric acid of total final weight.
+5. bag or hot fill.
+* if using methocellulose*
+```
+
+### Lemon Super Juice
+
+```
+1. Step 1 - Add all into a pot and bring to a simmer.
+2. Step 2 - Simmer for 5 min.
+3. Step 3 - Turn off and let cool.
+```
+
+### Lemonade
+
+```
+1. Step 1 - Add all into a pot and bring to a simmer.
+2. Step 2 - Simmer for 5 min.
+3. Step 3 - Turn off and let cool.
+```
+
+### Lime Super Juice
+
+```
+1. Step 1 - Add all into a pot and bring to a simmer.
+2. Step 2 - Simmer for 5 min.
+3. Step 3 - Turn off and let cool.
+```
+
+### Mint (also in Hindi)
+
+```
+Make a simple syrup or take from the freezer
+1.  Boil a pot of water and blanch the mint ( 15 sec ), use the thongs so you don't burn your hands.
+2. Place the blanched mint on a cloth or paper towel and repete the process.
+3. Once cooled so you don't burn your hands pick off the mint and put it into a bucket
+4. Add the simple syrup into your bucket.
+5. blend with the hand mixer.
+6. Strain x 3
+7. Add preservatives and citric acid. Take the total weight in kg of the syrup.
+Example: You have 7kg of syrup, this means you add 7g of preservitives and 7g of citric acid.
+Note: Always mesure the preservitives and citric acid with the small scale.
+```
+
+### Orgeat
+
+```
+1. Put the Almond milk and sugar in a pot and heat until sugar is melted, do not boil.
+2. Turn off the stove and add the rest and stir.
+3.
+```
+
+### Orgeat Toasted
+
+```
+1. Step 1 - Peal Grapefruit with as little perth as possable into a cambro
+2. Step 2 - Cover with sugar and stir. Stir occosionally, Let sit overnight.
+3. Step 3 - Squeeze grapefruit juice and lime if using fresh lime juice.
+4. Step 4 - Add peel and sugar mixture to a pot with the grapefruit, lime, water & salt.
+5. Step 5 - Bring to a boil.
+6. Step 6 - Let cool, strain & bottle or bag.
+```
+
+### Peach Puree (also in Hindi)
+
+```
+1. Add all peaches into a bucket
+2. Add raspberry syrup or fresh raspberries and sugar
+3. Blend and strain
+4. add preservatives
+5. Example : 2 kg peach puree = 2g preservitives , 2g citric acid
+6. Freeze right away or it turns brown.
+7. always store in smaller bags
+```
+
+### Pear (also in Hindi)
+
+```
+1.  Add all ingredients into a pot and bring to a simmer. ( Grate the nutmeg )
+2. Turn off the heat and let cool ( About 3-4 H )
+3. Strain 2x
+4. Add preservatives and citric acid.
+5. Bag
+Example:
+8000 gr syrup ( 8 Kg ) = 8 gr presertivites
+8000 x 0.001 = 8
+```
+
+### Pineapple/Mint
+
+```
+1. Step 1 - Cut pinapple off the core.
+2. Step 2 - Add to a food processor with the simple syrup and process until smooth.
+3. Step 3 - Add mint and pulse.
+4. Step 4 - Strain & bottle or bag.
+```
+
+### Plaintain
+
+```
+1. Step 1 - Add all into a pot and bring to a simmer.
+2. Step 2 - Simmer for 5 min.
+3. Step 3 - Turn off and let cool.
+```
+
+### Raspberry
+
+```
+1. Step 1 - Add sugar and raspberries and let sit over night
+2. Step 2 - add water and stir, strain, bag.
+```
+
+### Rhubarb
+
+```
+1. Step 1 - Add all into a pot and bring to a simmer.
+2. Step 2 - Simmer for 5 min.
+3. Step 3 - Turn off and let cool.
+4. Step 4 - Strain, bottle or bag.
+```
+
+### Salted Grapefruit
+
+```
+1. Step 1 - Peal Grapefruit with as little perth as possable into a cambro.
+2. Step 2 - Cover with sugar and stir. Stir occosionally, Let sit overnight.
+3. Step 3 - Squeeze grapefruit juice and lime if using fresh.
+4. Step 4 - Add peel and sugar mixture to a pot with the grapefruit, lime, water & salt.
+5. Step 5 - Bring to a boil.
+6. Step 6 - Let cool, strain & bottle or bag.
+```
+
+### Salted Grapefruit1\`q
+
+```
+1. Step 1 - Peal Grapefruit with as little perth as possable into a cambro.
+2. Step 2 - Cover with sugar and stir. Stir occosionally, Let sit overnight.
+3. Step 3 - Squeeze grapefruit juice and lime if using fresh.
+4. Step 4 - Add peel and sugar mixture to a pot with the grapefruit, lime, water & salt.
+5. Step 5 - Bring to a boil.
+6. Step 6 - Let cool, strain & bottle or bag.
+```
+
+### Simple syrup (also in Hindi)
+
+```
+1. Add the sugar
+2. Add Hot Water
+3. Mix and bring to a boil and turn off right away.
+4. Bottle or Bag it
+Example: You have 18kg of syrup, this means you add 18g of preservitives and 18g of citric acid.
+Note: Always mesure the preservitives and citric acid with the small scale.
+Storing the Syrup
+1. Transfer to a pot if we are hot filling bottles and heat the syrup while stiring to 185 degrees. Once it reaches 185 you can start hot filling the bottles, fill each bottle put the cap on immediately and flip it for 5 minutes.
+OR
+	Bag the syrup ( ONLY BAG COOLED SYRUP )
+	LABEL AND DATE EACH BAG OR BOTTLE.
+NOTE: We could be doing a mix of bagging and bottling.
+```
+
+### Spiced Cran
+
+```
+1. Step 1 - Peal Grapefruit with as little perth as possable into a cambro
+2. Step 2 - Cover with sugar and stir. Stir occosionally, Let sit overnight.
+3. Step 3 - Squeeze grapefruit juice and lime if using fresh lime juice.
+4. Step 4 - Add peel and sugar mixture to a pot with the grapefruit, lime, water & salt.
+5. Step 5 - Bring to a boil.
+6. Step 6 - Let cool, strain & bottle or bag.
+```
+
+### Spiced Crantr
+
+```
+1. Step 1 - Peal Grapefruit with as little perth as possable into a cambro
+2. Step 2 - Cover with sugar and stir. Stir occosionally, Let sit overnight.
+3. Step 3 - Squeeze grapefruit juice and lime if using fresh lime juice.
+4. Step 4 - Add peel and sugar mixture to a pot with the grapefruit, lime, water & salt.
+5. Step 5 - Bring to a boil.
+6. Step 6 - Let cool, strain & bottle or bag.
+```
+
+### Strawberry
+
+```
+1. Step 1 - Add into a container and soak the strawberries in sugar , if a big big batch overnight and mix and break up.
+2. Step 2 - Add water and mix untin disolved.
+3. Step 3 - Strain and bottle or bag.
+```
+
+### No method in Notion
+
+The `▶Directions` heading on these pages is empty. Brix can scale them and cannot say how to make them.
+
+Blueberry, Cantalope Syrup, Coffee Syrup, Dragonfruit, Eggnog, Grapefruit Juice, Grenadine, Lavender, Lemon Citric Acid, Lemon Juice, Lime Citric Acid, Lime Juice, Mango Syrup, Mint/Cucumber, Passion Fruit, Pineapple Syrup, Simple Syrup 2:1, Spiced Syrup, Tangerine, Watermelon
 
 ## Formulas
 
@@ -40,6 +421,7 @@ These pages exist in Notion and hold no ingredients at all, so they are **not wr
 | Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml + Preservative 22gr | — | ready |
 | Give Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml | — | ready |
 | Grapefruit Juice | Grapefruit Juice 1L | — | ready |
+| Green Grape | Green Grapes 1000gr + Sugar 1000gr + Water 800gr | — | ready |
 | Grenadine | Pomegranate 500ml + Sugar 500gr | — | ready |
 | Grilled Pineapple | Pineapple 2300gr + Sugar 2300gr + Citric Acid 10gr | — | ready |
 | Guava | Guava 1500gr + Sugar 6000gr + Water 3000ml | — | ready |
@@ -149,6 +531,9 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 - Notion claims a yield of 7 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Grapefruit Juice**
+- No yield in Notion. Set one in Supabase after a real batch.
+
+**Green Grape**
 - No yield in Notion. Set one in Supabase after a real batch.
 
 **Grenadine**

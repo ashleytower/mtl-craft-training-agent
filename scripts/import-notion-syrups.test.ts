@@ -485,3 +485,79 @@ describe("the content hash covers everything that gets stored", () => {
     );
   });
 });
+
+describe("methods", () => {
+  // Brix could scale a syrup and not say how to make it: 45 of 50 cocktail
+  // drafts carried `method_source_text`, 0 of 54 syrups did, and every
+  // formula version had step_count 0. The ingredient relation was imported;
+  // the Notion page body, where the directions live, never was.
+  const notionId = "abc0000000000000000000000000abc0";
+  const url = `https://app.notion.com/p/${notionId}`;
+  const m = mergeVariants([
+    syrup({
+      notion_url: url,
+      name: "Jalapeno",
+      ingredients: [{ name: "Sugar", qty: "20,000", unit: "gr" }],
+    }),
+  ])[0];
+
+  const methods = new Map([
+    [notionId, { en: "1. Wash and cut jalapenos.\n2. Add hot water and suger", hi: "1. जालपीनो को धोएं" }],
+  ]);
+
+  it("stores the English method under the key the versioning path reads", () => {
+    // `beverage_create_formula_version` reads
+    // original_recipe_json->>'method_source_text' and nothing else. A different
+    // key here means the method is stored and never reaches a formula version.
+    const d = buildDraft(m, methods);
+    expect(d.original_recipe_json.method_source_text).toContain("Wash and cut jalapenos");
+  });
+
+  it("keeps the Hindi beside it rather than merging the two languages", () => {
+    const d = buildDraft(m, methods);
+    expect(d.original_recipe_json.method_source_text_hi).toContain("जालपीनो");
+    expect(d.original_recipe_json.method_source_text).not.toContain("जालपीनो");
+  });
+
+  it("leaves the method null when Notion has none, rather than inventing one", () => {
+    const d = buildDraft(m, new Map());
+    expect(d.original_recipe_json.method_source_text).toBeNull();
+    expect(d.original_recipe_json.method_source_text_hi).toBeNull();
+  });
+
+  // The method is stored on the row, so it has to move the content hash or a
+  // first import of directions could never reach rows that already exist.
+  it("moves the content hash when the method arrives", () => {
+    expect(buildDraft(m, methods).original_recipe_json.content_sha256).not.toBe(
+      buildDraft(m, new Map()).original_recipe_json.content_sha256
+    );
+  });
+
+  // A merge picks one Notion page. If that page has no directions but a page it
+  // merged away does, taking the sibling's silently would attach a method
+  // nobody chose — so it says so and takes nothing.
+  it("flags a method that exists only on a merged-away page", () => {
+    const merged = mergeVariants([
+      syrup({
+        notion_url: "https://app.notion.com/p/aaa0000000000000000000000000aaa0",
+        name: "Espresso Syrup",
+        ingredients: [
+          { name: "Coffee", qty: "28000", unit: "gr" },
+          { name: "Sugar", qty: "20000", unit: "gr" },
+        ],
+      }),
+      syrup({
+        notion_url: "https://app.notion.com/p/bbb0000000000000000000000000bbb0",
+        name: "Mosaiq Espresso Syrup (first run)",
+        ingredients: [{ name: "Coffee", qty: "28000", unit: "gr" }],
+      }),
+    ])[0];
+    const siblingOnly = new Map([
+      ["bbb0000000000000000000000000bbb0", { en: "1. Brew it", hi: null }],
+    ]);
+    const d = buildDraft(merged, siblingOnly);
+    expect(d.original_recipe_json.method_source_text).toBeNull();
+    expect(d.warnings.join(" ")).toContain("method");
+    expect(d.warnings.join(" ")).toContain("merged away");
+  });
+});

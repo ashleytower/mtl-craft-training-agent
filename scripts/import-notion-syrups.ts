@@ -37,7 +37,57 @@ const INPUT = resolve(
     "/private/tmp/claude-501/-Users-ashleytower/d3589e76-37ea-4d4c-9226-6b02d60483f2/scratchpad/notion-syrups.json"
 );
 const REPORT = resolve(process.cwd(), "docs/BRIX_SYRUP_IMPORT_DIFF.md");
-const PARSER_VERSION = "notion-syrups/1.0.0";
+const PARSER_VERSION = "notion-syrups/1.1.0";
+
+/**
+ * The Directions off each Notion page, keyed by the page's 32-hex id.
+ *
+ * Ingredients and method live in two different places in Notion: the
+ * ingredients are a relation to `[MASTER] Ingredients ↔ Recipes`, the method is
+ * prose in the page BODY. The first extraction read the relation and never
+ * opened the body, so 45 of 50 cocktails carried a method and 0 of 54 syrups
+ * did — Brix could scale a jalapeño syrup and not say how to make it.
+ *
+ * Kept as a separate file, and separately verified, because it is separately
+ * extracted. `en` is null for a page whose Directions heading is empty, which is
+ * a real state (Blueberry) and not a failure.
+ */
+const DIRECTIONS = resolve(
+  process.env.NOTION_SYRUP_DIRECTIONS_JSON ??
+    "/private/tmp/claude-501/-Users-ashleytower/d3589e76-37ea-4d4c-9226-6b02d60483f2/scratchpad/notion-syrup-directions.json"
+);
+
+export type MethodText = { en: string | null; hi: string | null };
+
+/** The 32-hex page id inside a Notion URL, which is the only stable part of it. */
+function notionId(url: string): string | null {
+  return /([0-9a-f]{32})/.exec(url)?.[1] ?? null;
+}
+
+function loadMethods(): Map<string, MethodText> {
+  const out = new Map<string, MethodText>();
+  let raw: string;
+  try {
+    raw = readFileSync(DIRECTIONS, "utf8");
+  } catch {
+    console.warn(`no directions file at ${DIRECTIONS} — importing ingredients only`);
+    return out;
+  }
+  const parsed = JSON.parse(raw) as {
+    pages: Array<{ notion_id: string; directions_en: string | null; directions_hi: string | null }>;
+  };
+  for (const page of parsed.pages) {
+    const en = nullIfBlank(page.directions_en);
+    const hi = nullIfBlank(page.directions_hi);
+    if (en || hi) out.set(page.notion_id, { en, hi });
+  }
+  return out;
+}
+
+function nullIfBlank(value: string | null | undefined): string | null {
+  const text = (value ?? "").trim();
+  return text === "" ? null : text;
+}
 
 type NotionIngredient = { name: string; qty: string | null; unit: string | null };
 type NotionSyrup = {
@@ -145,6 +195,13 @@ export type MergedSyrup = {
   canonical: string;
   chosen: NotionSyrup;
   mergedFrom: string[];
+  /**
+   * The URLs of every Notion page in this group, chosen one included.
+   * `mergedFrom` holds names, which read well in a report but cannot be looked
+   * up; the method check needs to ask "does a page I merged away have
+   * directions?", and that is a question about pages, not names.
+   */
+  mergedFromUrls: string[];
   warnings: string[];
 };
 
@@ -200,6 +257,7 @@ export function mergeVariants(syrups: NotionSyrup[]): MergedSyrup[] {
       // Sorted for the same reason: `merged_from` is inside the content hash, so
       // arrival order must not move it.
       mergedFrom: rows.map(r => r.name).sort((a, b) => a.localeCompare(b)),
+      mergedFromUrls: rows.map(r => r.notion_url).sort((a, b) => a.localeCompare(b)),
       warnings,
     });
   }
@@ -273,13 +331,44 @@ function ownerIdentity(): OperatorIdentity {
   };
 }
 
-export function buildDraft(m: MergedSyrup) {
+export function buildDraft(m: MergedSyrup, methods: Map<string, MethodText> = new Map()) {
   const ingredients = storedIngredientsOf(m.chosen);
+
+  // The method comes off the page the merge KEPT. A page that was merged away
+  // describes the same syrup at a different batch size, so its directions are
+  // probably the same — but "probably" is not good enough to attach a procedure
+  // nobody chose to a formula somebody will make. When only a merged-away page
+  // has one, say so and take nothing.
+  const chosenId = notionId(m.chosen.notion_url);
+  const chosen = chosenId ? methods.get(chosenId) : undefined;
+  const methodWarnings: string[] = [];
+  if (!chosen?.en) {
+    const siblings = m.mergedFrom.length > 1;
+    const siblingHasMethod = siblings && m.mergedFromUrls.some(u => {
+      const id = notionId(u);
+      return id && id !== chosenId && methods.get(id)?.en;
+    });
+    if (siblingHasMethod) {
+      methodWarnings.push(
+        `No method on the Notion page this kept, but one of the pages it merged away has ` +
+          `directions. Not copied across — confirm which method is right.`
+      );
+    }
+  }
+
   const recipe = {
     source: "notion",
     notion_url: m.chosen.notion_url,
     merged_from: m.mergedFrom,
     ingredients,
+    // KEEP THIS KEY. `beverage_create_formula_version` reads
+    // `original_recipe_json->>'method_source_text'` and nothing else; renaming it
+    // means the method is stored and never reaches a formula version.
+    method_source_text: chosen?.en ?? null,
+    // Ashley needs the line in English, Hindi and French for her staff. 13 of the
+    // Notion pages already carry a Hindi translation she wrote; it is kept beside
+    // the English, never merged into it.
+    method_source_text_hi: chosen?.hi ?? null,
     labour_hours: m.chosen.labour_hours ?? null,
     selling_price: m.chosen.selling_price ?? null,
   };
@@ -292,7 +381,7 @@ export function buildDraft(m: MergedSyrup) {
   // row that already existed: the recipe hashed identically, the ingest RPC
   // correctly reported "unchanged", and the stale warnings stayed forever. Same
   // shape as the yield bug. If it is written to the row, it belongs in here.
-  const warnings = auditWarnings(m);
+  const warnings = [...auditWarnings(m), ...methodWarnings];
   const content = JSON.stringify({ name: m.canonical, ...recipe, warnings });
   const contentHash = createHash("sha256").update(content).digest("hex");
 
@@ -334,6 +423,8 @@ function renderReport(
   lines.push(`| ready to approve as-is | **${clean.length}** |`);
   lines.push(`| blocked, need something from you | **${flagged.length}** |`);
   lines.push(`| in Notion with no recipe, NOT written | ${nameOnly.length} |`);
+  lines.push(`| carry a method from Notion | **${drafts.filter(d => d.original_recipe_json.method_source_text).length}** |`);
+  lines.push(`| carry a Hindi method | ${drafts.filter(d => d.original_recipe_json.method_source_text_hi).length} |`);
   lines.push(`| yields imported | 0 — every Notion spec is unreliable, set them after a real batch |`);
   lines.push("");
   lines.push("Nothing here is approved. Every row lands as `needs_review`.");
@@ -349,6 +440,41 @@ function renderReport(
     );
     lines.push("");
     for (const d of nameOnly) lines.push(`- ${d.name} — ${d.external_recipe_id}`);
+    lines.push("");
+  }
+
+  lines.push("## Methods, as Notion has them");
+  lines.push("");
+  lines.push(
+    "Verbatim, including the typos. Read each one against its ingredients above: " +
+      "the two are recorded in different places in Notion (the ingredients are a " +
+      "relation, the method is prose in the page body) and nothing keeps them in " +
+      "agreement. The Jalapeno method says to add habanero and no Jalapeno " +
+      "ingredient list records any."
+  );
+  lines.push("");
+  for (const d of drafts) {
+    const method = d.original_recipe_json.method_source_text as string | null;
+    if (!method) continue;
+    const hi = d.original_recipe_json.method_source_text_hi as string | null;
+    lines.push(`### ${d.name}${hi ? " (also in Hindi)" : ""}`);
+    lines.push("");
+    lines.push("```");
+    lines.push(method);
+    lines.push("```");
+    lines.push("");
+  }
+
+  const noMethod = drafts.filter(d => !d.original_recipe_json.method_source_text);
+  if (noMethod.length > 0) {
+    lines.push("### No method in Notion");
+    lines.push("");
+    lines.push(
+      "The `▶Directions` heading on these pages is empty. Brix can scale them and " +
+        "cannot say how to make them."
+    );
+    lines.push("");
+    lines.push(noMethod.map(d => d.name).join(", "));
     lines.push("");
   }
 
@@ -403,8 +529,9 @@ async function main() {
   const apply = process.argv.includes("--apply");
   const raw = JSON.parse(readFileSync(INPUT, "utf8")) as NotionSyrup[];
   const active = raw.filter(s => !s.archived);
+  const methods = loadMethods();
   const merged = mergeVariants(active);
-  const all = merged.map(buildDraft);
+  const all = merged.map(m => buildDraft(m, methods));
 
   // A Notion page with no ingredient list at all is not a recipe — it is the
   // blank template, or a name someone reserved. Writing it produces a draft that
