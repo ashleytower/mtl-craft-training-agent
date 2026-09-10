@@ -352,7 +352,7 @@ async function main() {
 
   const result = await beverage.ingestFormulaDrafts(ownerIdentity(), {
     run: {
-      intake_kind: "notion_syrup_master",
+      intake_kind: "notion_export",
       source_label: "Notion [MASTER] All Syrups",
       original_reference: "https://app.notion.com/p/9f7a914997454e53a9225491d3c3b44d",
       parser_version: PARSER_VERSION,

@@ -91,11 +91,18 @@ begin
   )
   values (
     v_org_id,
-    coalesce(p_run->>'intake_kind', 'external_import'),
+    -- Constrained to notion_export | spreadsheet | manual_entry |
+    -- browser_asset | text | other. `other` is the honest default for an
+    -- import whose provenance the caller did not name.
+    coalesce(p_run->>'intake_kind', 'other'),
     coalesce(p_run->>'source_label', 'unspecified'),
-    p_run->>'original_reference',
+    -- `original_reference` is jsonb on this table, not text. `->>` extracts a
+    -- text value and the insert fails; `to_jsonb` keeps it a JSON string.
+    to_jsonb(p_run->>'original_reference'),
     coalesce(p_run->>'parser_version', 'unversioned'),
-    'succeeded',
+    -- parse_status is constrained to received | parsed_to_draft |
+    -- needs_human_review | rejected | failed. Drafts written, not approved.
+    'parsed_to_draft',
     coalesce(p_run->'warnings', '[]'::jsonb),
     v_principal_id,
     now()
