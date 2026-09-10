@@ -380,6 +380,51 @@ export function knowledgeCoverage(identity: OperatorIdentity) {
   );
 }
 
+/**
+ * Bring formula drafts in from an external source, idempotently.
+ *
+ * Writes drafts and only drafts. It cannot create a formula version and it
+ * cannot approve one, and a re-run never moves a draft's `draft_status`
+ * backwards — see db/migrations/125_ingest_formula_drafts.sql. Upsert is keyed
+ * on a hash of the SOURCE IDENTITY, so one Notion page maps to one draft for
+ * life rather than accumulating a row per edit.
+ */
+export function ingestFormulaDrafts(
+  identity: OperatorIdentity,
+  input: { run: Record<string, unknown>; drafts: unknown[] }
+) {
+  return callRpc<{
+    run_id: string;
+    inserted: number;
+    updated: number;
+    unchanged: number;
+    human_status_preserved: number;
+    changed: Array<Record<string, unknown>>;
+  }>("beverage_ingest_formula_drafts", {
+    ...operatorArgs(identity),
+    p_run: input.run,
+    p_drafts: input.drafts,
+  });
+}
+
+/**
+ * Mark drafts superseded without deleting them.
+ *
+ * A draft that already produced a formula version is skipped, because something
+ * approved descends from it and rejecting its parent would make an approved
+ * formula look like it came from rejected work.
+ */
+export function supersedeFormulaDrafts(
+  identity: OperatorIdentity,
+  draftIds: string[],
+  reason: string
+) {
+  return callRpc<{ superseded: number; skipped_because_versioned: number }>(
+    "beverage_supersede_formula_drafts",
+    { ...operatorArgs(identity), p_draft_ids: draftIds, p_reason: reason }
+  );
+}
+
 export function ingestKnowledgeSources(
   identity: OperatorIdentity,
   sources: unknown[]
