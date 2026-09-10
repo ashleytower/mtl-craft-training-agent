@@ -3,6 +3,7 @@ import {
   auditWarnings,
   buildDraft,
   canonicalName,
+  contestedMethods,
   isBlocking,
   mergeVariants,
   parseQuantity,
@@ -559,5 +560,68 @@ describe("methods", () => {
     expect(d.original_recipe_json.method_source_text).toBeNull();
     expect(d.warnings.join(" ")).toContain("method");
     expect(d.warnings.join(" ")).toContain("merged away");
+  });
+});
+
+describe("a method that belongs to more than one syrup belongs to none of them", () => {
+  // Notion's Directions are prose, and prose gets copy-pasted. "Orgeat Toasted",
+  // "Spiced Cran" and "Spiced Crantr" all carry Salted Grapefruit's directions
+  // verbatim — "Peal Grapefruit with as little perth as possable" — and four
+  // unrelated products share one method between them. Attaching those would have
+  // Brix tell somebody making orgeat to peel a grapefruit.
+  //
+  // Two pages that are the SAME syrup at different batch sizes legitimately share
+  // a method, and that must keep working; the merge has already collapsed those
+  // onto one canonical name by this point.
+  const page = (id: string, name: string) =>
+    syrup({ notion_url: `https://app.notion.com/p/${id}`, name,
+            ingredients: [{ name: "Sugar", qty: "1000", unit: "gr" }] });
+
+  const grapefruitSteps = "1. Peal Grapefruit with as little perth as possable";
+
+  it("refuses a method shared by two different formulas", () => {
+    const merged = mergeVariants([
+      page("aaa0000000000000000000000000aaa0", "Salted Grapefruit"),
+      page("bbb0000000000000000000000000bbb0", "Orgeat Toasted"),
+    ]);
+    const methods = new Map([
+      ["aaa0000000000000000000000000aaa0", { en: grapefruitSteps, hi: null }],
+      ["bbb0000000000000000000000000bbb0", { en: grapefruitSteps, hi: null }],
+    ]);
+    const contested = contestedMethods(merged, methods);
+    for (const m of merged) {
+      const d = buildDraft(m, methods, contested);
+      expect(d.original_recipe_json.method_source_text).toBeNull();
+      expect(d.warnings.join(" ")).toContain("same method");
+    }
+  });
+
+  it("keeps a method the batch-size variants of ONE syrup share", () => {
+    // Both rows collapse to "Jalapeno", so the shared text is one syrup's own
+    // method, not a copy-paste onto a different product.
+    const merged = mergeVariants([
+      page("ccc0000000000000000000000000ccc0", "Mosaiq Jalapeno (first run)"),
+      page("ddd0000000000000000000000000ddd0", "Mosaiq Jalapeno (first run whole batch)"),
+    ]);
+    const steps = "1. Step 1 - boil water";
+    const methods = new Map([
+      ["ccc0000000000000000000000000ccc0", { en: steps, hi: null }],
+      ["ddd0000000000000000000000000ddd0", { en: steps, hi: null }],
+    ]);
+    expect(merged).toHaveLength(1);
+    const contested = contestedMethods(merged, methods);
+    expect(contested.size).toBe(0);
+    expect(buildDraft(merged[0], methods, contested).original_recipe_json.method_source_text)
+      .toBe(steps);
+  });
+
+  it("leaves an unshared method alone", () => {
+    const merged = mergeVariants([page("eee0000000000000000000000000eee0", "Cucumber")]);
+    const methods = new Map([
+      ["eee0000000000000000000000000eee0", { en: "1. Peel the cucumber.", hi: null }],
+    ]);
+    const contested = contestedMethods(merged, methods);
+    expect(buildDraft(merged[0], methods, contested).original_recipe_json.method_source_text)
+      .toBe("1. Peel the cucumber.");
   });
 });

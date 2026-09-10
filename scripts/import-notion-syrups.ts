@@ -278,6 +278,7 @@ export function isBlocking(warning: string): boolean {
     warning.includes("has no usable quantity") ||
     warning.includes("has a quantity but no unit") ||
     warning.includes("has a quantity of 0") ||
+    warning.includes("same method, word for word") ||
     warning.includes("deleted Notion page") ||
     warning.includes("equally complete")
   );
@@ -331,7 +332,47 @@ function ownerIdentity(): OperatorIdentity {
   };
 }
 
-export function buildDraft(m: MergedSyrup, methods: Map<string, MethodText> = new Map()) {
+/**
+ * The method texts that more than one formula claims.
+ *
+ * Notion's Directions are prose in the page body, and prose gets copy-pasted.
+ * `Orgeat Toasted`, `Spiced Cran ( big Batch )` and `Spiced Crantr` all carry
+ * Salted Grapefruit's directions verbatim, down to "Peal Grapefruit with as
+ * little perth as possable"; `Lemon Super Juice`, `Lemonade`, `Lime Super
+ * Juice` and `Plaintain` share one method between the four of them. Attaching
+ * those would have Brix tell somebody making orgeat to peel a grapefruit.
+ *
+ * Two Notion pages that are the SAME syrup at different batch sizes share a
+ * method legitimately, and the merge has already collapsed those onto one
+ * canonical name before this runs — so identical text under ONE canonical name
+ * is fine, and identical text under TWO is a copy-paste.
+ *
+ * Which formula the method really belongs to is not knowable from here, so it
+ * is attached to none of them and every claimant is flagged. Once Ashley fixes
+ * the source page, or deletes the duplicate row, a re-run attaches it cleanly.
+ */
+export function contestedMethods(
+  merged: MergedSyrup[],
+  methods: Map<string, MethodText>
+): Set<string> {
+  const claimants = new Map<string, Set<string>>();
+  for (const m of merged) {
+    const id = notionId(m.chosen.notion_url);
+    const en = id ? methods.get(id)?.en : null;
+    if (!en) continue;
+    if (!claimants.has(en)) claimants.set(en, new Set());
+    claimants.get(en)!.add(m.canonical.toLowerCase());
+  }
+  const contested = new Set<string>();
+  for (const [text, names] of claimants) if (names.size > 1) contested.add(text);
+  return contested;
+}
+
+export function buildDraft(
+  m: MergedSyrup,
+  methods: Map<string, MethodText> = new Map(),
+  contested: Set<string> = new Set()
+) {
   const ingredients = storedIngredientsOf(m.chosen);
 
   // The method comes off the page the merge KEPT. A page that was merged away
@@ -340,8 +381,18 @@ export function buildDraft(m: MergedSyrup, methods: Map<string, MethodText> = ne
   // nobody chose to a formula somebody will make. When only a merged-away page
   // has one, say so and take nothing.
   const chosenId = notionId(m.chosen.notion_url);
-  const chosen = chosenId ? methods.get(chosenId) : undefined;
+  let chosen = chosenId ? methods.get(chosenId) : undefined;
   const methodWarnings: string[] = [];
+
+  if (chosen?.en && contested.has(chosen.en)) {
+    methodWarnings.push(
+      `Another formula's Notion page carries the same method, word for word, so ` +
+        `this one's directions are a copy-paste and there is no way to tell which ` +
+        `formula they describe. NOT imported — fix the Directions in Notion.`
+    );
+    chosen = undefined;
+  }
+
   if (!chosen?.en) {
     const siblings = m.mergedFrom.length > 1;
     const siblingHasMethod = siblings && m.mergedFromUrls.some(u => {
@@ -531,7 +582,8 @@ async function main() {
   const active = raw.filter(s => !s.archived);
   const methods = loadMethods();
   const merged = mergeVariants(active);
-  const all = merged.map(m => buildDraft(m, methods));
+  const contested = contestedMethods(merged, methods);
+  const all = merged.map(m => buildDraft(m, methods, contested));
 
   // A Notion page with no ingredient list at all is not a recipe — it is the
   // blank template, or a name someone reserved. Writing it produces a draft that
