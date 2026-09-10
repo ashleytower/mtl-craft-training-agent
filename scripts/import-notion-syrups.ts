@@ -331,6 +331,25 @@ export function isBlocking(warning: string): boolean {
   );
 }
 
+/**
+ * A row that records a bought product rather than something made here.
+ *
+ * `Lemon Juice` is one line — "Lemon Juice 1000 ml" — under its own name. It
+ * exists so a case of bought juice has a cost, not because anybody makes it.
+ * Ashley, 2026-09-10: "no method at all if it's bought." Without this they sit
+ * in the missing-method count forever and make the number meaningless.
+ *
+ * Read off the recipe, not a list of names, so the next bought juice added to
+ * Notion is handled without touching this file. One ingredient plus sugar is a
+ * real syrup and still owes a method.
+ */
+export function isBoughtProduct(m: MergedSyrup): boolean {
+  const ings = ingredientsOf(m.chosen);
+  if (ings.length !== 1) return false;
+  const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, " ");
+  return norm(ings[0].name) === norm(m.canonical);
+}
+
 /** Everything wrong with a recipe that a human has to look at. */
 export function auditWarnings(m: MergedSyrup): string[] {
   const w = [...m.warnings];
@@ -448,7 +467,12 @@ export function buildDraft(
     chosen = undefined;
   }
 
-  if (!chosen?.en) {
+  if (!chosen?.en && isBoughtProduct(m)) {
+    methodWarnings.push(
+      `This is a bought product, not something made here — one ingredient under ` +
+        `its own name. No method is expected.`
+    );
+  } else if (!chosen?.en) {
     const siblings = m.mergedFrom.length > 1;
     const siblingHasMethod = siblings && m.mergedFromUrls.some(u => {
       const id = notionId(u);

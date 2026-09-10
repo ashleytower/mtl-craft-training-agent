@@ -5,6 +5,7 @@ import {
   canonicalName,
   contestedMethods,
   isBlocking,
+  isBoughtProduct,
   mergeVariants,
   parseQuantity,
 } from "./import-notion-syrups";
@@ -703,5 +704,42 @@ describe("uniform units", () => {
       quantity_normalized: string | null; unit_name: string;
     }>;
     expect(ing[0].quantity_normalized).toBeNull();
+  });
+});
+
+describe("a bought product is not a syrup with a missing method", () => {
+  // Grapefruit Juice, Lemon Juice and Lime Juice are one line each — the juice
+  // itself, under the syrup's own name. They exist so a case of bought juice has
+  // a cost, not because anybody makes them. Ashley, 2026-09-10: "no method at all
+  // if it's bought." Listing them forever as "method missing" would make that
+  // count mean nothing.
+  //
+  // Derived from the recipe rather than a hardcoded list of three names, so the
+  // next bought juice added to Notion is handled without a code change.
+  it("says a single self-named ingredient needs no method", () => {
+    const m = mergeVariants([
+      syrup({ name: "Lemon Juice", ingredients: [{ name: "Lemon Juice", qty: "1000", unit: "ml" }] }),
+    ])[0];
+    expect(isBoughtProduct(m)).toBe(true);
+    expect(buildDraft(m).warnings.join(" ")).toContain("bought");
+  });
+
+  it("does not excuse a real syrup that happens to have one ingredient", () => {
+    // Passion Fruit is one fruit plus sugar; Coffee Syrup is coffee plus sugar.
+    // Neither is a bought product and both still owe a method.
+    const m = mergeVariants([
+      syrup({ name: "Passion Fruit", ingredients: [
+        { name: "Passion Fruit", qty: "1000", unit: "gr" },
+        { name: "Sugar", qty: "1000", unit: "gr" },
+      ] }),
+    ])[0];
+    expect(isBoughtProduct(m)).toBe(false);
+  });
+
+  it("does not excuse a one-ingredient row whose name is something else", () => {
+    const m = mergeVariants([
+      syrup({ name: "Simple syrup", ingredients: [{ name: "Sugar", qty: "6000", unit: "gr" }] }),
+    ])[0];
+    expect(isBoughtProduct(m)).toBe(false);
   });
 });

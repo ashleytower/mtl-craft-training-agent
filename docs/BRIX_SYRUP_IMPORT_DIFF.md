@@ -4,12 +4,12 @@
 
 | | |
 |---|---|
-| formulas after collapsing variants | **55** |
-| ready to approve as-is | **39** |
-| blocked, need something from you | **16** |
+| formulas after collapsing variants | **53** |
+| ready to approve as-is | **42** |
+| blocked, need something from you | **11** |
 | in Notion with no recipe, NOT written | 2 |
-| carry a method from Notion | **22** |
-| carry a Hindi method | 7 |
+| carry a method from Notion | **36** |
+| carry a Hindi method | 8 |
 | yields imported | 0 — every Notion spec is unreliable, set them after a real batch |
 
 Nothing here is approved. Every row lands as `needs_review`.
@@ -31,6 +31,16 @@ Verbatim, including the typos. Read each one against its ingredients above: the 
 1. The blood orange peels are 150g which came off of the oranges that we juiced!
 ```
 
+### Blueberry
+
+```
+1. Add the Blueberries and sugar to a container, stir, and let sit overnight.
+2. Add the water and stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
+```
+
 ### Butterfly Pea
 
 ```
@@ -47,6 +57,16 @@ Verbatim, including the typos. Read each one against its ingredients above: the 
 1. Step 1 - Cut them in half and take out the flesh and place into a food proseccor.
 2. Step 2 - Add the simple syrup and process it until smooth.
 3. Step 3 - Strain and bottle or bag.
+```
+
+### Cantalope Syrup
+
+```
+1. Add the Canteloupe and sugar to a container, stir, and let sit overnight.
+2. Add the water and stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
 ```
 
 ### Chamomille Syrup
@@ -72,6 +92,16 @@ Verbatim, including the typos. Read each one against its ingredients above: the 
 2. Step 2 - Strain and bottle or bag
 ```
 
+### Cranberry
+
+```
+1. Add the Cranberries and sugar to a container, stir, and let sit overnight.
+2. Add the water and stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
+```
+
 ### Cucumber (also in Hindi)
 
 ```
@@ -80,15 +110,39 @@ Verbatim, including the typos. Read each one against its ingredients above: the 
 3. Step 3 - Add sugar, stir and leave for 4 hours or overnight.
 4. Add the water and strain x2
 5. Add preservatives and citric acid. Take the total weight in kg of the syrup.
-6. Strain into another bucket to remove all the jalapenos
+6. Strain into another bucket to remove all the cucumber
 Example: You have 6kg of syrup, this means you add 6g of preservitives and 6g of citric acid.
 Note: Always mesure the preservitives and citric acid with the small scale.
+```
+
+### Dragonfruit
+
+```
+1. Add the Dragonfruit and sugar to a container, stir, and let sit overnight.
+2. Stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
 ```
 
 ### Espresso Syrup
 
 ```
 1. espresso was 600g
+```
+
+### Ginger (also in Hindi)
+
+```
+1. Step 1 - Weigh Ginger and put into a big clean bucket.
+2. Step 2 - Add sugar and hot water.
+3. Step 3 - Blend with the big hand blender.
+4. Step 4 - Strain 3-4 times into a new bucket. to get out most of the pieces out.
+5. Weight the syrup and add 0.01% of preservitives and 0.01% citric acid. Stir well.
+
+Example:
+8000 gr syrup ( 8 L ) = 8 gr presertivites and 8 gr citric acid.
+8000 x 0.001 = 8 gr.
 ```
 
 ### Green Grape
@@ -102,6 +156,16 @@ Note: Always mesure the preservitives and citric acid with the small scale.
 6. Add the citric acid and the preservative solution.
 Example: If it renders 2,000 g, that is 2 g of preservative and 2 g of citric acid.
 Note: Always mesure the preservitives and citric acid with the small scale.
+```
+
+### Grenadine
+
+```
+1. Add the Pomegranate and sugar to a container, stir, and let sit overnight.
+2. Stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
 ```
 
 ### Grilled Pineapple
@@ -172,6 +236,15 @@ NOTE: We could be doing a mix of bagging and bottling.
 * if using methocellulose*
 ```
 
+### Mango Syrup
+
+```
+1. Add the Mango Juice, sugar and water to a container.
+2. Stir until the sugar is dissolved.
+3. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+4. Bottle or bag it.
+```
+
 ### Mint (also in Hindi)
 
 ```
@@ -187,12 +260,32 @@ Example: You have 7kg of syrup, this means you add 7g of preservitives and 7g of
 Note: Always mesure the preservitives and citric acid with the small scale.
 ```
 
+### Mint/Cucumber
+
+```
+1. Add the Cucumber and Mint ( 4 bunches approx ) and sugar to a container, stir, and let sit overnight.
+2. Add the water and stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
+```
+
 ### Orgeat
 
 ```
 1. Put the Almond milk and sugar in a pot and heat until sugar is melted, do not boil.
 2. Turn off the stove and add the rest and stir.
 3.
+```
+
+### Passion Fruit
+
+```
+1. Add the Passion Fruit and sugar to a container, stir, and let sit overnight.
+2. Stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
 ```
 
 ### Peach Puree (also in Hindi)
@@ -220,6 +313,15 @@ Example:
 8000 x 0.001 = 8
 ```
 
+### Pineapple Syrup
+
+```
+1. Add the Pineapple Juice, sugar and water to a container.
+2. Stir until the sugar is dissolved.
+3. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+4. Bottle or bag it.
+```
+
 ### Pineapple/Mint
 
 ```
@@ -234,6 +336,27 @@ Example:
 ```
 1. Step 1 - Add sugar and raspberries and let sit over night
 2. Step 2 - add water and stir, strain, bag.
+```
+
+### Rhubarb
+
+```
+1. Add the Rhubarb and sugar to a container, stir, and let sit overnight.
+2. Add the water and stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
+```
+
+### Salted Grapefruit
+
+```
+1. Step 1 - Peal Grapefruit with as little perth as possable into a cambro.
+2. Step 2 - Cover with sugar and stir. Stir occosionally, Let sit overnight.
+3. Step 3 - Squeeze grapefruit juice and lime if using fresh.
+4. Step 4 - Add peel and sugar mixture to a pot with the grapefruit, lime, water & salt.
+5. Step 5 - Bring to a boil.
+6. Step 6 - Let cool, strain & bottle or bag.
 ```
 
 ### Simple syrup (also in Hindi)
@@ -261,11 +384,31 @@ NOTE: We could be doing a mix of bagging and bottling.
 3. Step 3 - Strain and bottle or bag.
 ```
 
+### Tangerine
+
+```
+1. Add the Tangerine and sugar to a container, stir, and let sit overnight.
+2. Add the water and stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
+```
+
+### Watermelon
+
+```
+1. Add the Watermelon and sugar to a container, stir, and let sit overnight.
+2. Add the water and stir until the sugar is dissolved.
+3. Strain.
+4. Add preservatives and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
+```
+
 ### No method in Notion
 
 The `▶Directions` heading on these pages is empty. Brix can scale them and cannot say how to make them.
 
-Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger, Give Ginger, Grapefruit Juice, Grenadine, Lavender, Lemon Citric Acid, Lemon Juice, Lemon Super Juice, Lemonade, Lime Citric Acid, Lime Juice, Lime Super Juice, Mango Syrup, Mint/Cucumber, Orgeat Toasted, Passion Fruit, Pineapple Syrup, Plaintain, Rhubarb, Salted Grapefruit, Salted Grapefruit1\`q, Simple Syrup 2:1, Spiced Cran, Spiced Crantr, Spiced Syrup, Tangerine, Watermelon
+Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice, Lemon Super Juice, Lemonade, Lime Citric Acid, Lime Juice, Lime Super Juice, Orgeat Toasted, Plaintain, Simple Syrup 2:1, Spiced Cran, Spiced Crantr, Spiced Syrup
 
 ## Formulas
 
@@ -280,13 +423,12 @@ Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger
 | Cherry Syrup | Cherries 1000gr + Sugar 1500gr + Water 1000ml | — | ready |
 | Coconut cream | Coconut Milk 400ml + Sugar 200gr + Water 200ml | — | ready |
 | Coffee Syrup | Coffee 28000gr + Sugar 20000gr | — | ready |
-| Cranberry | Sugar 2800gr + Water 2800ml + Cranberries 1000gr | — | 1 blocking |
+| Cranberry | Sugar 2800gr + Water 2800ml + Cranberries 1000gr | — | ready |
 | Cucumber | Cucumber 3500gr + Sugar 3500gr + Water 3500ml | — | ready |
 | Dragonfruit | Dragonfruit 1000ml + Sugar 1000gr | — | ready |
 | Eggnog | Eggs 64unit + Nutmeg 10unit + Sugar 2720gr + Cream 35% 3630ml + Brandy 1870ml + Rum Spiced 1870ml + Milk 5678ml | — | ready |
 | Espresso Syrup | Coffee 28000gr + Sugar 20000gr + Salt 50ml + vanilla 50ml + Espresso 600gr | — | ready |
-| Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml + Preservative 22gr | — | 1 blocking |
-| Give Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml | — | 1 blocking |
+| Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml + Preservative 22gr | — | ready |
 | Grapefruit Juice | Grapefruit Juice 1000ml | — | ready |
 | Green Grape | Green Grapes 1000gr + Sugar 1000gr + Water 800gr | — | ready |
 | Grenadine | Pomegranate 500ml + Sugar 500gr | — | ready |
@@ -315,9 +457,8 @@ Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger
 | Pineapple/Mint | Pineapple 1200gr + Sugar 600gr + Mint ( 4 bunches approx ) 60gr + Water 600ml | — | ready |
 | Plaintain | Fried Plantains 450gr + Sugar 300gr + Water 300ml | — | 1 blocking |
 | Raspberry | Raspberries 3000gr + Sugar 6000gr + Water 3000ml | — | ready |
-| Rhubarb | Rhubarb 1000gr + Sugar 1000gr + Water 1000ml | — | 1 blocking |
-| Salted Grapefruit | Sugar 26000gr + Grapefruit Juice 13500ml + Lime Juice 6000ml + Water 6000ml + Salt 25gr | — | 2 blocking |
-| Salted Grapefruit1\`q | Sugar 26000gr + Grapefruit Juice 13500ml + Lime Juice 6000ml + Water 6000ml + Salt 25gr | — | 1 blocking |
+| Rhubarb | Rhubarb 1000gr + Sugar 1000gr + Water 1000ml | — | ready |
+| Salted Grapefruit | Sugar 26000gr + Grapefruit Juice 13500ml + Lime Juice 6000ml + Water 6000ml + Salt 25gr | — | 1 blocking |
 | Simple syrup | Sugar 6000gr + Water 6000ml | — | ready |
 | Simple Syrup 2:1 | Sugar 800gr + Water 400ml | — | ready |
 | Spiced Cran | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr + Rosemary 150gr | — | 1 blocking |
@@ -335,15 +476,6 @@ Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger
 
 **Butterfly Pea**
 - Two merged rows were equally complete — confirm the kept one is right.
-
-**Cranberry**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
-**Ginger**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
-**Give Ginger**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
 
 **Kiwi**
 - "Xanthan Gum" has no usable quantity in Notion (raw: "").
@@ -363,15 +495,8 @@ Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger
 **Plaintain**
 - Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
 
-**Rhubarb**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
 **Salted Grapefruit**
 - Two merged rows were equally complete — confirm the kept one is right.
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
-**Salted Grapefruit1\`q**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
 
 **Spiced Cran**
 - Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
@@ -430,13 +555,10 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 **Ginger**
 - Collapsed 2 Notion rows into one formula. Kept "🫚Mosaiq Ginger (first run)" (4 complete ingredients); merged away "🫚Mosaiq Ginger (first run total batch)" (3). Batch-size variants are redundant because scaling is exact.
 - Notion claims a yield of 22 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
-- No method on the Notion page this kept, but one of the pages it merged away has directions. Not copied across — confirm which method is right.
-
-**Give Ginger**
-- Notion claims a yield of 7 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Grapefruit Juice**
 - No yield in Notion. Set one in Supabase after a real batch.
+- This is a bought product, not something made here — one ingredient under its own name. No method is expected.
 
 **Green Grape**
 - No yield in Notion. Set one in Supabase after a real batch.
@@ -468,6 +590,7 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 
 **Lemon Juice**
 - No yield in Notion. Set one in Supabase after a real batch.
+- This is a bought product, not something made here — one ingredient under its own name. No method is expected.
 
 **Lemon Super Juice**
 - Notion claims a yield of 8 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
@@ -480,6 +603,7 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 
 **Lime Juice**
 - No yield in Notion. Set one in Supabase after a real batch.
+- This is a bought product, not something made here — one ingredient under its own name. No method is expected.
 
 **Lime Super Juice**
 - No yield in Notion. Set one in Supabase after a real batch.
@@ -526,10 +650,6 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 **Salted Grapefruit**
 - Collapsed 3 Notion rows into one formula. Kept "Mosaiq Salted Grapefruit (first run whole batch)" (5 complete ingredients); merged away "Mosaiq Salted Grapefruit (first run)" (5), "Salted Grapefruit" (5). Batch-size variants are redundant because scaling is exact.
 - Notion claims a yield of 1 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
-- No method on the Notion page this kept, but one of the pages it merged away has directions. Not copied across — confirm which method is right.
-
-**Salted Grapefruit1\`q**
-- Notion claims a yield of 13 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Simple syrup**
 - No yield in Notion. Set one in Supabase after a real batch.
