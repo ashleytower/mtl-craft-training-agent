@@ -49,9 +49,57 @@ beverage.knowledge_chunks   513 rows   386 time-coded (336 captions + 50 local t
 
 | tier | rows | what |
 |---|---|---|
-| `tier_b_authorized_course` | 36 | the course, and one source per collected lesson |
-| `tier_c_external_practitioner` | 26 | Kevin Kos, Morgenthaler, clear ice, FDA, Serious Eats, Notion registers |
+| `tier_a_internal` | 2 | the two preserved Notion registers |
+| `tier_b_authorized_course` | 37 | the course root, its 35 collected lessons, and `Supplier.pdf` |
+| `tier_c_external_practitioner` | 31 | Kevin Kos, Morgenthaler, clear ice, FDA, Serious Eats, the linked PDFs |
 | `tier_d_inspiration` | 1 | The Alchemist — recorded, deliberately not ingested |
+
+*(Corrected 2026-09-09 against production. The earlier version of this table read
+36 / 26 / 1 and omitted `tier_a_internal` entirely, so it summed to 63 rather
+than 71. The counts above are from `beverage.knowledge_sources`.)*
+
+### 35 sources hold text. 36 hold only a citation.
+
+Measured 2026-09-09, and the most load-bearing fact about this corpus:
+**every one of the 513 passages belongs to the 35 Art of Drink course lessons.**
+
+The other 36 sources carry a governed summary and **zero** passages — all 13
+Kevin Kos items, the 4 Morgenthaler calculators, the 4 Art of Drink blog posts,
+the 2 clear-ice articles, the 2 FDA guidance pages, Serious Eats, the 6 linked
+Perfumer & Flavorist / FEMA / USDA documents, the 2 Notion registers, The
+Alchemist, and the course root.
+
+`beverage_search_knowledge` has always drawn this line per result (`kind`
+`'source'` vs `'chunk'`, surfaced to the agent as `quotable`). Coverage did not:
+it reported `chunks: 0`, which reads as *missing* when the true state is *held
+correctly, as a citation, because copying the text would exceed the rights we
+have*. Migration **124** names it — each source now carries `holding` of
+`passages` / `citation_only` / `registered`.
+
+This distinction is not bookkeeping. Reporting a rights posture as a collection
+gap invites the next person to close it by scraping somebody's pages, which is
+the one thing this corpus must not do. A live check confirms Brix behaves
+correctly: ask it about clear ice and it returns Kevin Kos, Serious Eats and Mix
+Cocktail Hour with real citations and `quotable: false`; ask it about emulsions
+and it returns quotable course transcript with a clock.
+
+### Every locator was re-checked
+
+2026-09-09, all 35 external locators, HEAD or a 64-byte ranged GET — nothing
+copied:
+
+```
+resolving (2xx/3xx)                      26
+refused an automated request (403)        9
+dead (404/410)                            0
+```
+
+All 13 Kevin Kos locators resolve. The 9 refusals are bot protection, not rot:
+`artofdrink.com` (4 blog posts), `seriouseats.com` (2), `thealchemistbars.com`,
+and `edu.artofdrink.com` (`Supplier.pdf` and the course page — the same
+Cloudflare protection already documented below). A 403 to a scripted request is
+not evidence a page is gone, and none of these rows was changed on the strength
+of one.
 
 **Nothing is an approved control** — 38 `pending_review`, 32 `reference_only`,
 1 `inspiration_only` (`PUB-ALCH-001`, The Alchemist, a *lower* trust tier than
@@ -379,6 +427,32 @@ Two things worth keeping for next time:
   retry is normal.
 
 ## Still open
+
+0. **The Art of Drink Patreon is not in the corpus at all.** Added 2026-09-09.
+   There is no Patreon source row, and a retrieval scoped to Patreon returns
+   nothing. Two things establish that the material is real and that Ashley's
+   account is entitled to it: the course narration itself says *"on my patreon
+   you speak more in detail about the 4 solvents for flavour"* (lesson 13,
+   Solvents for Flavours), and `edu.artofdrink.com` serves
+   `patron-plugin-pro/.../patreon-connect` assets, so the course platform is
+   Patreon-gated.
+
+   **Collecting it needs Ashley to sign in interactively.** That has not been
+   attempted and must not be worked around: no paywall bypass, no stored
+   password, cookie or session token, and nothing collected beyond authorised
+   post text, captions, transcripts, educational attachments, titles, dates,
+   creators and stable locators. No private messages, patron lists, comments or
+   unrelated account data. Videos without captions would go through the existing
+   local Whisper pipeline and be marked as unreviewed local transcripts, exactly
+   as the seven course videos are.
+
+   When it is collected, registering it needs one small extension to the
+   existing mappings in `server/knowledgeCorpus.ts` — an
+   `AUTHORITY_TIER_BY_SOURCE_AUTHORITY` entry mapping a Patreon authority to
+   `tier_b_authorized_course`, and a `RIGHTS_STATUS_BY_MANUS_RIGHTS` entry for
+   `authorized_private`. Those tables throw on an unmapped value, which is why
+   the extension is required rather than optional, and is a feature: material
+   whose rights nobody has classified cannot enter the corpus by accident.
 
 1. **Nothing is approved.** All 71 sources are `pending_review` or
    `reference_only`. That is correct and deliberate — promoting one is a human

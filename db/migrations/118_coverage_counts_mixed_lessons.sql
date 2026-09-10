@@ -41,6 +41,11 @@
 -- which works only because `bool_and` over no rows is NULL rather than true —
 -- correct, but resting on a NULL subtlety for no reason.
 
+-- SUPERSEDED by 124 (db/migrations/124_coverage_source_provenance.sql), which
+-- adds provenance, rights and a `holding` state to each entry of the `sources`
+-- array. Everything this migration introduced — `course`, `chunks`, and every
+-- key of `sources` below — is carried forward unchanged. Kept as the record of
+-- what 118 established; do not apply this body over a newer one.
 create or replace function public.beverage_knowledge_coverage(
   p_external_subject text,
   p_display_name text,

@@ -13,6 +13,7 @@ import * as beverage from "./beverageClient";
 import { scaleFormula, type NormalizedFormula } from "./beverageScaling";
 import { embedToLiteral } from "./knowledgeEmbedding";
 import { isLocalTranscript } from "./knowledgeCorpus";
+import { loadedRevision } from "./buildRevision";
 import { methodForAgent, type StoredMethod } from "@shared/method";
 
 type ApprovedFormula = {
@@ -67,6 +68,10 @@ function toNormalized(formula: ApprovedFormula): NormalizedFormula {
  * lesson is worse than no citation at all — it looks checkable and isn't. So
  * the string is built from the stored locator and handed over finished.
  */
+// KEEP IN SYNC: the locator fields this function requires to build a checkable
+// reference are counted as `citable` by db/migrations/124_coverage_source_
+// provenance.sql, which re-states the same rule in SQL. Change the rule here and
+// that counter starts reporting on a rule this function no longer follows.
 export function citationFor(result: beverage.KnowledgeResult): string {
   const locator = result.locator ?? {};
   const url = typeof locator.source_url === "string" ? locator.source_url : null;
@@ -111,6 +116,44 @@ export function citationFor(result: beverage.KnowledgeResult): string {
 }
 
 export function registerHermesRoutes(app: Express) {
+  /**
+   * Is this process up, and which revision is it running?
+   *
+   * Deliberately the only unauthenticated route, and deliberately the only one
+   * that touches no database. Both choices are the point:
+   *
+   *   - Unauthenticated, because a probe that returns 401 cannot tell "the API
+   *     is down" from "the Hermes boundary is switched off", and those need
+   *     different fixes. `hermes_service` reports the second directly.
+   *   - No database, because liveness must not depend on Supabase being
+   *     reachable, and because an open route that queries on demand is a free
+   *     way to make this process do work. Corpus truth already has a route
+   *     (`/api/hermes/knowledge/coverage`) and it is token-gated; the release
+   *     check calls both rather than duplicating counts here.
+   *
+   * It reports no secret: a git SHA of a private repo, a boolean, and a
+   * version string. `revision_source` is what makes the SHA usable as
+   * evidence — see `server/buildRevision.ts`.
+   */
+  app.get("/api/hermes/health", (_req: Request, res: Response) => {
+    const { revision, source } = loadedRevision();
+    res.json({
+      status: "ok",
+      service: "beverage-api",
+      revision,
+      revision_source: source,
+      // Whether the agent boundary is configured at all. `enabled` here does
+      // not claim the token is correct — only that the service is switched on
+      // and has both a token and a subject to check against.
+      hermes_service:
+        process.env.HERMES_SERVICE_ENABLED === "true" &&
+        (process.env.HERMES_SERVICE_TOKEN ?? "").trim() !== "" &&
+        (process.env.HERMES_SERVICE_SUBJECT ?? "").trim() !== ""
+          ? "enabled"
+          : "disabled",
+    });
+  });
+
   /** Approved formulas the agent may talk about and scale. */
   app.get("/api/hermes/formulas", async (req: Request, res: Response) => {
     const identity = hermesIdentityFromRequest(req);

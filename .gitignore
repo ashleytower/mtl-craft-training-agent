@@ -119,3 +119,6 @@ supabase/.temp/
 # database is the store of record; docs/BRIX_KNOWLEDGE.md says how to recover
 # these files again.
 data/knowledge/
+
+# Agent session state, written by tooling in this worktree. Never a build input.
+.claude/

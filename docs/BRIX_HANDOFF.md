@@ -9,17 +9,29 @@ Manus design/context: https://manus.im/share/5BNfPHDbcgJbvdHmeTZo9E
 
 ## Verified state
 
-Updated 2026-09-01 after the page-text merge. Knowledge detail lives in
-**`docs/BRIX_KNOWLEDGE.md`**; this file stays the one-page picture.
+Updated 2026-09-09 after the runtime restoration. Knowledge detail lives in
+**`docs/BRIX_KNOWLEDGE.md`**; the per-source inventory is generated into
+**`docs/BRIX_SOURCE_INVENTORY.md`**; this file stays the one-page picture.
 
 | | |
 |---|---|
-| commit | see `git log` — PR #9, *Simplifier findings fixed* |
-| tests | **288 passing**, 15 files |
+| commit | see `git log` |
+| tests | **341 passing**, 18 files |
 | typecheck | `tsc --noEmit` clean |
-| build | `npm run build` clean |
+| build | `npm run build` clean, and stamps `dist/REVISION` |
 | database | Supabase `ctyxnhcljruyciebkwef` — shared with the CRM |
-| beverage migrations | 110-118 in `db/migrations/`, all applied; **118** is the live `beverage_knowledge_coverage` |
+| beverage migrations | 110-118 and **124** in `db/migrations/`, all applied; **124** is the live `beverage_knowledge_coverage` |
+| runtime | gateway + API both supervised by launchd; `scripts/brix-status.sh` is the gate |
+
+**Migration numbering.** 124 follows 118 because the CRM holds 119-123 on the
+shared number line (`db/baseline/DRIFT.md` §2). Check the CRM's **origin** refs,
+not its local files, before numbering the next one.
+
+**The ledger under-reports.** `supabase_migrations.schema_migrations` lists this
+project's beverage migrations only to 117, yet 118 is demonstrably live —
+`items_mixed` and `items_with_page_text` appear in no earlier migration and the
+running function returns both. Read `pg_get_functiondef`, not the ledger, when
+you need to know what is applied.
 
 Recent merges: #8 `902d105` page-text lessons · #7 `0379dd4` cited knowledge
 corpus · #5 `b30712e` CRM-backed cocktail measures · #4 `ef5e408` message noun
@@ -40,11 +52,74 @@ agreement · #3 `2ad1a18` cocktail ingredient resolution, schema baseline,
 
 ---
 
+## Runtime — how Brix stays up
+
+Added 2026-09-09, after Brix had been unreachable in Telegram since
+**2026-09-08 09:04** for a reason that was neither the profile, the bot token,
+nor the corpus.
+
+**The cause.** `~/Library/LaunchAgents/ai.hermes.gateway-beverage.plist` had a
+bare `<array>` as its root element instead of a `<dict>` carrying
+`Label`/`ProgramArguments`/`RunAtLoad`/`KeepAlive`. `plutil -lint` passes on it —
+it is valid XML — but launchd requires a dict with a Label, so the job was never
+registered at all and `launchctl print` reported no such service. Meanwhile the
+gateway deliberately exits code 1 on a signal shutdown *so that a supervisor will
+revive it*, logging "Exiting with code 1 … so systemd Restart=on-failure can
+revive the gateway". Its supervisor had never been loadable, so nothing did.
+
+A plist that lints is not a plist that loads. Check
+`launchctl print gui/$(id -u)/<label>` after installing one.
+
+**What supervises what now.** Both plists are versioned in `launchd/`, following
+the `max2-hermes/launchd/` convention, and copied to `~/Library/LaunchAgents/`:
+
+| label | what it runs |
+|---|---|
+| `ai.hermes.gateway-beverage` | the Hermes gateway for the `beverage` profile |
+| `ai.mtlcraft.beverage-api` | `node dist/index.js` — the beverage API on port 3000 |
+
+Both `RunAtLoad` + `KeepAlive`, `ThrottleInterval` 30, `ExitTimeOut` 25. The API
+plist's `WorkingDirectory` is the repo root so `dotenv/config` finds the existing
+gitignored `.env`; **no secret appears in either plist**. `node` is pinned to
+`/usr/local/bin/node` because `~/.local/bin/node` is x64 on this arm64 machine
+and is the documented cause of arch drift here.
+
+The broken plist is archived at `~/.hermes/retired-launchd/` — outside
+`LaunchAgents/`, so it cannot be picked up again.
+
+**Port drift was the same class of invisible failure.** `findAvailablePort`
+scanned 3000-3019 and silently bound the next free port while still logging
+"Server running". Brix reaches the API at a fixed `BEVERAGE_API_URL` of
+`localhost:3000`, so a drifted port left the agent pointing at nothing with no
+error anywhere. The supervised service sets `BEVERAGE_API_STRICT_PORT=true` and
+now binds 3000 or exits non-zero saying why; development keeps the old scanning.
+
+**`scripts/brix-status.sh` is the gate.** One script, because the five things it
+checks only mean something together — a green gateway in front of a dead API
+answers nothing, and a live API running last week's bundle answers wrongly:
+
+```
+scripts/brix-status.sh                            # gateway, telegram, api, mirror, corpus
+scripts/brix-status.sh --expect-revision <sha>    # and the exact loaded revision
+```
+
+`--expect-revision` accepts a match only when the process reports it from a
+**build stamp**. `npm run build` writes `dist/REVISION`; a dirty tree stamps
+nothing and deletes any stale stamp, because a SHA naming a commit whose code was
+not the code bundled is worse than admitting the revision is unknown.
+
+`scripts/brix-live-qa.ts` runs 78 assertions against the live API — retrieval per
+corpus group, citation stability, exact scaling, honest refusal, and the
+approval boundary.
+
 ## What Brix can actually do
 
 Brix runs from the Hermes profile at `~/.hermes/profiles/beverage/` — **not from
-this repository**. `agent/beverage/` is a committed mirror, kept in sync by hand.
-Telegram: https://t.me/Brix_recipe_bot
+this repository**. `agent/beverage/` is a committed mirror; `brix-status.sh`
+proves it still matches the live profile rather than leaving that to trust.
+Telegram: https://t.me/Brix_recipe_bot (`@Brix_recipe_bot`, id 8974405041).
+`TELEGRAM_ALLOWED_USERS` is Ashley's chat alone, so the Telegram surface cannot
+reach anybody else.
 
 Six tools, backed by five HTTP routes in `server/hermesRoutes.ts`:
 
@@ -55,7 +130,10 @@ Six tools, backed by five HTTP routes in `server/hermesRoutes.ts`:
 | `scale` | `/api/hermes/scale` | exact rational scaling; also returns the method |
 | `method` | `/api/hermes/formulas` | how an approved formula is made |
 | `knowledge` | `/api/hermes/knowledge` | cited technique and theory — **never a measure** |
-| `coverage` | `/api/hermes/knowledge/coverage` | what the corpus holds, and which lessons are missing |
+| `coverage` | `/api/hermes/knowledge/coverage` | what the corpus holds, per source and per lesson |
+
+Plus one route that is not a tool: `GET /api/hermes/health` — unauthenticated,
+touches no database, and reports the exact revision the process has loaded.
 
 The last two arrived 2026-08-31; see `docs/BRIX_KNOWLEDGE.md`.
 
@@ -83,11 +161,30 @@ Guarantees that hold today:
 |---|---|---|
 | approved — Brix can scale and describe | **1** | `Jalapeno v1` (syrup) |
 | awaiting approval — invisible to Brix | **3** | `Orgeat v1`, `Orgeat (bought almond milk) v1`, `Toasted Almond Milk v1` |
-| raw drafts, never versioned | **126** | 76 syrup, 50 cocktail |
-| CRM cocktail recipes available to the workbench | **83** | `public.recipes` |
+| raw drafts, never versioned | **123** | 73 syrup, 50 cocktail |
+| CRM cocktail recipes available to the workbench | **84** | `public.recipes` — measured 2026-09-09; this said 83 |
+
+*(Re-measured 2026-09-09. `formula_drafts` holds **126** rows; 3 of them have
+been turned into the versions above, leaving **123** never versioned. The earlier
+"126 / 76 syrup" counted the versioned three twice.)*
 
 Approval decisions recorded: 1. **Approval is a separate human step and must stay
 one** — the CRM supplying a measure is not an approval.
+
+**This backlog is not a corpus-coverage number and must not be reported as one.**
+Corpus coverage is 35 of 39 course items with content and 71 sources retrievable.
+Recipe approval is 1 of 4 versioned formulas approved, with 123 drafts never
+versioned. The two are unrelated: ingesting more knowledge will never approve a
+formula, and approving a formula will never widen the corpus.
+
+**The way to reduce the backlog is the console, not a bypass.** Verified present
+in `client/src/pages/BeverageIntelligence.tsx`: it normalizes a CRM-backed draft
+(`normalizing` → `beverage.createFormulaVersion`) and approves a version through
+`beverage.approveVersion` behind a **required** approval rationale field
+(`Approval rationale (required)`). Both are `humanProcedure` tRPC routes. Nothing
+on Brix's REST surface can reach either — `server/knowledgeBoundary.test.ts`
+proves it, and proves it by failing when a writer is wired in. "Only Jalapeño" is
+a queue of human decisions, not a missing capability.
 
 Where a draft's measures come from, across all 126:
 

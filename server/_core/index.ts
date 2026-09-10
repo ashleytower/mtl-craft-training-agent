@@ -51,15 +51,44 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
 
-  if (port !== preferredPort) {
+  // Scanning for a free port is a convenience in development and a defect in a
+  // supervised service. Brix reaches this API at a fixed `BEVERAGE_API_URL`
+  // (localhost:3000), so a process that quietly moves to 3001 leaves the agent
+  // pointing at nothing while every log line still says "Server running" —
+  // the failure is invisible exactly where it matters most.
+  //
+  // Under launchd the service sets BEVERAGE_API_STRICT_PORT=true and binds the
+  // requested port or dies, which is the correct behaviour for something with a
+  // restart policy: KeepAlive retries, and if the port is genuinely held by
+  // another process the error says so instead of hiding.
+  const strictPort = process.env.BEVERAGE_API_STRICT_PORT === "true";
+  const port = strictPort ? preferredPort : await findAvailablePort(preferredPort);
+
+  if (!strictPort && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
+
+  server.on("error", (error: NodeJS.ErrnoException) => {
+    if (strictPort && error.code === "EADDRINUSE") {
+      console.error(
+        `Port ${preferredPort} is already in use and BEVERAGE_API_STRICT_PORT is set. ` +
+          `Refusing to start on a different port: Brix reaches this API at a fixed ` +
+          `address and would not be told. Free the port, or unset the flag for a ` +
+          `development server.`
+      );
+      process.exit(1);
+    }
+    console.error(error);
+    process.exit(1);
+  });
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
 }
 
-startServer().catch(console.error);
+startServer().catch(error => {
+  console.error(error);
+  process.exit(1);
+});

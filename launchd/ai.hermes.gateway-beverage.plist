@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>ai.hermes.gateway-beverage</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/ashleytower/.hermes/hermes-agent/venv/bin/python</string>
+		<string>-m</string>
+		<string>hermes_cli.stderr_timestamp</string>
+		<string>--error-log</string>
+		<string>/Users/ashleytower/.hermes/profiles/beverage/logs/gateway.error.log</string>
+		<string>--</string>
+		<string>/Users/ashleytower/.hermes/hermes-agent/venv/bin/python</string>
+		<string>-m</string>
+		<string>hermes_cli.main</string>
+		<string>--profile</string>
+		<string>beverage</string>
+		<string>gateway</string>
+		<string>run</string>
+		<string>--external-supervisor</string>
+	</array>
+	<key>WorkingDirectory</key>
+	<string>/Users/ashleytower/.hermes/profiles/beverage</string>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>/Users/ashleytower/.hermes/hermes-agent/venv/bin:/Users/ashleytower/.hermes/hermes-agent/node_modules/.bin:/Users/ashleytower/.local/bin:/Users/ashleytower/.composio:/Users/ashleytower/.antigravity/antigravity/bin:/opt/homebrew/share/google-cloud-sdk/bin:/Users/ashleytower/.npm-global/bin:/Users/ashleytower/.bun/bin:/Users/ashleytower/.opencode/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/opt/pmk/env/global/bin:/Users/ashleytower/.codex/tmp/arg0/codex-arg0IUB2Rm:/Users/ashleytower/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/override:/Users/ashleytower/.cache/codex-runtimes/codex-primary-runtime/dependencies/bin/fallback:/Applications/ChatGPT.app/Contents/Resources</string>
+		<key>VIRTUAL_ENV</key>
+		<string>/Users/ashleytower/.hermes/hermes-agent/venv</string>
+		<key>HERMES_HOME</key>
+		<string>/Users/ashleytower/.hermes/profiles/beverage</string>
+		<key>HERMES_SUPERVISED_CHILD</key>
+		<string>1</string>
+	</dict>
+	<key>LimitLoadToSessionType</key>
+	<array>
+		<string>Aqua</string>
+		<string>Background</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>KeepAlive</key>
+	<true/>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>ExitTimeOut</key>
+	<integer>25</integer>
+	<key>SoftResourceLimits</key>
+	<dict>
+		<key>NumberOfFiles</key>
+		<integer>4096</integer>
+	</dict>
+	<key>StandardOutPath</key>
+	<string>/Users/ashleytower/.hermes/profiles/beverage/logs/gateway.log</string>
+	<key>StandardErrorPath</key>
+	<string>/Users/ashleytower/.hermes/profiles/beverage/logs/gateway.error.log</string>
+</dict>
+</plist>
