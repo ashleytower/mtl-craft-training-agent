@@ -323,10 +323,30 @@ async function formulaBoundaryChecks() {
   const approved = (formulas.body.formulas ?? []) as Array<Record<string, unknown>>;
   check("lists the approved formulas", formulas.status === 200 && approved.length === 1,
     `count=${approved.length}`);
+  // Pinning the version number meant every legitimate approval broke this check
+  // and taught whoever hit it to bump the number. What actually matters is that
+  // one name resolves to exactly one approved recipe, and that the recipe is
+  // whole — v1 was approved with four components and no sugar for eleven days.
+  const approvedByName = new Map<string, number>();
+  for (const f of approved) {
+    approvedByName.set(String(f.name), (approvedByName.get(String(f.name)) ?? 0) + 1);
+  }
+  const ambiguous = [...approvedByName.entries()].filter(([, n]) => n > 1);
   check(
-    "the one approved formula is Jalapeno v1",
-    approved[0]?.name === "Jalapeno" && approved[0]?.version === 1,
-    JSON.stringify(approved.map(f => [f.name, f.version]))
+    "no name resolves to two approved formulas, so scaling never has to guess",
+    ambiguous.length === 0,
+    JSON.stringify(ambiguous)
+  );
+
+  const jalapeno = approved.find(f => f.name === "Jalapeno");
+  const jalapenoLines = (jalapeno?.components ?? []) as Array<{ ingredient_name: string }>;
+  const jalapenoNames = jalapenoLines.map(c => c.ingredient_name.toLowerCase());
+  check(
+    "the approved Jalapeno is the whole recipe, sugar included",
+    ["sugar", "jalapenos", "water", "preservative", "citric acid"].every(n =>
+      jalapenoNames.some(actual => actual === n)
+    ),
+    JSON.stringify(jalapenoNames)
   );
 
   // Drafts must be nameable and never measurable.

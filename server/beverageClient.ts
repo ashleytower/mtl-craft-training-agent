@@ -361,6 +361,17 @@ export type KnowledgeCoverage = {
     /** Of `caption`, how many this machine transcribed rather than the
      *  publisher captioning. Both have a clock; only one is their own words. */
     local_transcript: number;
+    /**
+     * Passages whose `locator.lesson_id` matches no row in the lesson manifest.
+     * A passage nothing can place is a passage nothing can cite, so this is
+     * expected to be 0 and both the live QA and the inventory assert on it.
+     *
+     * These two were missing from this type while the RPC returned them and two
+     * scripts read them, which typechecked only because `scripts/**` was absent
+     * from tsconfig's `include`.
+     */
+    orphaned: number;
+    orphaned_lessons: Array<{ lesson_id: string; chunks: number }>;
   };
 };
 
