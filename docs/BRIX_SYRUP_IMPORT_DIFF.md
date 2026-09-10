@@ -153,7 +153,7 @@ NOTE: We could be doing a mix of bagging and bottling.
 ```
 1. Step 1 - boil water
 2. Step 2 - add sugar
-3. Step 3 - When all sugar is disulved add jalapeño and habanero and bring to a simmer. Simmer until peppers are soft, remove from heat and let cool.
+3. Step 3 - When all sugar is disulved add jalapeño and bring to a simmer. Simmer until peppers are soft, remove from heat and let cool.
 4. Step 4 - Once cooled transfer to a blender and blend in batches.
 5. Step 5 - Strain out the solides.
 6. Step 6 - Strain again.
@@ -287,7 +287,7 @@ Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger
 | Espresso Syrup | Coffee 28000gr + Sugar 20000gr + Salt 50ml + vanilla 50ml + Espresso 600gr | — | ready |
 | Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml + Preservative 22gr | — | 1 blocking |
 | Give Ginger | Ginger 10000gr + Sugar 22000gr + Water 11000ml | — | 1 blocking |
-| Grapefruit Juice | Grapefruit Juice 1L | — | ready |
+| Grapefruit Juice | Grapefruit Juice 1000ml | — | ready |
 | Green Grape | Green Grapes 1000gr + Sugar 1000gr + Water 800gr | — | ready |
 | Grenadine | Pomegranate 500ml + Sugar 500gr | — | ready |
 | Grilled Pineapple | Pineapple 2300gr + Sugar 2300gr + Citric Acid 10gr | — | ready |
@@ -297,7 +297,7 @@ Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger
 | Kiwi | Kiwi 2800gr + Sugar 2800gr + Water 1100ml + Methocel F50 3gr + Gum Arabic 20gr + Xanthan Gum ? | — | 1 blocking |
 | Lavender | Lavender 6gr + Sugar 3000gr + Water 3000ml + Butterfly Peas 1gr | — | ready |
 | Lemon Citric Acid | Citric Acid 100gr + Water 3000ml | — | ready |
-| Lemon Juice | Lemon Juice 1L | — | ready |
+| Lemon Juice | Lemon Juice 1000ml | — | ready |
 | Lemon Super Juice | Lemon Husks 1200gr + Water 7000ml + Citric Acid 420gr | — | 1 blocking |
 | Lemonade | Lemon Husks 7000gr + Water 3800ml + Sugar 2500gr + Lemon Juice 1275ml | — | 1 blocking |
 | Lime Citric Acid | Citric Acid 100gr + Water 3000ml | — | ready |
@@ -306,7 +306,7 @@ Blueberry, Cantalope Syrup, Coffee Syrup, Cranberry, Dragonfruit, Eggnog, Ginger
 | Mango Syrup | Mango Juice 1000ml + Sugar 1000gr + Water 1000ml | — | ready |
 | Mint | Mint ( 4 bunches approx ) 100gr + Sugar 625gr + Water 625ml | — | ready |
 | Mint/Cucumber | Cucumber 1000gr + Mint ( 4 bunches approx ) 10gr + Sugar 1000gr + Water 500ml | — | ready |
-| Orgeat | Almond Milk 3L + Sugar 5250gr + Orange Flower 5ml + Rose flower 5ml + Rum Spiced 9ml + Amaretto 9ml | — | ready |
+| Orgeat | Almond Milk 3000ml + Sugar 5250gr + Orange Flower 5ml + Rose flower 5ml + Rum Spiced 9ml + Amaretto 9ml | — | ready |
 | Orgeat Toasted | Silvered Almond 1000gr + Sugar 5250gr + Orange Flower 5ml + Rose flower 5ml + Water 2250ml + Rum Spiced 9ml + Amaretto 9ml | — | 1 blocking |
 | Passion Fruit | Passion Fruit 1000gr + Sugar 1000gr | — | ready |
 | Peach Puree | peaches 5000gr + Raspberries 150gr + Sugar 500gr | — | ready |

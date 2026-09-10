@@ -625,3 +625,83 @@ describe("a method that belongs to more than one syrup belongs to none of them",
       .toBe("1. Peel the cucumber.");
   });
 });
+
+describe("uniform units", () => {
+  // The corpus is 123 lines in gr and 68 in ml, with 3 stragglers in L. One mass
+  // unit and one volume unit, plus counts. L and kg are the SAME measurement as
+  // ml and gr at a different scale, so converting them is exact and loses
+  // nothing — unlike ml-to-gr, which depends on what the liquid is.
+  it("converts litres to millilitres exactly", () => {
+    const m = mergeVariants([
+      syrup({ name: "Grapefruit Juice", ingredients: [{ name: "Grapefruit Juice", qty: "1", unit: "L" }] }),
+    ])[0];
+    const ing = buildDraft(m).original_recipe_json.ingredients as Array<{
+      quantity_normalized: string; unit_name: string; quantity_raw: string;
+    }>;
+    expect(ing[0].quantity_normalized).toBe("1000");
+    expect(ing[0].unit_name).toBe("ml");
+    // Provenance survives: the row still says what Notion actually held.
+    expect(ing[0].quantity_raw).toBe("1");
+  });
+
+  it("converts kilograms to grams exactly", () => {
+    const m = mergeVariants([
+      syrup({ name: "X", ingredients: [{ name: "Sugar", qty: "1.5", unit: "kg" }] }),
+    ])[0];
+    const ing = buildDraft(m).original_recipe_json.ingredients as Array<{
+      quantity_normalized: string; unit_name: string;
+    }>;
+    expect(ing[0].quantity_normalized).toBe("1500");
+    expect(ing[0].unit_name).toBe("gr");
+  });
+
+  it("leaves gr and ml alone", () => {
+    const m = mergeVariants([
+      syrup({ name: "X", ingredients: [
+        { name: "Sugar", qty: "20,000", unit: "gr" },
+        { name: "Water", qty: "18,000", unit: "ml" },
+      ] }),
+    ])[0];
+    const ing = buildDraft(m).original_recipe_json.ingredients as Array<{
+      quantity_normalized: string; unit_name: string;
+    }>;
+    expect(ing.map(i => [i.quantity_normalized, i.unit_name])).toEqual([
+      ["20000", "gr"], ["18000", "ml"],
+    ]);
+  });
+
+  // "1 nutmeg" is a count, not a mass. Converting it to grams would be inventing
+  // a weight nobody measured, so `unit` stays exactly as it is.
+  it("never converts a count", () => {
+    const m = mergeVariants([
+      syrup({ name: "X", ingredients: [{ name: "Nutmeg", qty: "15", unit: "unit" }] }),
+    ])[0];
+    const ing = buildDraft(m).original_recipe_json.ingredients as Array<{
+      quantity_normalized: string; unit_name: string;
+    }>;
+    expect(ing[0]).toMatchObject({ quantity_normalized: "15", unit_name: "unit" });
+  });
+
+  // A unit outside the house set is a real signal, and silently passing it
+  // through would let "oz" or "tsp" into a corpus that is otherwise metric.
+  it("flags a unit it does not recognise instead of converting it", () => {
+    const m = mergeVariants([
+      syrup({ name: "X", ingredients: [{ name: "Sugar", qty: "2", unit: "tsp" }] }),
+    ])[0];
+    const d = buildDraft(m);
+    const ing = d.original_recipe_json.ingredients as Array<{ unit_name: string }>;
+    expect(ing[0].unit_name).toBe("tsp");
+    expect(d.warnings.join(" ")).toContain("tsp");
+    expect(d.warnings.filter(isBlocking).length).toBeGreaterThan(0);
+  });
+
+  it("does not turn an unreadable quantity into a number by converting it", () => {
+    const m = mergeVariants([
+      syrup({ name: "X", ingredients: [{ name: "Water", qty: "", unit: "L" }] }),
+    ])[0];
+    const ing = buildDraft(m).original_recipe_json.ingredients as Array<{
+      quantity_normalized: string | null; unit_name: string;
+    }>;
+    expect(ing[0].quantity_normalized).toBeNull();
+  });
+});

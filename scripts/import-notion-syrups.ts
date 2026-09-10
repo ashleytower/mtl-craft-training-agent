@@ -141,13 +141,59 @@ function groupKey(name: string): string {
   return canonicalName(name).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+/**
+ * One mass unit, one volume unit, and counts.
+ *
+ * The corpus is 123 lines in `gr` and 68 in `ml`, with three stragglers in `L`.
+ * `L` and `kg` are the same measurement as `ml` and `gr` at a different scale,
+ * so folding them in is exact arithmetic that loses nothing.
+ *
+ * `ml` to `gr` is NOT in here and must not be. It is exact only for water; for
+ * a juice or a purée it depends on the liquid, and the corpus has both. Ashley
+ * weighs water (the Green Grape recipe says 800 g of it), so a liquid recorded
+ * in grams is her normal practice rather than an error.
+ *
+ * `unit` is a count — "15 nutmeg" — and converting a count to a mass would
+ * invent a weight nobody measured.
+ */
+const UNIT_SCALE: Record<string, { to: string; factor: number }> = {
+  L: { to: "ml", factor: 1000 },
+  l: { to: "ml", factor: 1000 },
+  kg: { to: "gr", factor: 1000 },
+};
+
+/** The units a formula is allowed to reach approval in. */
+const HOUSE_UNITS = new Set(["gr", "ml", "unit"]);
+
+export function normalizeMeasure(
+  quantity: number | null,
+  unit: string | null
+): { quantity: number | null; unit: string | null } {
+  const raw = (unit ?? "").trim();
+  if (raw === "") return { quantity, unit: null };
+  const scale = UNIT_SCALE[raw];
+  // A quantity that could not be read stays unreadable. Multiplying null by a
+  // thousand must not be how a blank becomes a number.
+  if (!scale) return { quantity, unit: raw };
+  return {
+    quantity: quantity === null ? null : quantity * scale.factor,
+    unit: scale.to,
+  };
+}
+
 function ingredientsOf(s: NotionSyrup) {
-  return (s.ingredients ?? []).map(i => ({
-    name: (i.name ?? "").trim(),
-    quantity: parseQuantity(i.qty),
-    quantity_raw: i.qty ?? null,
-    unit: i.unit ?? null,
-  }));
+  return (s.ingredients ?? []).map(i => {
+    const measure = normalizeMeasure(parseQuantity(i.qty), i.unit ?? null);
+    return {
+      name: (i.name ?? "").trim(),
+      quantity: measure.quantity,
+      // The untouched Notion string. After a conversion the stored quantity and
+      // the raw one legitimately differ ("1" L becomes 1000 ml), and this is
+      // what makes that checkable rather than mysterious.
+      quantity_raw: i.qty ?? null,
+      unit: measure.unit,
+    };
+  });
 }
 
 /**
@@ -279,6 +325,7 @@ export function isBlocking(warning: string): boolean {
     warning.includes("has a quantity but no unit") ||
     warning.includes("has a quantity of 0") ||
     warning.includes("same method, word for word") ||
+    warning.includes("which is not one of gr, ml or unit") ||
     warning.includes("deleted Notion page") ||
     warning.includes("equally complete")
   );
@@ -303,6 +350,14 @@ export function auditWarnings(m: MergedSyrup): string[] {
       w.push(`"${i.name}" has a quantity of 0 in Notion, which is not a measurement.`);
     } else if (!i.unit) {
       w.push(`"${i.name}" has a quantity but no unit in Notion.`);
+    } else if (!HOUSE_UNITS.has(i.unit)) {
+      // gr, ml and unit are the whole vocabulary after L and kg are folded in.
+      // Anything else is a unit nobody has agreed on, and scaling it exactly
+      // would only make a confident wrong answer.
+      w.push(
+        `"${i.name}" is measured in "${i.unit}", which is not one of gr, ml or unit. ` +
+          `Not converted — say what it should be.`
+      );
     }
   }
   // Notion's yield is deliberately not imported, so it is recorded here only as
