@@ -162,6 +162,24 @@ export function mergeVariants(syrups: NotionSyrup[]): MergedSyrup[] {
   return out.sort((a, b) => a.canonical.localeCompare(b.canonical));
 }
 
+/**
+ * A warning that actually stops this formula being approved, as opposed to
+ * context. Every row carries context — what got merged, what Notion claimed
+ * about the yield — and if all of that counted as a problem then 56 of 56
+ * formulas would be "flagged" and the flag would mean nothing.
+ *
+ * Blocking means: a human has to supply something before this can be made.
+ */
+export function isBlocking(warning: string): boolean {
+  return (
+    warning.startsWith("NO INGREDIENTS") ||
+    warning.includes("has no usable quantity") ||
+    warning.includes("has a quantity but no unit") ||
+    warning.includes("deleted Notion page") ||
+    warning.includes("equally complete")
+  );
+}
+
 /** Everything wrong with a recipe that a human has to look at. */
 export function auditWarnings(m: MergedSyrup): string[] {
   const w = [...m.warnings];
@@ -179,19 +197,18 @@ export function auditWarnings(m: MergedSyrup): string[] {
       w.push(`"${i.name}" has a quantity but no unit in Notion.`);
     }
   }
+  // Notion's yield is deliberately not imported, so it is recorded here only as
+  // context for whoever sets the real one later.
   const yieldValue = parseQuantity(m.chosen.yield_value as string | null);
   if (yieldValue === null) {
-    w.push("No yield recorded — target-yield scaling will refuse until one is set.");
+    w.push("No yield in Notion. Set one in Supabase after a real batch.");
   } else {
+    w.push(
+      `Notion claims a yield of ${yieldValue} ${m.chosen.yield_unit ?? "?"}. ` +
+        `NOT imported — Notion specs are unreliable. Set the real one after a batch.`
+    );
     // The yields in Notion are demonstrably unreliable: the jalapeño row claims
     // 6 L for a batch containing 18 L of water. Imported, but never trusted.
-    const totalMass = ingredientsOf(m.chosen).reduce((n, i) => n + (i.quantity ?? 0), 0);
-    if (totalMass > 0 && yieldValue * 1000 < totalMass / 4) {
-      w.push(
-        `Yield of ${yieldValue} ${m.chosen.yield_unit ?? "?"} looks too small for ` +
-          `${totalMass} units of ingredients — verify before enabling target-yield scaling.`
-      );
-    }
   }
   return w;
 }
@@ -216,21 +233,15 @@ export function buildDraft(m: MergedSyrup) {
     ingredients,
     labour_hours: m.chosen.labour_hours ?? null,
     selling_price: m.chosen.selling_price ?? null,
-    // Notion's own yields are unreliable, so the value is carried but explicitly
-    // marked unverified. `brix-status`-style honesty: hold the number, refuse to
-    // present it as trustworthy.
-    yield_verified: false,
   };
   // The yield is part of the content, not metadata beside it. Leaving it out
   // meant a corrected yield in Notion hashed identically to the wrong one, so a
   // re-run reported "unchanged" and silently discarded the fix. Caught by
   // `hashes the SOURCE identity, not the content`.
-  const content = JSON.stringify({
-    name: m.canonical,
-    ...recipe,
-    intended_yield_value: parseQuantity(m.chosen.yield_value as string | null),
-    intended_yield_unit: m.chosen.yield_unit ?? null,
-  });
+  // The hash covers exactly what is stored. Yields are excluded because they
+  // are not imported; if that ever changes, they belong back in here or a
+  // corrected yield would hash identically to the wrong one.
+  const content = JSON.stringify({ name: m.canonical, ...recipe });
   const contentHash = createHash("sha256").update(content).digest("hex");
 
   return {
@@ -240,15 +251,22 @@ export function buildDraft(m: MergedSyrup) {
     name: m.canonical,
     product_category: "syrup_or_related_product",
     original_recipe_json: { ...recipe, content_sha256: contentHash },
-    intended_yield_value: parseQuantity(m.chosen.yield_value as string | null),
-    intended_yield_unit: m.chosen.yield_unit ?? null,
+    // Yields are NOT imported. Ashley, 2026-09-10: "anything that is a spec in
+    // there, anything in Notion that's not just the recipe is wrong. We have not
+    // done it yet." Notion's yields are aspirational — the jalapeño row claimed
+    // 6 L for a batch holding 18 L of water, Salted Grapefruit claimed 1 L for
+    // 25 L of liquid. Only the ingredient list is trustworthy. Yields get set in
+    // Supabase as real batches are made, and Supabase becomes the source of truth.
+    intended_yield_value: null,
+    intended_yield_unit: null,
     warnings: auditWarnings(m),
   };
 }
 
 function renderReport(drafts: ReturnType<typeof buildDraft>[]): string {
-  const clean = drafts.filter(d => d.warnings.length === 0);
-  const flagged = drafts.filter(d => d.warnings.length > 0);
+  const blocking = (d: { warnings: string[] }) => d.warnings.filter(isBlocking);
+  const clean = drafts.filter(d => blocking(d).length === 0);
+  const flagged = drafts.filter(d => blocking(d).length > 0);
   const empty = drafts.filter(d =>
     (d.original_recipe_json.ingredients ?? []).length === 0
   );
@@ -261,12 +279,10 @@ function renderReport(drafts: ReturnType<typeof buildDraft>[]): string {
   lines.push(`| | |`);
   lines.push(`|---|---|`);
   lines.push(`| formulas after collapsing variants | **${drafts.length}** |`);
-  lines.push(`| clean, no warnings | ${clean.length} |`);
-  lines.push(`| needs a human look | ${flagged.length} |`);
+  lines.push(`| ready to approve as-is | **${clean.length}** |`);
+  lines.push(`| blocked, need something from you | **${flagged.length}** |`);
   lines.push(`| no ingredients at all | ${empty.length} |`);
-  lines.push(
-    `| carry a yield | ${drafts.filter(d => d.intended_yield_value !== null).length} |`
-  );
+  lines.push(`| yields imported | 0 — every Notion spec is unreliable, set them after a real batch |`);
   lines.push("");
   lines.push("Nothing here is approved. Every row lands as `needs_review`.");
   lines.push("");
@@ -288,7 +304,7 @@ function renderReport(drafts: ReturnType<typeof buildDraft>[]): string {
         ? "—"
         : `${d.intended_yield_value} ${d.intended_yield_unit ?? ""}`.trim();
     lines.push(
-      `| ${d.name} | ${recipe} | ${y} | ${d.warnings.length === 0 ? "" : d.warnings.length} |`
+      `| ${d.name} | ${recipe} | ${y} | ${blocking(d).length === 0 ? "ready" : `${blocking(d).length} blocking`} |`
     );
   }
   lines.push("");
@@ -298,7 +314,18 @@ function renderReport(drafts: ReturnType<typeof buildDraft>[]): string {
     lines.push("");
     for (const d of flagged) {
       lines.push(`**${d.name}**`);
-      for (const w of d.warnings) lines.push(`- ${w}`);
+      for (const w of blocking(d)) lines.push(`- ${w}`);
+      lines.push("");
+    }
+    lines.push("## Context on every formula");
+    lines.push("");
+    lines.push("Merge notes and rejected Notion yields. Nothing here blocks approval.");
+    lines.push("");
+    for (const d of drafts) {
+      const notes = d.warnings.filter(w => !isBlocking(w));
+      if (notes.length === 0) continue;
+      lines.push(`**${d.name}**`);
+      for (const w of notes) lines.push(`- ${w}`);
       lines.push("");
     }
   }

@@ -3,6 +3,7 @@ import {
   auditWarnings,
   buildDraft,
   canonicalName,
+  isBlocking,
   mergeVariants,
   parseQuantity,
 } from "./import-notion-syrups";
@@ -171,9 +172,10 @@ describe("auditWarnings", () => {
     expect(w.join(" ")).toContain("deleted Notion page");
   });
 
-  // Notion's yields are demonstrably unreliable: the jalapeño row claimed 6 L
-  // for a batch holding 18 L of water. Import the number, never trust it.
-  it("catches a yield far too small for its ingredients", () => {
+  // Notion's yields are not imported at all now, so the audit's job changed:
+  // it must SAY what Notion claimed and that it was rejected, so nobody later
+  // assumes the blank yield means Notion had none.
+  it("reports a Notion yield as seen-but-not-imported", () => {
     const w = auditWarnings(
       merged({
         name: "Salted Grapefruit",
@@ -185,10 +187,11 @@ describe("auditWarnings", () => {
         yield_unit: "L",
       })
     );
-    expect(w.join(" ")).toContain("looks too small");
+    expect(w.join(" ")).toContain("NOT imported");
+    expect(w.join(" ")).toContain("1 L");
   });
 
-  it("does not cry wolf on a plausible yield", () => {
+  it("says the same for a plausible-looking yield, because none are trusted", () => {
     const w = auditWarnings(
       merged({
         name: "Jalapeno",
@@ -200,12 +203,12 @@ describe("auditWarnings", () => {
         yield_unit: "L",
       })
     );
-    expect(w.join(" ")).not.toContain("looks too small");
+    expect(w.join(" ")).toContain("NOT imported");
   });
 
   it("says target-yield scaling will refuse when there is no yield", () => {
     const w = auditWarnings(merged({ name: "Simple syrup", ingredients: [{ name: "Sugar", qty: "6000", unit: "gr" }] }));
-    expect(w.join(" ")).toContain("target-yield scaling will refuse");
+    expect(w.join(" ")).toContain("Set one in Supabase after a real batch");
   });
 });
 
@@ -233,7 +236,19 @@ describe("buildDraft", () => {
 
   it("hashes the SOURCE identity, not the content, so one page stays one draft", () => {
     const a = buildDraft(m);
-    const edited = { ...m, chosen: { ...m.chosen, yield_value: 31 } };
+    // Mutate an INGREDIENT, not the yield. Yields stopped being part of the
+    // stored content when Ashley ruled that every Notion spec is wrong, so a
+    // yield edit legitimately no longer moves the hash. An ingredient edit must.
+    const edited = {
+      ...m,
+      chosen: {
+        ...m.chosen,
+        ingredients: [
+          { name: "Sugar", qty: "21,000", unit: "gr" },
+          { name: "Jalapenos", qty: "5400", unit: "gr" },
+        ],
+      },
+    };
     const b = buildDraft(edited);
     expect(b.original_source_hash).toBe(a.original_source_hash);
     // ...but the content hash moves, which is how a re-run reports a change.
@@ -257,11 +272,32 @@ describe("buildDraft", () => {
     expect(sugar?.quantity_raw).toBe("20,000");
   });
 
-  it("marks the yield unverified", () => {
-    expect(buildDraft(m).original_recipe_json.yield_verified).toBe(false);
+  it("imports no yield at all, however confident Notion looks", () => {
+    const d = buildDraft(m);
+    expect(d.intended_yield_value).toBeNull();
+    expect(d.intended_yield_unit).toBeNull();
   });
 
   it("is deterministic", () => {
     expect(buildDraft(m)).toEqual(buildDraft(m));
+  });
+});
+
+describe("isBlocking", () => {
+  // A report where every row is flagged flags nothing. Before this split, all
+  // 56 formulas carried a warning — every one has a merge note or a rejected
+  // Notion yield — so "needs a look" meant "everything" and therefore nothing.
+  it("blocks on things only Ashley can supply", () => {
+    expect(isBlocking("NO INGREDIENTS in Notion — cannot be approved until a recipe is supplied.")).toBe(true);
+    expect(isBlocking('"Water" has no usable quantity in Notion (raw: "").')).toBe(true);
+    expect(isBlocking('"Sugar" has a quantity but no unit in Notion.')).toBe(true);
+    expect(isBlocking("Ingredient points at a deleted Notion page: UNKNOWN (…)")).toBe(true);
+    expect(isBlocking("Two merged rows were equally complete — confirm the kept one is right.")).toBe(true);
+  });
+
+  it("does not block on context she does not need to act on", () => {
+    expect(isBlocking('Collapsed 3 Notion rows into one formula. Kept "x" (5 complete ingredients); merged away "y" (3).')).toBe(false);
+    expect(isBlocking("Notion claims a yield of 1 L. NOT imported — Notion specs are unreliable.")).toBe(false);
+    expect(isBlocking("No yield in Notion. Set one in Supabase after a real batch.")).toBe(false);
   });
 });
