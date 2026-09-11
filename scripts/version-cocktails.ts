@@ -102,6 +102,34 @@ export function planFingerprint(drafts: ResolvedDraft[]): string {
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex").slice(0, 16);
 }
 
+/** `Summer in Italy` -> `summer-in-italy`, the same shape the CRM uses for its ids. */
+function formulaKey(name: string): string {
+  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+/**
+ * Drinks whose names collapse to one formula key.
+ *
+ * Two drafts are both called "Spicy Margarita". Approving both made the second
+ * supersede the first — migration 127 behaving correctly on input that should
+ * never have reached it. Their specs were identical so nothing wrong was
+ * served, but the run said "approved 38 of 38" when there were 37 distinct
+ * drinks, and the read-back agreed because it matched on name.
+ *
+ * A duplicate is a question for Ashley, not something to resolve by letting one
+ * quietly win.
+ */
+export function duplicateKeys(drafts: ResolvedDraft[]): Array<{ key: string; names: string[] }> {
+  const byKey = new Map<string, string[]>();
+  for (const d of drafts) {
+    const key = formulaKey(d.name);
+    byKey.set(key, [...(byKey.get(key) ?? []), d.name]);
+  }
+  return [...byKey.entries()]
+    .filter(([, names]) => names.length > 1)
+    .map(([key, names]) => ({ key, names }));
+}
+
 function ownerIdentity(): OperatorIdentity {
   const subject = (process.env.BEVERAGE_OWNER_SUBJECTS ?? "").split(",")[0]?.trim();
   if (!subject) throw new Error("BEVERAGE_OWNER_SUBJECTS is required");
@@ -111,11 +139,6 @@ function ownerIdentity(): OperatorIdentity {
     displayName: process.env.BEVERAGE_OWNER_DISPLAY_NAME ?? "MTL Craft owner",
     origin: "browser",
   };
-}
-
-/** `Summer in Italy` -> `summer-in-italy`, the same shape the CRM uses for its ids. */
-function formulaKey(name: string): string {
-  return name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
 async function resolveAll(identity: OperatorIdentity) {
@@ -189,6 +212,16 @@ function renderPlan(ready: ResolvedDraft[], skipped: Array<{ name: string; why: 
     lines.push("");
   }
 
+  const clashes = duplicateKeys(ready);
+  if (clashes.length > 0) {
+    lines.push("## Duplicate names — apply will refuse until these are resolved");
+    lines.push("");
+    for (const c of clashes) {
+      lines.push(`- **${c.key}** — ${c.names.join(", ")}`);
+    }
+    lines.push("");
+  }
+
   if (skipped.length > 0) {
     lines.push("## Not included");
     lines.push("");
@@ -245,6 +278,18 @@ async function main() {
     process.exit(1);
   }
 
+  const clashes = duplicateKeys(ready);
+  if (clashes.length > 0) {
+    for (const c of clashes) {
+      console.error(`Two drafts share the formula key "${c.key}": ${c.names.join(", ")}.`);
+    }
+    console.error(
+      "Approving both would make one supersede the other. Resolve the duplicate " +
+        "draft first — this is a question about the corpus, not something to pick a winner for."
+    );
+    process.exit(1);
+  }
+
   let created = 0;
   const failures: string[] = [];
   for (const draft of ready) {
@@ -276,7 +321,10 @@ async function main() {
   }>;
   const byName = new Map(live.map(f => [f.name, f.components?.length ?? 0]));
   const unscalable = ready.filter(d => !byName.get(d.name));
-  console.log(`read back: ${ready.length - unscalable.length} of ${ready.length} are scalable`);
+  const distinct = new Set(ready.map(d => formulaKey(d.name))).size;
+  console.log(
+    `read back: ${distinct - unscalable.length} of ${distinct} distinct formulas are scalable`
+  );
   if (unscalable.length > 0 || failures.length > 0) {
     for (const d of unscalable) console.error(`  NOT SCALABLE ${d.name}`);
     process.exitCode = 1;

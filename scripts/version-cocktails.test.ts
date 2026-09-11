@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { componentsFor, planFingerprint, type ResolvedDraft } from "./version-cocktails";
+import { componentsFor, duplicateKeys, planFingerprint, type ResolvedDraft } from "./version-cocktails";
 
 const draft = (over: Partial<ResolvedDraft> = {}): ResolvedDraft => ({
   draftId: "d1",
@@ -76,5 +76,30 @@ describe("planFingerprint", () => {
 
   it("is stable for the same plan", () => {
     expect(planFingerprint([draft()])).toBe(planFingerprint([draft()]));
+  });
+});
+
+describe("duplicate names", () => {
+  // Two cocktail drafts are both called "Spicy Margarita". They slugify to one
+  // formula key, so approving both made the second supersede the first —
+  // migration 127 doing exactly its job on input that should never have reached
+  // it. The specs were identical so nothing wrong was served, but the run
+  // reported "approved 38 of 38" when 37 distinct drinks existed, and the
+  // read-back agreed because it matched on name. A count that cannot tell 38
+  // from 37 is not a count.
+  it("finds two drinks that would collide on one formula key", () => {
+    const clash = duplicateKeys([
+      draft({ draftId: "a", name: "Spicy Margarita" }),
+      draft({ draftId: "b", name: "spicy  margarita" }),
+      draft({ draftId: "c", name: "Negroni" }),
+    ]);
+    expect(clash).toEqual([{ key: "spicy-margarita", names: ["Spicy Margarita", "spicy  margarita"] }]);
+  });
+
+  it("says nothing when every drink is its own formula", () => {
+    expect(duplicateKeys([
+      draft({ draftId: "a", name: "Negroni" }),
+      draft({ draftId: "b", name: "Boulevardier" }),
+    ])).toEqual([]);
   });
 });
