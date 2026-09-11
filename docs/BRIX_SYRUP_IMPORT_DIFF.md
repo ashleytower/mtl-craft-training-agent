@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | formulas after collapsing variants | **52** |
-| ready to approve as-is | **44** |
-| blocked, need something from you | **8** |
+| ready to approve as-is | **49** |
+| blocked, need something from you | **3** |
 | in Notion with no recipe, NOT written | 2 |
-| carry a method from Notion | **41** |
+| carry a method from Notion | **43** |
 | carry a Hindi method | 8 |
 | yields imported | 0 — every Notion spec is unreliable, set them after a real batch |
 
@@ -246,6 +246,22 @@ NOTE: We could be doing a mix of bagging and bottling.
 5. Bottle or bag it.
 ```
 
+### Lemon Super Juice
+
+```
+1. Peel the lemons and weigh the peels. Nothing is heated at any point — this is a cold process.
+2. Dissolve the citric acid in the water.
+3. Blend the peels with the acid solution until smooth, then strain and bottle or bag it. Technique: super juice — Nickle Morris and Ryan Leclaire, popularised by Kevin Kos, https://www.kevinkos.com/super-juice-calculator-1
+```
+
+### Lime Super Juice
+
+```
+1. Peel the limes and weigh the peels. Nothing is heated at any point — this is a cold process.
+2. Dissolve the citric acid and the malic acid in the water.
+3. Blend the peels with the acid solution until smooth, then strain and bottle or bag it. Technique: super juice — Nickle Morris and Ryan Leclaire, popularised by Kevin Kos, https://www.kevinkos.com/super-juice-calculator-1
+```
+
 ### Mango Syrup
 
 ```
@@ -453,13 +469,13 @@ NOTE: We could be doing a mix of bagging and bottling.
 
 The `▶Directions` heading on these pages is empty. Brix can scale them and cannot say how to make them.
 
-Coffee Syrup, Eggnog, Grapefruit Juice, Lemon Citric Acid, Lemon Juice, Lemon Super Juice, Lemonade, Lime Citric Acid, Lime Juice, Lime Super Juice, Plaintain
+Coffee Syrup, Eggnog, Grapefruit Juice, Lemon Citric Acid, Lemon Juice, Lemonade, Lime Citric Acid, Lime Juice, Plaintain
 
 ## Formulas
 
 | syrup | ingredients | yield | flags |
 |---|---|---|---|
-| Blood Orange Cordial | Sugar 550gr + Water ? + Blood Oranges ( Fresh ) 550gr + Blood Oranges ( Fresh ) 0gr | — | 2 blocking |
+| Blood Orange Cordial | Sugar 550gr + Blood Oranges ( Fresh ) 550gr | — | ready |
 | Blueberry | Blueberries 2000gr + Sugar 2000gr + Water 1000ml | — | ready |
 | Butterfly Pea | Sugar 30000gr + Water 30000ml + Butterfly Peas 225gr | — | 1 blocking |
 | Cactus Pear | Cactus Pear 20000gr + Sugar 20000gr + Water 10000ml | — | ready |
@@ -485,11 +501,11 @@ Coffee Syrup, Eggnog, Grapefruit Juice, Lemon Citric Acid, Lemon Juice, Lemon Su
 | Lavender | Lavender 6gr + Sugar 3000gr + Water 3000ml + Butterfly Peas 1gr | — | ready |
 | Lemon Citric Acid | Citric Acid 100gr + Water 3000ml | — | ready |
 | Lemon Juice | Lemon Juice 1000ml | — | ready |
-| Lemon Super Juice | Lemon Husks 1200gr + Water 7000ml + Citric Acid 420gr | — | 1 blocking |
-| Lemonade | Lemon Husks 7000gr + Water 3800ml + Sugar 2500gr + Lemon Juice 1275ml | — | 1 blocking |
+| Lemon Super Juice | Lemon Husks 1200gr + Water 7000ml + Citric Acid 420gr | — | ready |
+| Lemonade | Lemon Husks 7000gr + Water 3800ml + Sugar 2500gr + Lemon Juice 1275ml | — | ready |
 | Lime Citric Acid | Citric Acid 100gr + Water 3000ml | — | ready |
 | Lime Juice | Lime Juice 1000ml | — | ready |
-| Lime Super Juice | Lime Husks 1200gr + Water 4000ml + Malic Acid ( Lime ) 80gr + Citric Acid 175gr | — | 1 blocking |
+| Lime Super Juice | Lime Husks 1200gr + Water 4000ml + Malic Acid ( Lime ) 80gr + Citric Acid 175gr | — | ready |
 | Mango Syrup | Mango Juice 1000ml + Sugar 1000gr + Water 1000ml | — | ready |
 | Mint | Mint ( 4 bunches approx ) 100gr + Sugar 625gr + Water 625ml | — | ready |
 | Mint/Cucumber | Cucumber 1000gr + Mint ( 4 bunches approx ) 10gr + Sugar 1000gr + Water 500ml | — | ready |
@@ -500,7 +516,7 @@ Coffee Syrup, Eggnog, Grapefruit Juice, Lemon Citric Acid, Lemon Juice, Lemon Su
 | Pear | Cinnamon 25gr + Nutmeg 1unit + Pear 4500ml | — | ready |
 | Pineapple Syrup | Pineapple Juice 1500ml + Sugar 1500gr + Water 1500ml | — | ready |
 | Pineapple/Mint | Pineapple 1200gr + Sugar 600gr + Mint ( 4 bunches approx ) 60gr + Water 600ml | — | ready |
-| Plaintain | Fried Plantains 450gr + Sugar 300gr + Water 300ml | — | 1 blocking |
+| Plaintain | Fried Plantains 450gr + Sugar 300gr + Water 300ml | — | ready |
 | Raspberry | Raspberries 3000gr + Sugar 6000gr + Water 3000ml | — | ready |
 | Rhubarb | Rhubarb 1000gr + Sugar 1000gr + Water 1000ml | — | ready |
 | Salted Grapefruit | Sugar 26000gr + Grapefruit Juice 13500ml + Lime Juice 6000ml + Water 6000ml + Salt 25gr | — | 1 blocking |
@@ -514,27 +530,11 @@ Coffee Syrup, Eggnog, Grapefruit Juice, Lemon Citric Acid, Lemon Juice, Lemon Su
 
 ## What needs you
 
-**Blood Orange Cordial**
-- "Water" has no usable quantity in Notion (raw: "").
-- "Blood Oranges ( Fresh )" has a quantity of 0 in Notion, which is not a measurement.
-
 **Butterfly Pea**
 - Two merged rows were equally complete — confirm the kept one is right.
 
 **Kiwi**
 - "Xanthan Gum" has no usable quantity in Notion (raw: "").
-
-**Lemon Super Juice**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
-**Lemonade**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
-**Lime Super Juice**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
-**Plaintain**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
 
 **Salted Grapefruit**
 - Two merged rows were equally complete — confirm the kept one is right.
