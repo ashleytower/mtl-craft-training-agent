@@ -4,6 +4,7 @@ import { createServer } from "http";
 import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerHermesRoutes } from "../hermesRoutes";
+import { registerOwnerDecisionRoutes } from "../ownerDecisions";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -35,6 +36,9 @@ async function startServer() {
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   // Hermes agent boundary (read + scale only)
   registerHermesRoutes(app);
+  // The owner escalation, deliberately separate from the agent surface so the
+  // guarantees in knowledgeBoundary.test.ts still apply to hermesRoutes.
+  registerOwnerDecisionRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

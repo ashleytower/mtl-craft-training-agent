@@ -180,6 +180,33 @@ def cmd_pending(_args):
     print(json.dumps({"ok": True, **result}, indent=2))
 
 
+def cmd_decide(args):
+    """Record Ashley's decision on a queued citation.
+
+    Only ever run this because SHE just said so, in her own words, about a
+    candidate she named. It records against her, and the rationale you pass is
+    what the audit row will say she said — so pass her words, not a tidy
+    paraphrase and never your own reasoning.
+
+    You are not deciding. If she has not said, run `pending` and ask her.
+
+    A kept source is `reference_only` and never quotable: it can explain
+    technique and can supply no measurement. It cannot approve a formula, and
+    there is no command here that can.
+    """
+    base, token = _config()
+    result = _call(
+        f"{base}/api/hermes/research/decide",
+        token,
+        {
+            "candidate_id": args.candidate,
+            "decision": args.decision,
+            "rationale": args.rationale,
+        },
+    )
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
 def cmd_scale(args):
     base, token = _config()
 
@@ -271,6 +298,16 @@ def main():
     sub.add_parser(
         "pending", help="Citations waiting on Ashley's decision"
     ).set_defaults(func=cmd_pending)
+
+    decide = sub.add_parser(
+        "decide", help="Record HER decision on a queued citation (never your own)")
+    decide.add_argument("--candidate", required=True, help="The candidate id she named")
+    decide.add_argument(
+        "--decision", required=True,
+        choices=["ingest_as_reference", "saved_research_only", "discarded"])
+    decide.add_argument(
+        "--rationale", required=True, help="What she actually said, in her words")
+    decide.set_defaults(func=cmd_decide)
 
     args = parser.parse_args()
     args.func(args)
