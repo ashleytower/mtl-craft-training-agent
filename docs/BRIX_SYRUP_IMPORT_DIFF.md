@@ -4,11 +4,11 @@
 
 | | |
 |---|---|
-| formulas after collapsing variants | **53** |
-| ready to approve as-is | **45** |
+| formulas after collapsing variants | **52** |
+| ready to approve as-is | **44** |
 | blocked, need something from you | **8** |
 | in Notion with no recipe, NOT written | 2 |
-| carry a method from Notion | **38** |
+| carry a method from Notion | **41** |
 | carry a Hindi method | 8 |
 | yields imported | 0 — every Notion spec is unreliable, set them after a real batch |
 
@@ -236,6 +236,16 @@ NOTE: We could be doing a mix of bagging and bottling.
 * if using methocellulose*
 ```
 
+### Lavender
+
+```
+1. Add the sugar and hot water to a pot and stir until the sugar is dissolved.
+2. Add the lavender and butterfly peas.
+3. Strain.
+4. Add the preservative and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
+```
+
 ### Mango Syrup
 
 ```
@@ -384,11 +394,31 @@ OR
 NOTE: We could be doing a mix of bagging and bottling.
 ```
 
+### Simple Syrup 2:1
+
+```
+1. Add the sugar and water to a pot and melt the sugar.
+2. Add the preservative and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+3. Bottle or bag it.
+```
+
 ### Spiced Cran
 
 ```
 1. Toast the spices and put them in a baking pot. Let them dissolve.
 2. Melt the sugar in the pot. Do not bring it to an actual boil.
+3. Add everything else except the rosemary.
+4. Take it off the boil, throw the rosemary in, and let it cool.
+```
+
+### Spiced Syrup
+
+```
+1. Add the sugar and hot water to a pot and stir until the sugar is dissolved.
+2. Add the cinnamon, nutmeg and peppercorn.
+3. Strain.
+4. Add the preservative and citric acid. Take the total weight of the syrup and X by 0.001 to get the amount of preservative and citric acid needed.
+5. Bottle or bag it.
 ```
 
 ### Strawberry
@@ -423,7 +453,7 @@ NOTE: We could be doing a mix of bagging and bottling.
 
 The `▶Directions` heading on these pages is empty. Brix can scale them and cannot say how to make them.
 
-Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice, Lemon Super Juice, Lemonade, Lime Citric Acid, Lime Juice, Lime Super Juice, Plaintain, Simple Syrup 2:1, Spiced Crantr, Spiced Syrup
+Coffee Syrup, Eggnog, Grapefruit Juice, Lemon Citric Acid, Lemon Juice, Lemon Super Juice, Lemonade, Lime Citric Acid, Lime Juice, Lime Super Juice, Plaintain
 
 ## Formulas
 
@@ -477,7 +507,6 @@ Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice
 | Simple syrup | Sugar 6000gr + Water 6000ml | — | ready |
 | Simple Syrup 2:1 | Sugar 800gr + Water 400ml | — | ready |
 | Spiced Cran | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr + Rosemary 150gr | — | ready |
-| Spiced Crantr | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr | — | ready |
 | Spiced Syrup | Cinnamon 5gr + Nutmeg 5gr + Sugar 1000gr + Water 1000ml + Peppercorn 5gr | — | ready |
 | Strawberry | Strawberries 3000gr + Sugar 3000gr + Water 2000ml | — | ready |
 | Tangerine | Tangerine 850gr + Sugar 850gr + Water 500ml | — | ready |
@@ -665,9 +694,6 @@ Merge notes and rejected Notion yields. Nothing here blocks approval.
 
 **Spiced Cran**
 - Notion claims a yield of 1 L. NOT imported — Notion specs are unreliable. Set the real one after a batch.
-
-**Spiced Crantr**
-- Notion claims a yield of 41 ?. NOT imported — Notion specs are unreliable. Set the real one after a batch.
 
 **Spiced Syrup**
 - No yield in Notion. Set one in Supabase after a real batch.
