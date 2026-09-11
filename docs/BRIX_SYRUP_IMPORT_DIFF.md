@@ -5,10 +5,10 @@
 | | |
 |---|---|
 | formulas after collapsing variants | **53** |
-| ready to approve as-is | **42** |
-| blocked, need something from you | **11** |
+| ready to approve as-is | **45** |
+| blocked, need something from you | **8** |
 | in Notion with no recipe, NOT written | 2 |
-| carry a method from Notion | **36** |
+| carry a method from Notion | **38** |
 | carry a Hindi method | 8 |
 | yields imported | 0 — every Notion spec is unreliable, set them after a real batch |
 
@@ -278,6 +278,14 @@ Note: Always mesure the preservitives and citric acid with the small scale.
 3.
 ```
 
+### Orgeat Toasted
+
+```
+1. Add the almond milk and the sugar to the pot and melt the sugar. Do not boil it.
+2. Take it off the stove.
+3. Add the rest and stir.
+```
+
 ### Passion Fruit
 
 ```
@@ -376,6 +384,13 @@ OR
 NOTE: We could be doing a mix of bagging and bottling.
 ```
 
+### Spiced Cran
+
+```
+1. Toast the spices and put them in a baking pot. Let them dissolve.
+2. Melt the sugar in the pot. Do not bring it to an actual boil.
+```
+
 ### Strawberry
 
 ```
@@ -408,7 +423,7 @@ NOTE: We could be doing a mix of bagging and bottling.
 
 The `▶Directions` heading on these pages is empty. Brix can scale them and cannot say how to make them.
 
-Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice, Lemon Super Juice, Lemonade, Lime Citric Acid, Lime Juice, Lime Super Juice, Orgeat Toasted, Plaintain, Simple Syrup 2:1, Spiced Cran, Spiced Crantr, Spiced Syrup
+Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice, Lemon Super Juice, Lemonade, Lime Citric Acid, Lime Juice, Lime Super Juice, Plaintain, Simple Syrup 2:1, Spiced Crantr, Spiced Syrup
 
 ## Formulas
 
@@ -449,7 +464,7 @@ Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice
 | Mint | Mint ( 4 bunches approx ) 100gr + Sugar 625gr + Water 625ml | — | ready |
 | Mint/Cucumber | Cucumber 1000gr + Mint ( 4 bunches approx ) 10gr + Sugar 1000gr + Water 500ml | — | ready |
 | Orgeat | Almond Milk 3000ml + Sugar 5250gr + Orange Flower 5ml + Rose flower 5ml + Rum Spiced 9ml + Amaretto 9ml | — | ready |
-| Orgeat Toasted | Silvered Almond 1000gr + Sugar 5250gr + Orange Flower 5ml + Rose flower 5ml + Water 2250ml + Rum Spiced 9ml + Amaretto 9ml | — | 1 blocking |
+| Orgeat Toasted | Silvered Almond 1000gr + Sugar 5250gr + Orange Flower 5ml + Rose flower 5ml + Water 2250ml + Rum Spiced 9ml + Amaretto 9ml | — | ready |
 | Passion Fruit | Passion Fruit 1000gr + Sugar 1000gr | — | ready |
 | Peach Puree | peaches 5000gr + Raspberries 150gr + Sugar 500gr | — | ready |
 | Pear | Cinnamon 25gr + Nutmeg 1unit + Pear 4500ml | — | ready |
@@ -461,8 +476,8 @@ Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice
 | Salted Grapefruit | Sugar 26000gr + Grapefruit Juice 13500ml + Lime Juice 6000ml + Water 6000ml + Salt 25gr | — | 1 blocking |
 | Simple syrup | Sugar 6000gr + Water 6000ml | — | ready |
 | Simple Syrup 2:1 | Sugar 800gr + Water 400ml | — | ready |
-| Spiced Cran | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr + Rosemary 150gr | — | 1 blocking |
-| Spiced Crantr | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr | — | 1 blocking |
+| Spiced Cran | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr + Rosemary 150gr | — | ready |
+| Spiced Crantr | All spice ground 30gr + Salt 25gr + Cloves 15gr + Cinnamon Sticks 385gr + Nutmeg 15unit + OJ 1700ml + Orange peel 1100gr + Cranberry jelly 1700gr + Water 9950ml + Sugar 9950gr + Cranberry juice 12000gr | — | ready |
 | Spiced Syrup | Cinnamon 5gr + Nutmeg 5gr + Sugar 1000gr + Water 1000ml + Peppercorn 5gr | — | ready |
 | Strawberry | Strawberries 3000gr + Sugar 3000gr + Water 2000ml | — | ready |
 | Tangerine | Tangerine 850gr + Sugar 850gr + Water 500ml | — | ready |
@@ -489,20 +504,11 @@ Coffee Syrup, Eggnog, Grapefruit Juice, Lavender, Lemon Citric Acid, Lemon Juice
 **Lime Super Juice**
 - Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
 
-**Orgeat Toasted**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
 **Plaintain**
 - Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
 
 **Salted Grapefruit**
 - Two merged rows were equally complete — confirm the kept one is right.
-
-**Spiced Cran**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
-
-**Spiced Crantr**
-- Another formula's Notion page carries the same method, word for word, so this one's directions are a copy-paste and there is no way to tell which formula they describe. NOT imported — fix the Directions in Notion.
 
 ## Context on every formula
 
