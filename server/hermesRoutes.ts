@@ -14,6 +14,7 @@ import { scaleFormula, type NormalizedFormula } from "./beverageScaling";
 import { embedToLiteral } from "./knowledgeEmbedding";
 import { isLocalTranscript } from "./knowledgeCorpus";
 import { loadedRevision } from "./buildRevision";
+import { parseResearchCandidates } from "./researchCandidates";
 import { methodForAgent, type StoredMethod } from "@shared/method";
 
 type ApprovedFormula = {
@@ -345,6 +346,97 @@ export function registerHermesRoutes(app: Express) {
    * Scale an approved formula. Accepts the formula by id or by name so the
    * agent can act on what someone said out loud. Never releases a batch.
    */
+  /**
+   * Queue a citation Brix found, for Ashley to decide on.
+   *
+   * Brix does its own searching with its own tools; this route governs what
+   * happens to what it finds. Every row lands `proposed` and
+   * `public_summary_only`, holds a URL and at most a 1000-character summary, and
+   * retains no source text. Nothing here is citable by the agent until Ashley
+   * promotes it, and she is the only one who can: the decide RPC requires owner
+   * or approver and the Hermes subject is an operator.
+   *
+   * This is the single write on the agent surface. See knowledgeBoundary.test.ts.
+   */
+  app.post("/api/hermes/research", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+
+    const question = typeof req.body?.question === "string" ? req.body.question.trim() : "";
+    if (!question) {
+      res.status(400).json({ error: "question is required" });
+      return;
+    }
+    const transport = req.body?.transport ?? "manual";
+    if (transport !== "manual" && transport !== "firecrawl" && transport !== "last30days") {
+      res.status(400).json({ error: "transport must be manual, firecrawl or last30days" });
+      return;
+    }
+
+    const parsed = parseResearchCandidates(req.body?.candidates);
+    if (parsed.error) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+
+    try {
+      const recorded = await beverage.recordResearchCandidates(identity, {
+        question,
+        transport,
+        candidates: parsed.candidates,
+      });
+      res.json({
+        ...recorded,
+        queued: parsed.candidates.length,
+        // Said back to the agent so it repeats the boundary rather than implying
+        // the find is now usable.
+        note:
+          "Queued for review. Nothing is citable until it is approved, and " +
+          "approval is the owner's, not the agent's.",
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : "could not record candidates",
+      });
+    }
+  });
+
+  /**
+   * What is waiting on Ashley. Filtered to `proposed` on purpose: a list that
+   * also returns discarded rows would have the agent offering her things she has
+   * already said no to, which is the trap `beverage_list_formula_drafts` still
+   * has open.
+   */
+  app.get("/api/hermes/research", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+    try {
+      const rows = await beverage.listResearchCandidates(identity);
+      const pending = rows.filter(row => row.candidate_status === "proposed");
+      res.json({
+        count: pending.length,
+        candidates: pending.map(row => ({
+          id: row.id,
+          title: row.title,
+          source_url: row.source_url,
+          governed_summary: row.governed_summary,
+          question: row.question,
+          created_at: row.created_at,
+        })),
+      });
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : "lookup failed",
+      });
+    }
+  });
+
   app.post("/api/hermes/scale", async (req: Request, res: Response) => {
     const identity = hermesIdentityFromRequest(req);
     if (!identity) {

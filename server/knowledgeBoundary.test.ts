@@ -32,18 +32,40 @@ function code(source: string): string {
  * any new `beverage.*` call fails this test until somebody adds it here and
  * argues for it.
  *
- * Every entry is read-only. Nothing that creates, approves, ingests, embeds or
- * records may join this list.
+ * Every entry was read-only until `recordResearchCandidates`, which is the one
+ * deliberate exception and is argued for here rather than quietly added.
+ *
+ * It writes, and what it writes is a PROPOSAL: the RPC forces
+ * `candidate_status: proposed` and `rights_status: public_summary_only` on every
+ * row, keeps the run's retention `temporary`, and stores a URL plus at most a
+ * 1000-character summary with no source text behind it. None of it is citable by
+ * the agent. Turning one into a real source is
+ * `beverage_decide_research_candidate`, which requires the owner or approver
+ * role — the Hermes subject is an `operator`, so the database refuses the agent
+ * its own approval. That refusal is the boundary; this list is the record of
+ * having checked it.
+ *
+ * The risk it does carry: these rows are built from pages Brix has just read, so
+ * a page could propose its own summary into Ashley's queue. That is why the
+ * queue is bounded, the URL scheme is constrained to http(s), and the summary is
+ * never invented when absent — see researchCandidates.ts.
+ *
+ * Nothing that CREATES, APPROVES, INGESTS or EMBEDS may join this list.
  */
 const ALLOWED_BEVERAGE_CALLS = [
   "listApprovedFormulas",
   "listFormulaDrafts",
   "searchKnowledge",
   "knowledgeCoverage",
+  "listResearchCandidates",
+  "recordResearchCandidates",
 ];
 
 /** Writers that must never appear. Kept as a second, narrower net. */
 const WRITER_EXPORTS = [
+  // The agent proposes research; it never dispositions it. This one is listed
+  // first because it is the near miss — the sibling of a call that IS allowed.
+  "decideResearchCandidate",
   "createFormulaVersion",
   "approveFormulaVersion",
   "ingestKnowledgeSources",
@@ -104,12 +126,17 @@ describe("the agent surface cannot write", () => {
     }
   });
 
-  it("exposes exactly one mutating HTTP verb, and it is the pure scale calculation", () => {
+  it("exposes exactly two mutating HTTP verbs, and neither can approve anything", () => {
     const verbs = [...code(hermesRoutesSource).matchAll(/app\.(get|post|put|patch|delete)\(\s*"([^"]+)"/g)]
       .map(m => ({ verb: m[1], route: m[2] }));
 
+    // /scale computes and stores nothing. /research queues a proposal the owner
+    // must decide on. Any THIRD mutating route has to be argued for here.
     const mutating = verbs.filter(v => v.verb !== "get");
-    expect(mutating).toEqual([{ verb: "post", route: "/api/hermes/scale" }]);
+    expect(mutating).toEqual([
+      { verb: "post", route: "/api/hermes/research" },
+      { verb: "post", route: "/api/hermes/scale" },
+    ]);
 
     // POST here means "compute from a body too big for a query string", not
     // "change something". If /scale ever starts recording, this file is where
