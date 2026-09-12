@@ -37,6 +37,36 @@ The counts above are NOT re-run — read this section over them.
   cannot drift apart. Its method drops the peel and oleo steps and keeps the
   rest, including the boil, which she did not ask to change.
 
+### Names corrected at the source (2026-09-12)
+
+Spelling and casing only. No quantity, method or ingredient list changed, and the
+drafts updated in place — 91 drafts before and after, no duplicate name.
+
+| was | is |
+|---|---|
+| `Cantalope Syrup` | `Cantaloupe Syrup` |
+| `Chamomille Syrup` | `Chamomile Syrup` |
+| `Coconut cream` | `Coconut Cream` |
+| `Plaintain` | `Plantain` |
+| `Simple syrup` | `Simple Syrup` |
+
+Two ingredient names in `[MASTER] All Ingredients` went with them: `Canteloupe` ->
+`Cantaloupe` and `Chamomille` -> `Chamomile`. The Cantaloupe method said
+"Add the Canteloupe and sugar" and now says Cantaloupe.
+
+`Jalapeno` was deliberately NOT touched. It is the one syrup with an approved
+formula version, and the approved `formula_key` is derived from the name — renaming
+it would strand what the bar scales from.
+
+`Syrup Recipe` is archived. It is the blank Notion template, holds no ingredients,
+and every import reported it under "in Notion with no recipe". `Real Passionfruit
+Syrup` is also empty but is left alone: the name reads like one Ashley intends to
+fill rather than a template.
+
+`Give Ginger` no longer exists. The Ginger rows in Notion are
+`🫚Mosaiq Ginger (first run)` and `🫚Mosaiq Ginger (first run total batch)`, which
+the importer already folds into one `Ginger`. That duplicate pair is closed.
+
 **Blocked is now 0.** Butterfly Pea and Salted Grapefruit were never real
 blockers: each one's Notion rows point at identical ingredient relations, so the
 merge had nothing to decide. Salted Grapefruit's "whole batch" row carried four
