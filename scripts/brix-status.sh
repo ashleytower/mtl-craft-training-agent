@@ -331,6 +331,58 @@ print(v if isinstance(v, int) else "")' 2>/dev/null)"
       fail "approved formulas" "formulas route returned no usable count"
     fi
   fi
+
+  # 6. the drafts Brix can actually read
+  #
+  # Two readable drafts meaning one recipe is not cosmetic untidiness. Both
+  # cocktail drafts named "Spicy Margarita" slugified to a single formula key, so
+  # approving the pair made the second silently supersede the first — and the run
+  # still reported "approved 38 of 38", because it counted by NAME. A retired or
+  # rejected draft still being served is the same defect one step earlier: a
+  # status nothing filters on is not a decision.
+  #
+  # Both halves of this failed before migration 129. That is what makes it a gate
+  # rather than a formality.
+  drafts="$(curl -fsS --max-time 20 -H "x-hermes-service-token: $token" \
+    "$API_BASE/api/hermes/drafts" 2>/dev/null)"
+  if [ -z "$drafts" ]; then
+    fail "drafts Brix reads" "drafts route returned nothing"
+  else
+    verdict="$(printf '%s' "$drafts" | python3 -c '
+import json, sys
+from collections import Counter
+
+try:
+    rows = json.load(sys.stdin).get("drafts")
+except Exception:
+    print("drafts response could not be parsed")
+    raise SystemExit
+
+if not isinstance(rows, list) or not rows:
+    print("drafts response carried no rows")
+    raise SystemExit
+
+RULED_OUT = {"retired", "rejected"}
+served = [r for r in rows if str(r.get("draft_status", "")).lower() in RULED_OUT]
+dupes = sorted(n for n, c in Counter(r.get("name") for r in rows).items() if c > 1)
+
+problems = []
+if served:
+    named = sorted(str(r.get("name")) + " [" + str(r.get("draft_status")) + "]" for r in served)
+    problems.append("ruled-out drafts served: " + ", ".join(named))
+if dupes:
+    problems.append("duplicate names: " + ", ".join(str(d) for d in dupes))
+
+if problems:
+    print("; ".join(problems))
+else:
+    print("OK " + str(len(rows)) + " drafts, no ruled-out status, no duplicate name")' 2>/dev/null)"
+    case "$verdict" in
+      OK*) pass "drafts Brix reads" "${verdict#OK }" ;;
+      "")  fail "drafts Brix reads" "drafts response could not be parsed" ;;
+      *)   fail "drafts Brix reads" "$verdict" ;;
+    esac
+  fi
 fi
 
 echo
