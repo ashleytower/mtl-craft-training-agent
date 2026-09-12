@@ -32,9 +32,18 @@ import * as beverage from "../server/beverageClient";
 import { resolveDraftIngredients } from "../shared/ingredients";
 import type { OperatorIdentity } from "../server/_core/supabaseAuth";
 
+/**
+ * Both intake files default INSIDE the repo.
+ *
+ * They used to default to a session scratchpad under /private/tmp. That
+ * directory is deleted when the session ends, so a script that writes to the
+ * production database pointed at a path that no longer existed — the import was
+ * not reproducible by anyone, including the next run of the same tool. Keep the
+ * env overrides for a one-off extraction; keep the default somewhere that can
+ * still be there tomorrow.
+ */
 const INPUT = resolve(
-  process.env.NOTION_SYRUPS_JSON ??
-    "/private/tmp/claude-501/-Users-ashleytower/d3589e76-37ea-4d4c-9226-6b02d60483f2/scratchpad/notion-syrups.json"
+  process.env.NOTION_SYRUPS_JSON ?? resolve(process.cwd(), "db/intake/notion-syrups.json")
 );
 const REPORT = resolve(process.cwd(), "docs/BRIX_SYRUP_IMPORT_DIFF.md");
 const PARSER_VERSION = "notion-syrups/1.1.0";
@@ -54,7 +63,7 @@ const PARSER_VERSION = "notion-syrups/1.1.0";
  */
 const DIRECTIONS = resolve(
   process.env.NOTION_SYRUP_DIRECTIONS_JSON ??
-    "/private/tmp/claude-501/-Users-ashleytower/d3589e76-37ea-4d4c-9226-6b02d60483f2/scratchpad/notion-syrup-directions.json"
+    resolve(process.cwd(), "db/intake/notion-syrup-directions.json")
 );
 
 export type MethodText = { en: string | null; hi: string | null };
@@ -64,14 +73,24 @@ function notionId(url: string): string | null {
   return /([0-9a-f]{32})/.exec(url)?.[1] ?? null;
 }
 
-function loadMethods(): Map<string, MethodText> {
+export type MethodLoad = { methods: Map<string, MethodText>; missing: boolean };
+
+/**
+ * `missing` exists because the absence of this file used to be a `console.warn`.
+ *
+ * The ingest UPDATE replaces `original_recipe_json` wholesale, and
+ * `method_source_text` lives inside it. So a run with no directions file does
+ * not import "ingredients only" — it rewrites all 43 methods in the corpus to
+ * nothing, behind one warning line that scrolls past. Absence has to reach the
+ * caller as a value, so `--apply` can refuse on it.
+ */
+export function loadMethods(): MethodLoad {
   const out = new Map<string, MethodText>();
   let raw: string;
   try {
     raw = readFileSync(DIRECTIONS, "utf8");
   } catch {
-    console.warn(`no directions file at ${DIRECTIONS} — importing ingredients only`);
-    return out;
+    return { methods: out, missing: true };
   }
   const parsed = JSON.parse(raw) as {
     pages: Array<{ notion_id: string; directions_en: string | null; directions_hi: string | null }>;
@@ -81,7 +100,7 @@ function loadMethods(): Map<string, MethodText> {
     const hi = nullIfBlank(page.directions_hi);
     if (en || hi) out.set(page.notion_id, { en, hi });
   }
-  return out;
+  return { methods: out, missing: false };
 }
 
 function nullIfBlank(value: string | null | undefined): string | null {
@@ -659,7 +678,21 @@ async function main() {
   const apply = process.argv.includes("--apply");
   const raw = JSON.parse(readFileSync(INPUT, "utf8")) as NotionSyrup[];
   const active = raw.filter(s => !s.archived);
-  const methods = loadMethods();
+  const { methods, missing: methodsMissing } = loadMethods();
+  if (methodsMissing) {
+    const message = `no directions file at ${DIRECTIONS}`;
+    if (apply) {
+      console.error(
+        `${message}\n` +
+          "REFUSING TO WRITE. The ingest replaces original_recipe_json wholesale, " +
+          "so applying without the methods would clear method_source_text on every " +
+          "syrup it touches. Regenerate the file, or set NOTION_SYRUP_DIRECTIONS_JSON."
+      );
+      process.exitCode = 1;
+      return;
+    }
+    console.warn(`${message} — dry run continues, methods will read as absent`);
+  }
   const merged = mergeVariants(active);
   const contested = contestedMethods(merged, methods);
   const all = merged.map(m => buildDraft(m, methods, contested));

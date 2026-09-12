@@ -6,6 +6,7 @@ import {
   contestedMethods,
   isBlocking,
   isBoughtProduct,
+  loadMethods,
   mergeVariants,
   parseQuantity,
 } from "./import-notion-syrups";
@@ -741,5 +742,34 @@ describe("a bought product is not a syrup with a missing method", () => {
       syrup({ name: "Simple syrup", ingredients: [{ name: "Sugar", qty: "6000", unit: "gr" }] }),
     ])[0];
     expect(isBoughtProduct(m)).toBe(false);
+  });
+});
+
+describe("loadMethods reports absence instead of swallowing it", () => {
+  // This used to `console.warn` and return an empty map. The ingest UPDATE
+  // replaces `original_recipe_json` wholesale and `method_source_text` lives
+  // inside it, so an --apply run with no directions file does not import
+  // "ingredients only" — it clears the method on every syrup it touches. The
+  // caller has to be able to see the difference between "no methods" and "no
+  // methods file".
+  it("flags a missing directions file rather than returning an empty map quietly", () => {
+    const previous = process.env.NOTION_SYRUP_DIRECTIONS_JSON;
+    process.env.NOTION_SYRUP_DIRECTIONS_JSON = "/nonexistent/directions.json";
+    try {
+      // The module reads the path at import time, so this asserts the contract
+      // rather than the env plumbing: absence is a value on the result.
+      const load = loadMethods();
+      expect(load).toHaveProperty("missing");
+      expect(load).toHaveProperty("methods");
+      expect(load.methods).toBeInstanceOf(Map);
+    } finally {
+      if (previous === undefined) delete process.env.NOTION_SYRUP_DIRECTIONS_JSON;
+      else process.env.NOTION_SYRUP_DIRECTIONS_JSON = previous;
+    }
+  });
+
+  it("never reports methods it did not load", () => {
+    const load = loadMethods();
+    if (load.missing) expect(load.methods.size).toBe(0);
   });
 });
