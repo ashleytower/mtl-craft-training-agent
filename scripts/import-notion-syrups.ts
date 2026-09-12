@@ -30,6 +30,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as beverage from "../server/beverageClient";
 import { resolveDraftIngredients } from "../shared/ingredients";
+import { stripBatchQualifier } from "../shared/formulaName";
 import type { OperatorIdentity } from "../server/_core/supabaseAuth";
 
 /**
@@ -151,7 +152,11 @@ export function canonicalName(raw: string): string {
   let name = raw.trim();
   name = name.replace(/^[^\p{L}\d]+/u, "").trim();          // strip leading emoji
   name = name.replace(/^Mosaiq\s+/i, "");                    // drop the client prefix
-  name = name.replace(/\s*\((?:first run)?[^)]*\)\s*$/i, ""); // drop "(first run whole batch)"
+  // Only a batch qualifier, never any trailing bracket. The old rule here was
+  // `/\s*\((?:first run)?[^)]*\)\s*$/`, which also ate "(Quick)" and
+  // "(bought almond milk)" and walked two different recipes into one formula
+  // key. One list, in shared/formulaName.ts, so the two rules cannot drift.
+  name = stripBatchQualifier(name);
   return name.trim();
 }
 

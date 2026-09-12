@@ -14,6 +14,36 @@
 
 Nothing here is approved. Every row lands as `needs_review`.
 
+## Changes since this extraction (2026-09-12)
+
+The table above is the 2026-09-10 extraction of all 52. Three rows have moved
+since, applied at the source in Notion and re-imported through this same script.
+The counts above are NOT re-run — read this section over them.
+
+- **Kiwi** — `Xanthan Gum` now reads **0.3 gr**. It was the last blocking row in
+  the corpus. Ashley: "it's basically the super foam recipe". Her Methocel F50
+  3 gr and Gum Arabic 20 gr are the published Super Foam quantities exactly and
+  unscaled against her 1100 ml of water, so the missing line is that recipe's
+  unscaled 0.3 — read off https://www.kevinkos.com/post/super-foam-egg-replacement,
+  not inferred from the other two hydrocolloids.
+- **Kiwi method** — "0.01% preservatives and 0.01% citric acid" corrected to
+  **0.1%**, which is the rule her own Simple syrup page (18 kg gets 18 g) and the
+  Blueberry method (multiply the total weight by 0.001) both state. The page was
+  out by a factor of ten.
+- **Salted Grapefruit (Quick)** — new, from Ashley: "just take the original
+  Salted Grapefruit Cordial. Make it the same recipe except without soaking the
+  peels. It's just going to be the juice." Same five quantities; the Notion
+  ingredient rows are SHARED with the original rather than copied, so the two
+  cannot drift apart. Its method drops the peel and oleo steps and keeps the
+  rest, including the boil, which she did not ask to change.
+
+**Blocked is now 0.** Butterfly Pea and Salted Grapefruit were never real
+blockers: each one's Notion rows point at identical ingredient relations, so the
+merge had nothing to decide. Salted Grapefruit's "whole batch" row carried four
+extra relations that are cost annotations (`▶Cost`, `Cost per liter: approximately
+$4.18`, `Cost per ounce: approximately $0.12`, `Cost per cocktail: .75 oz = $0.09
+/ .05 oz = $0.06`), three of them already deleted blocks.
+
 ## In Notion, but with no recipe behind the name
 
 These pages exist in Notion and hold no ingredients at all, so they are **not written**. A draft with an empty ingredient list can never be versioned, and writing one only pads the approval queue.

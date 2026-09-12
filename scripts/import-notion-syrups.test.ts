@@ -856,3 +856,23 @@ describe("an equally-complete merge is only a question when the rows disagree", 
     expect(merged[0].warnings.some(w => w.includes("Collapsed 2 Notion rows"))).toBe(true);
   });
 });
+
+describe("canonicalName no longer flattens a bracketed variant", () => {
+  it("still strips the intake's prefixes and batch qualifiers", () => {
+    expect(canonicalName("Mosaiq Salted Grapefruit (first run whole batch)")).toBe("Salted Grapefruit");
+    expect(canonicalName("Mosaiq Butterfly Pea (first run)")).toBe("Butterfly Pea");
+    expect(canonicalName("🥝 Kiwi ")).toBe("Kiwi");
+  });
+
+  // "Salted Grapefruit (Quick)" is a different cordial from "Salted Grapefruit"
+  // — same quantities, no peel soak. Flattening them onto one name walks them
+  // into one formula key, and approving the second retires the first.
+  it("keeps a trailing bracket that distinguishes two recipes", () => {
+    expect(canonicalName("Salted Grapefruit (Quick)")).toBe("Salted Grapefruit (Quick)");
+    expect(canonicalName("Orgeat (bought almond milk)")).toBe("Orgeat (bought almond milk)");
+  });
+
+  it("keeps the Kosher prefix the shared cleaner would drop", () => {
+    expect(canonicalName("Kosher Grapefruit")).toBe("Kosher Grapefruit");
+  });
+});
