@@ -8,10 +8,17 @@
  * already-approved formula, which is exactly the kind of thing an approval is
  * supposed to prevent.
  *
- * Only cocktails carry method text — the Notion syrup collection is an inventory
- * and costing table (yield, bags, bottles, labour hours, selling price) with no
- * procedure in it at all. For a syrup this returns nothing and the operator
- * types the method in. That is the intended path, not a failure.
+ * This used to say only cocktails carry method text, and that the Notion syrup
+ * collection is an inventory and costing table with no procedure in it. That was
+ * wrong, and the mistake cost the syrups their methods: the ingredients are a
+ * Notion RELATION and the method is prose in the page BODY, and the first
+ * extraction only ever read the relation. 41 of 65 syrup pages have real
+ * directions, several with a Hindi translation, and 22 of them survive the
+ * copy-paste check and are attached today.
+ *
+ * A syrup with no method here is a page whose `▶Directions` heading is genuinely
+ * empty — 24 of them — and for those the operator still types the method in.
+ * That is the intended path, not a failure.
  */
 
 export type MethodStep = {

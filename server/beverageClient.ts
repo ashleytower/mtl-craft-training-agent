@@ -135,6 +135,86 @@ export function listFormulaDrafts(identity: OperatorIdentity) {
   return callRpc<FormulaDraft[]>("beverage_list_formula_drafts", operatorArgs(identity));
 }
 
+/**
+ * A citation Brix found while answering, queued for Ashley to decide on.
+ *
+ * The RPC forces `public_summary_only` and `proposed` on every row and keeps the
+ * run's retention as `temporary`: a candidate is a URL plus a short summary, and
+ * no source text is retained. Promoting one to a citable source is
+ * `beverage_decide_research_candidate`, which requires owner or approver — the
+ * Hermes subject is an operator, so the agent cannot approve its own find.
+ *
+ * `transport` is constrained by the database to firecrawl | last30days | manual.
+ */
+export function recordResearchCandidates(
+  identity: OperatorIdentity,
+  input: {
+    question: string;
+    transport: "firecrawl" | "last30days" | "manual";
+    candidates: Array<{ title: string; source_url: string; governed_summary: string }>;
+  }
+) {
+  return callRpc<{
+    research_run_id: string;
+    candidate_ids: string[];
+    retention_mode: string;
+  }>("beverage_record_research_candidates", {
+    ...operatorArgs(identity),
+    p_question: input.question,
+    p_transport: input.transport,
+    p_candidates: input.candidates,
+  });
+}
+
+export type ResearchCandidateRow = {
+  id: string;
+  title: string;
+  source_url: string;
+  rights_status: string;
+  candidate_status: string;
+  governed_summary: string;
+  exclusions: string;
+  question: string;
+  research_transport: string;
+  retention_mode: string;
+  created_at: string;
+};
+
+export function listResearchCandidates(identity: OperatorIdentity) {
+  return callRpc<ResearchCandidateRow[]>(
+    "beverage_list_research_candidates",
+    operatorArgs(identity)
+  );
+}
+
+/**
+ * Ashley's decision on a queued citation. NOT for the agent surface.
+ *
+ * `ingest_as_reference` creates a real knowledge source — citation and governed
+ * summary, `reference_only`, never quotable — so this is an approval, and the
+ * database enforces that by requiring the owner or approver role. It lives here
+ * for owner-side tooling and the console; knowledgeBoundary.test.ts asserts it
+ * never appears in hermesRoutes.
+ */
+export function decideResearchCandidate(
+  identity: OperatorIdentity,
+  input: {
+    candidateId: string;
+    decision: "ingest_as_reference" | "saved_research_only" | "discarded";
+    rationale: string;
+  }
+) {
+  return callRpc<{ candidate_id: string; decision: string; source_id: string | null }>(
+    "beverage_decide_research_candidate",
+    {
+      ...operatorArgs(identity),
+      p_candidate_id: input.candidateId,
+      p_decision: input.decision,
+      p_rationale: input.rationale,
+    }
+  );
+}
+
 export function listApprovedFormulas(identity: OperatorIdentity) {
   return callRpc<unknown[]>("beverage_list_approved_formulas", operatorArgs(identity));
 }
@@ -361,6 +441,17 @@ export type KnowledgeCoverage = {
     /** Of `caption`, how many this machine transcribed rather than the
      *  publisher captioning. Both have a clock; only one is their own words. */
     local_transcript: number;
+    /**
+     * Passages whose `locator.lesson_id` matches no row in the lesson manifest.
+     * A passage nothing can place is a passage nothing can cite, so this is
+     * expected to be 0 and both the live QA and the inventory assert on it.
+     *
+     * These two were missing from this type while the RPC returned them and two
+     * scripts read them, which typechecked only because `scripts/**` was absent
+     * from tsconfig's `include`.
+     */
+    orphaned: number;
+    orphaned_lessons: Array<{ lesson_id: string; chunks: number }>;
   };
 };
 
@@ -377,6 +468,51 @@ export function knowledgeCoverage(identity: OperatorIdentity) {
   return callRpc<KnowledgeCoverage>(
     "beverage_knowledge_coverage",
     operatorArgs(identity)
+  );
+}
+
+/**
+ * Bring formula drafts in from an external source, idempotently.
+ *
+ * Writes drafts and only drafts. It cannot create a formula version and it
+ * cannot approve one, and a re-run never moves a draft's `draft_status`
+ * backwards — see db/migrations/125_ingest_formula_drafts.sql. Upsert is keyed
+ * on a hash of the SOURCE IDENTITY, so one Notion page maps to one draft for
+ * life rather than accumulating a row per edit.
+ */
+export function ingestFormulaDrafts(
+  identity: OperatorIdentity,
+  input: { run: Record<string, unknown>; drafts: unknown[] }
+) {
+  return callRpc<{
+    run_id: string;
+    inserted: number;
+    updated: number;
+    unchanged: number;
+    human_status_preserved: number;
+    changed: Array<Record<string, unknown>>;
+  }>("beverage_ingest_formula_drafts", {
+    ...operatorArgs(identity),
+    p_run: input.run,
+    p_drafts: input.drafts,
+  });
+}
+
+/**
+ * Mark drafts superseded without deleting them.
+ *
+ * A draft that already produced a formula version is skipped, because something
+ * approved descends from it and rejecting its parent would make an approved
+ * formula look like it came from rejected work.
+ */
+export function supersedeFormulaDrafts(
+  identity: OperatorIdentity,
+  draftIds: string[],
+  reason: string
+) {
+  return callRpc<{ superseded: number; skipped_because_versioned: number }>(
+    "beverage_supersede_formula_drafts",
+    { ...operatorArgs(identity), p_draft_ids: draftIds, p_reason: reason }
   );
 }
 

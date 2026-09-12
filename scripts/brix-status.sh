@@ -150,6 +150,64 @@ if [ -n "$EXPECT_REVISION" ]; then
   fi
 fi
 
+# ── retrieval ────────────────────────────────────────────────────────────────
+#
+# Brix answers from the corpus by hybrid search: pgvector nearest-neighbour on an
+# embedding, plus full text. When the local embedding service is unreachable the
+# RPC quietly ranks on text alone and reports `search_mode: text_only`. That is
+# an honest downgrade and it is NOT a visible failure — the route still answers
+# 200 with plausible results.
+#
+# It cost most of a day. Every Kevin Kos search returned nothing, which read as
+# "his material was never ingested" when in fact 13 governed summaries were sitting
+# there: his name is in the citation, not the body, so only a vector can find him
+# from "Kevin Kos super juice". The corpus was fine. The retrieval was halved.
+#
+# A search that answers with half its index and says so in a field nobody reads is
+# exactly the check that cannot fail. So it is asserted here.
+echo
+echo "retrieval"
+# Same gitignored .env the corpus check reads. Never printed.
+probe_token="$(env_value HERMES_SERVICE_TOKEN)"
+if [ -z "$probe_token" ]; then
+  fail "hybrid search" "no HERMES_SERVICE_TOKEN in $REPO_ROOT/.env"
+  probe=""
+else
+  probe="$(curl -fsS --max-time 25 -G "$API_BASE/api/hermes/knowledge" \
+    --data-urlencode "q=Kevin Kos super juice" \
+    -H "x-hermes-service-token: $probe_token" 2>/dev/null)"
+fi
+if [ -z "$probe" ]; then
+  [ -n "$probe_token" ] && fail "hybrid search" "no response from $API_BASE/api/hermes/knowledge"
+else
+  read -r s_mode s_count s_haskk <<EOF
+$(printf '%s' "$probe" | python3 -c '
+import json, sys
+d = json.load(sys.stdin)
+rows = d.get("results", [])
+kk = any(str(r.get("source_key", "")).startswith("PUB-KK-") for r in rows)
+print(d.get("search_mode", "?"), d.get("count", 0), "yes" if kk else "no")
+' 2>/dev/null)
+EOF
+  if [ "$s_mode" = "hybrid" ]; then
+    pass "hybrid search" "embedding service reachable, $s_count results"
+  else
+    fail "hybrid search" \
+      "search_mode=$s_mode — the embedding service is unreachable and Brix is answering on full text alone. Start Ollama (nomic-embed-text on 127.0.0.1:11434)."
+  fi
+  # Not a result COUNT. Vector search returns nearest neighbours for anything, so
+  # a count is a check that cannot fail — a query of "zzzzz" came back with six
+  # results and passed. What must hold is that the right SOURCE is reached: the
+  # publisher's name lives in the citation, not the body, so a PUB-KK row coming
+  # back for "Kevin Kos super juice" is precisely what text-only cannot do.
+  if [ "$s_haskk" = "yes" ]; then
+    pass "cited-only sources are reachable" "a PUB-KK source ranked for its publisher name"
+  else
+    fail "cited-only sources are reachable" \
+      "no PUB-KK source in $s_count results — a source findable only by its citation is unreachable"
+  fi
+fi
+
 # ── 4. mirror ────────────────────────────────────────────────────────────────
 echo
 echo "mirror"
@@ -272,6 +330,58 @@ print(v if isinstance(v, int) else "")' 2>/dev/null)"
     else
       fail "approved formulas" "formulas route returned no usable count"
     fi
+  fi
+
+  # 6. the drafts Brix can actually read
+  #
+  # Two readable drafts meaning one recipe is not cosmetic untidiness. Both
+  # cocktail drafts named "Spicy Margarita" slugified to a single formula key, so
+  # approving the pair made the second silently supersede the first — and the run
+  # still reported "approved 38 of 38", because it counted by NAME. A retired or
+  # rejected draft still being served is the same defect one step earlier: a
+  # status nothing filters on is not a decision.
+  #
+  # Both halves of this failed before migration 129. That is what makes it a gate
+  # rather than a formality.
+  drafts="$(curl -fsS --max-time 20 -H "x-hermes-service-token: $token" \
+    "$API_BASE/api/hermes/drafts" 2>/dev/null)"
+  if [ -z "$drafts" ]; then
+    fail "drafts Brix reads" "drafts route returned nothing"
+  else
+    verdict="$(printf '%s' "$drafts" | python3 -c '
+import json, sys
+from collections import Counter
+
+try:
+    rows = json.load(sys.stdin).get("drafts")
+except Exception:
+    print("drafts response could not be parsed")
+    raise SystemExit
+
+if not isinstance(rows, list) or not rows:
+    print("drafts response carried no rows")
+    raise SystemExit
+
+RULED_OUT = {"retired", "rejected"}
+served = [r for r in rows if str(r.get("draft_status", "")).lower() in RULED_OUT]
+dupes = sorted(n for n, c in Counter(r.get("name") for r in rows).items() if c > 1)
+
+problems = []
+if served:
+    named = sorted(str(r.get("name")) + " [" + str(r.get("draft_status")) + "]" for r in served)
+    problems.append("ruled-out drafts served: " + ", ".join(named))
+if dupes:
+    problems.append("duplicate names: " + ", ".join(str(d) for d in dupes))
+
+if problems:
+    print("; ".join(problems))
+else:
+    print("OK " + str(len(rows)) + " drafts, no ruled-out status, no duplicate name")' 2>/dev/null)"
+    case "$verdict" in
+      OK*) pass "drafts Brix reads" "${verdict#OK }" ;;
+      "")  fail "drafts Brix reads" "drafts response could not be parsed" ;;
+      *)   fail "drafts Brix reads" "$verdict" ;;
+    esac
   fi
 fi
 

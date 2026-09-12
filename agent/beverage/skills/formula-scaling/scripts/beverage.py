@@ -139,6 +139,74 @@ def cmd_coverage(_args):
     print(json.dumps({"ok": True, **result}, indent=2))
 
 
+def cmd_propose(args):
+    """Queue a citation you found, for Ashley to decide on.
+
+    Use this when she asks something the corpus cannot answer and you went and
+    looked. You are proposing, not saving: every row lands as `proposed`, no
+    source text is retained, and nothing you queue here is citable until she
+    approves it. You cannot approve it yourself and should not imply otherwise —
+    the database refuses, because you are an operator and approval is the
+    owner's.
+
+    Pass each find as --candidate "Title|https://url|one-sentence summary".
+    Summarise only what the page actually says. An invented summary is worse
+    than no candidate, because she will approve it on your word.
+    """
+    base, token = _config()
+    candidates = []
+    for raw in args.candidate:
+        parts = raw.split("|", 2)
+        if len(parts) < 2:
+            _fail('each --candidate must be "Title|url" or "Title|url|summary"')
+        candidates.append({
+            "title": parts[0].strip(),
+            "source_url": parts[1].strip(),
+            "governed_summary": parts[2].strip() if len(parts) > 2 else "",
+        })
+    result = _call(
+        f"{base}/api/hermes/research",
+        token,
+        {"question": args.question, "transport": args.transport, "candidates": candidates},
+    )
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_pending(_args):
+    """Citations waiting on Ashley's decision. Proposed only — never the ones
+    she already discarded."""
+    base, token = _config()
+    result = _call(f"{base}/api/hermes/research", token)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_decide(args):
+    """Record Ashley's decision on a queued citation.
+
+    Only ever run this because SHE just said so, in her own words, about a
+    candidate she named. It records against her, and the rationale you pass is
+    what the audit row will say she said — so pass her words, not a tidy
+    paraphrase and never your own reasoning.
+
+    You are not deciding. If she has not said, run `pending` and ask her.
+
+    A kept source is `reference_only` and never quotable: it can explain
+    technique and can supply no measurement. It cannot approve a formula, and
+    there is no command here that can.
+    """
+    base, token = _config()
+    result = _call(
+        f"{base}/api/hermes/research/decide",
+        token,
+        {
+            "candidate_id": args.candidate,
+            "decision": args.decision,
+            "rationale": args.rationale,
+        },
+    )
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
 def cmd_scale(args):
     base, token = _config()
 
@@ -215,6 +283,31 @@ def main():
     scale.add_argument("--quantity", help="Quantity on hand (--mode have)")
     scale.add_argument("--unit", help="Unit, must match the formula (--mode have)")
     scale.set_defaults(func=cmd_scale)
+
+    propose = sub.add_parser(
+        "propose", help="Queue a citation you found, for Ashley to approve or discard")
+    propose.add_argument("--question", required=True, help="What she asked")
+    propose.add_argument(
+        "--candidate", required=True, action="append",
+        help='"Title|https://url|summary" — repeat for each find (max 8)')
+    propose.add_argument(
+        "--transport", default="manual", choices=["manual", "firecrawl", "last30days"],
+        help="How you found them (default manual)")
+    propose.set_defaults(func=cmd_propose)
+
+    sub.add_parser(
+        "pending", help="Citations waiting on Ashley's decision"
+    ).set_defaults(func=cmd_pending)
+
+    decide = sub.add_parser(
+        "decide", help="Record HER decision on a queued citation (never your own)")
+    decide.add_argument("--candidate", required=True, help="The candidate id she named")
+    decide.add_argument(
+        "--decision", required=True,
+        choices=["ingest_as_reference", "saved_research_only", "discarded"])
+    decide.add_argument(
+        "--rationale", required=True, help="What she actually said, in her words")
+    decide.set_defaults(func=cmd_decide)
 
     args = parser.parse_args()
     args.func(args)

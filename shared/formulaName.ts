@@ -18,6 +18,26 @@ const NAME_SUFFIX_NOISE = [
   "big batch",
 ];
 
+/**
+ * Strip a trailing BATCH QUALIFIER and nothing else.
+ *
+ * The importer used to do this with `/\s*\((?:first run)?[^)]*\)\s*$/`, which
+ * drops ANY trailing bracket. That flattens "Salted Grapefruit (Quick)" onto
+ * "Salted Grapefruit" and "Orgeat (bought almond milk)" onto "Orgeat" — two
+ * different recipes arriving at one formula key, which is exactly how both
+ * "Spicy Margarita" drafts ended up superseding each other.
+ *
+ * The list is explicit for the reason given above: some brackets are the name.
+ */
+export function stripBatchQualifier(name: string): string {
+  let out = name;
+  for (const suffix of NAME_SUFFIX_NOISE) {
+    const re = new RegExp(`\\s*\\(\\s*${suffix}\\s*\\)\\s*$`, "i");
+    if (re.test(out)) out = out.replace(re, "").trim();
+  }
+  return out;
+}
+
 export function cleanFormulaName(raw: string): string {
   let name = raw.trim();
 
@@ -30,10 +50,7 @@ export function cleanFormulaName(raw: string): string {
     if (re.test(name)) name = name.replace(re, "").trim();
   }
 
-  for (const suffix of NAME_SUFFIX_NOISE) {
-    const re = new RegExp(`\\s*\\(\\s*${suffix}\\s*\\)\\s*$`, "i");
-    if (re.test(name)) name = name.replace(re, "").trim();
-  }
+  name = stripBatchQualifier(name);
 
   // Never return an empty name — a bad strip is worse than leaving it alone.
   return name || raw.trim();
