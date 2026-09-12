@@ -247,6 +247,22 @@ function storedIngredientsOf(s: NotionSyrup) {
  * Completeness, used only to choose between rows describing the same syrup.
  * An ingredient counts when it has a name, a parsable quantity and a unit.
  */
+/**
+ * What a row's ingredients actually SAY, order-independent.
+ *
+ * Used to tell a merge that is a real choice from one that is not. Sorted,
+ * because two Notion rows listing the same lines in a different order are the
+ * same recipe, and `UNKNOWN` holes are dropped rather than compared — a hole is
+ * not a difference of opinion about an ingredient.
+ */
+export function ingredientSignature(s: NotionSyrup): string {
+  return ingredientsOf(s)
+    .filter(i => i.name && !/^UNKNOWN/i.test(i.name) && i.quantity !== null && i.unit)
+    .map(i => `${i.name.toLowerCase()}|${i.quantity}|${i.unit}`)
+    .sort()
+    .join("~");
+}
+
 function completeness(s: NotionSyrup): number {
   return ingredientsOf(s).filter(
     // `UNKNOWN (deleted ingredient page, ...)` is a hole, not an ingredient.
@@ -309,10 +325,27 @@ export function mergeVariants(syrups: NotionSyrup[]): MergedSyrup[] {
           losers.map(l => `"${l.name}" (${completeness(l)})`).join(", ") +
           `. Batch-size variants are redundant because scaling is exact.`
       );
-      const richestLoser = completeness(losers[0] ?? chosen);
-      if (richestLoser === completeness(chosen) && completeness(chosen) > 0) {
+      // Equally complete is not the same as ambiguous.
+      //
+      // This used to flag on the COUNT alone, so it fired hardest exactly where
+      // there was nothing to decide. Butterfly Pea's three Notion rows and
+      // Salted Grapefruit's three all point at the identical ingredient rows —
+      // literally the same relation targets — so whichever one is kept produces
+      // the same formula. Two of the three "blocked, needs Ashley" syrups were
+      // this: a question with no content, sitting in front of a real one.
+      //
+      // What actually deserves a look is two rows that tie on completeness and
+      // disagree on the numbers. That is the case where the tie-break picks by
+      // URL and the URL knows nothing about which recipe is right.
+      const richestLoser = losers[0] ?? chosen;
+      if (
+        completeness(richestLoser) === completeness(chosen) &&
+        completeness(chosen) > 0 &&
+        ingredientSignature(richestLoser) !== ingredientSignature(chosen)
+      ) {
         warnings.push(
-          `Two merged rows were equally complete — confirm the kept one is right.`
+          `Two merged rows were equally complete and their ingredients differ — ` +
+            `confirm the kept one is right.`
         );
       }
     }

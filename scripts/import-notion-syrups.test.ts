@@ -773,3 +773,86 @@ describe("loadMethods reports absence instead of swallowing it", () => {
     if (load.missing) expect(load.methods.size).toBe(0);
   });
 });
+
+describe("an equally-complete merge is only a question when the rows disagree", () => {
+  const row = (url: string, name: string, ingredients: Array<[string, string, string]>) => ({
+    notion_url: url,
+    name,
+    ingredients: ingredients.map(([n, qty, unit]) => ({ name: n, qty, unit })),
+  });
+
+  // Butterfly Pea's three Notion rows point at the SAME ingredient relations, so
+  // whichever the tie-break keeps produces the same formula. Flagging that as
+  // "confirm the kept one is right" put a question with no content in front of
+  // Ashley, next to a real one.
+  it("does not flag rows that resolve to identical ingredients", () => {
+    const merged = mergeVariants([
+      row("https://a", "Butterfly Pea", [
+        ["Sugar", "30000", "gr"],
+        ["Water", "30000", "ml"],
+        ["Butterfly Peas", "225", "gr"],
+      ]),
+      row("https://b", "Mosaiq Butterfly Pea (first run)", [
+        ["Sugar", "30000", "gr"],
+        ["Water", "30000", "ml"],
+        ["Butterfly Peas", "225", "gr"],
+      ]),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].warnings.some(w => w.includes("equally complete"))).toBe(false);
+  });
+
+  // Order is not disagreement.
+  it("does not flag the same lines listed in a different order", () => {
+    const merged = mergeVariants([
+      row("https://a", "Thing", [
+        ["Sugar", "1000", "gr"],
+        ["Water", "1000", "ml"],
+      ]),
+      row("https://b", "Thing", [
+        ["Water", "1000", "ml"],
+        ["Sugar", "1000", "gr"],
+      ]),
+    ]);
+    expect(merged[0].warnings.some(w => w.includes("equally complete"))).toBe(false);
+  });
+
+  // The real case: a tie on completeness where the tie-break falls to the URL,
+  // and the URL knows nothing about which recipe is right.
+  it("flags rows that tie on completeness and disagree on a quantity", () => {
+    const merged = mergeVariants([
+      row("https://a", "Thing", [
+        ["Sugar", "1000", "gr"],
+        ["Water", "1000", "ml"],
+      ]),
+      row("https://b", "Thing", [
+        ["Sugar", "2000", "gr"],
+        ["Water", "1000", "ml"],
+      ]),
+    ]);
+    expect(merged[0].warnings.some(w => w.includes("equally complete"))).toBe(true);
+  });
+
+  it("flags rows that tie on completeness and name different ingredients", () => {
+    const merged = mergeVariants([
+      row("https://a", "Thing", [
+        ["Sugar", "1000", "gr"],
+        ["Lime Juice", "500", "ml"],
+      ]),
+      row("https://b", "Thing", [
+        ["Sugar", "1000", "gr"],
+        ["Lemon Juice", "500", "ml"],
+      ]),
+    ]);
+    expect(merged[0].warnings.some(w => w.includes("equally complete"))).toBe(true);
+  });
+
+  it("still collapses the variants either way", () => {
+    const merged = mergeVariants([
+      row("https://a", "Thing", [["Sugar", "1000", "gr"]]),
+      row("https://b", "Thing", [["Sugar", "1000", "gr"]]),
+    ]);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].warnings.some(w => w.includes("Collapsed 2 Notion rows"))).toBe(true);
+  });
+});
