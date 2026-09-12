@@ -39,6 +39,11 @@ The counts above are NOT re-run — read this section over them.
   stir until the sugar dissolves, strain — no heat anywhere. The original still
   peels, macerates overnight and boils.
 
+  Its method text describes ONLY its own procedure. A first draft explained the
+  difference by spelling out what the original does — "…then brings the lot to a
+  boil" — which put another recipe's cooking step inside the text Brix reads out
+  at the bar. `method_source_text` is an instruction, not a comparison.
+
 ### Names corrected at the source (2026-09-12)
 
 Spelling and casing only. No quantity, method or ingredient list changed, and the
