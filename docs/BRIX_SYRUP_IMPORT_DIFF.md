@@ -74,6 +74,30 @@ fill rather than a template.
 `🫚Mosaiq Ginger (first run)` and `🫚Mosaiq Ginger (first run total batch)`, which
 the importer already folds into one `Ginger`. That duplicate pair is closed.
 
+### The last five methods (2026-09-12)
+
+Every syrup that should have a method now has one: **49 of 52**. The three without
+are `Grapefruit Juice`, `Lemon Juice` and `Lime Juice` — bought products, one line
+each under their own name, which is rule E and correct.
+
+Ashley's words, written at the source and re-imported (`updated 5, inserted 0`,
+read back 5 of 5 resolving):
+
+- **Eggnog** — everything into a big bucket, mixed with the big hand blender, cream
+  last.
+- **Lemonade** — sugar sits in the lemon husks 12 hours, then lemon juice and water,
+  stir, strain. An oleo-saccharum, same shape as Salted Grapefruit's peel step.
+- **Lemon Citric Acid** / **Lime Citric Acid** — just mix the acid into the water.
+- **Plantain** — fry the plantains with a little sugar, then add the sugar water.
+  Previously the one recipe she said she did not know.
+
+`Lemon Citric Acid` and `Lime Citric Acid` hold **byte-identical ingredients** —
+Citric Acid 100 gr + Water 3000 ml. Written with identical method text they would
+have tripped the contested-method rule, which refuses a method claimed by more than
+one syrup, and BOTH would have lost it. Each line names its own solution instead.
+Whether these are really one product under two names is Ashley's call, not the
+importer's.
+
 **Blocked is now 0.** Butterfly Pea and Salted Grapefruit were never real
 blockers: each one's Notion rows point at identical ingredient relations, so the
 merge had nothing to decide. Salted Grapefruit's "whole batch" row carried four
