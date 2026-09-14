@@ -321,8 +321,24 @@ async function formulaBoundaryChecks() {
 
   const formulas = await api("/api/hermes/formulas");
   const approved = (formulas.body.formulas ?? []) as Array<Record<string, unknown>>;
-  check("lists the approved formulas", formulas.status === 200 && approved.length === 1,
-    `count=${approved.length}`);
+  // The count was pinned to 1, from when Jalapeno was the only approved formula.
+  // That is the same mistake the comment below warns about one line further on:
+  // a pinned number turns every legitimate approval into a red check, and teaches
+  // whoever hits it to bump the number rather than read it. Ashley approved 92
+  // more on 2026-09-14 and this went red for doing exactly what she asked.
+  //
+  // What must be true regardless of how many she approves: the route answers,
+  // there is at least one, and every one of them carries components — an approved
+  // formula with no lines is one nobody can scale, which is the failure this
+  // corpus has already had.
+  const componentless = approved.filter(
+    f => !Array.isArray(f.components) || (f.components as unknown[]).length === 0
+  );
+  check(
+    "lists the approved formulas, and every one of them has components",
+    formulas.status === 200 && approved.length > 0 && componentless.length === 0,
+    `count=${approved.length}, componentless=${JSON.stringify(componentless.map(f => f.name))}`
+  );
   // Pinning the version number meant every legitimate approval broke this check
   // and taught whoever hit it to bump the number. What actually matters is that
   // one name resolves to exactly one approved recipe, and that the recipe is
@@ -393,15 +409,22 @@ async function formulaBoundaryChecks() {
   }
 
   // Refusing is the correct answer for anything unapproved.
+  // This used to name "Orgeat" as the example of something unapproved. Ashley
+  // approved Orgeat on 2026-09-14 along with 48 other syrups, so the check went
+  // red while the behaviour it guards was perfectly intact — the fixture had
+  // simply stopped being an example of its own case.
+  //
+  // A sentinel cannot stop being unapproved. The property is about the refusal,
+  // not about which recipe happens to be waiting today.
   const unapproved = await api("/api/hermes/scale", {
     method: "POST",
     body: JSON.stringify({
-      formula: "Orgeat",
+      formula: "zzz-no-such-formula-zzz",
       request: { mode: "multiplier", multiplier: 2 },
     }),
   });
   check(
-    "refuses to scale an unapproved formula",
+    "refuses to scale a formula that is not approved",
     unapproved.status === 404,
     `HTTP ${unapproved.status}`
   );
@@ -409,7 +432,23 @@ async function formulaBoundaryChecks() {
     "and says which formulas it can actually scale",
     Array.isArray(unapproved.body.approved_names) &&
       (unapproved.body.approved_names as string[]).includes("Jalapeno"),
-    JSON.stringify(unapproved.body.approved_names)
+    JSON.stringify(unapproved.body.approved_names).slice(0, 120)
+  );
+
+  // A retired draft is the case that actually bites: Brix knew this name
+  // yesterday, and must not scale it today. Retiring is a state, not a delete,
+  // so nothing stops the row being found — only the approval does.
+  const retired = await api("/api/hermes/scale", {
+    method: "POST",
+    body: JSON.stringify({
+      formula: "Comosus",
+      request: { mode: "multiplier", multiplier: 2 },
+    }),
+  });
+  check(
+    "refuses to scale a retired draft it used to list",
+    retired.status === 404,
+    `HTTP ${retired.status}`
   );
 
   // Try to approve something through the agent surface, then prove nothing was

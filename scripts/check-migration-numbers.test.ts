@@ -74,9 +74,20 @@ describe("nextFreeNumber", () => {
 });
 
 describe("the accepted list is a record, not a blanket", () => {
-  it("holds exactly the eleven numbers already doubled up on both sides", () => {
+  // Pinned so the list cannot grow quietly. It went red on 2026-09-14 when the
+  // CRM took 127, 128 and 129 — three days after the first eleven — and each was
+  // checked against the live database before being added here rather than added
+  // to make the gate green. Updating this expectation is the deliberate act the
+  // pin exists to force; it is not a formality.
+  it("holds exactly the fourteen numbers already doubled up on both sides", () => {
     expect([...ACCEPTED_COLLISIONS]).toEqual([
-      111, 112, 113, 114, 115, 116, 117, 118, 124, 125, 126,
+      111, 112, 113, 114, 115, 116, 117, 118, 124, 125, 126, 127, 128, 129,
     ]);
+  });
+
+  // The thing the list must never become. An accepted number buys silence for
+  // itself and for nothing else.
+  it("still reports a new collision at 130", () => {
+    expect(unacceptedCollisions([129, 130], [129, 130], ACCEPTED_COLLISIONS)).toEqual([130]);
   });
 });
