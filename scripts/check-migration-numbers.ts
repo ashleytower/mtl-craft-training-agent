@@ -55,11 +55,33 @@ const CRM_REF = "main";
  *   124  coverage_source_provenance          / atomic_menu_event_revision_binding
  *   125  ingest_formula_drafts               / commercial_amendment_event_date_type
  *   126  revoke_anon_formula_version_grant   / commercial_amendment_event_date_text
+ *   127  approval_supersedes_prior_version   / proposal_identity_and_acceptance_authority
+ *   128  component_role_garnish              / legacy_unaccepted_ab_option_semantics
+ *   129  retire_formula_draft                / portal_checkout_accepted_option_payment_authority
  *
  * (beverage / CRM)
+ *
+ * 127, 128 and 129 were added on 2026-09-14, three days after the first eleven,
+ * which is the part worth noticing: this is not a historical mess that was
+ * cleaned up, it is an ongoing one. Both repos are active and neither asks the
+ * other what number it just took.
+ *
+ * Applied-ness, checked rather than assumed. Beverage 127 and 128 are live in pg
+ * (`approve_formula_version` supersedes; the role check accepts `garnish`) though
+ * absent from the ledger, and 129 is recorded. CRM 127 and 129 are recorded.
+ * CRM 128 is a one-time DO block that repairs quote rows and creates no database
+ * object, so there is no schema trace to check it by — but it sits on origin/main
+ * between two applied migrations, and the number is claimed by a file in each
+ * repo either way. That last part is what this list records: not whether both
+ * ran, but that neither filename can now be renumbered without misrepresenting
+ * what shipped.
+ *
+ * Also worth knowing: the CRM has started disambiguating on its side, and its
+ * 129 is recorded as `..._crm129`. That is a workaround for this collision, not
+ * a fix for it.
  */
 export const ACCEPTED_COLLISIONS: readonly number[] = [
-  111, 112, 113, 114, 115, 116, 117, 118, 124, 125, 126,
+  111, 112, 113, 114, 115, 116, 117, 118, 124, 125, 126, 127, 128, 129,
 ];
 
 export function migrationNumber(filename: string): number | null {
