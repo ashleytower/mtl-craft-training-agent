@@ -5,6 +5,7 @@ import net from "net";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerHermesRoutes } from "../hermesRoutes";
 import { registerOwnerDecisionRoutes } from "../ownerDecisions";
+import { registerRecipeProposalRoutes } from "../recipeProposals";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -39,6 +40,7 @@ async function startServer() {
   // The owner escalation, deliberately separate from the agent surface so the
   // guarantees in knowledgeBoundary.test.ts still apply to hermesRoutes.
   registerOwnerDecisionRoutes(app);
+  registerRecipeProposalRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",
