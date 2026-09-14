@@ -16,6 +16,30 @@ import type { KnowledgeResult } from "./beverageClient";
 
 const hermesRoutesSource = readFileSync(new URL("./hermesRoutes.ts", import.meta.url), "utf8");
 const beverageClientSource = readFileSync(new URL("./beverageClient.ts", import.meta.url), "utf8");
+const serverIndexSource = readFileSync(new URL("./_core/index.ts", import.meta.url), "utf8");
+
+/**
+ * Every route module the server mounts, and what each one is allowed to be.
+ *
+ * Every assertion below this line reads `hermesRoutes.ts` and nothing else, so
+ * for a long time the way to get a writer onto the agent surface was not to
+ * weaken a guard here — it was to put it in a different file. `ownerDecisions`
+ * was added that way, legitimately and with its own tests, and this test did not
+ * notice. `recipeProposals` is the second.
+ *
+ * So the set is pinned. A third privileged module cannot appear without this
+ * failing and somebody writing down what it is and why it may write.
+ */
+const DECLARED_ROUTE_MODULES = [
+  // Read and scale only. Everything else in this file guards exactly this one.
+  "registerHermesRoutes",
+  // Her yes on a research candidate. Cannot reach a formula; ownerDecisions.test.ts
+  // asserts the file cannot even mention one.
+  "registerOwnerDecisionRoutes",
+  // Dictate a recipe, read it back, confirm it. The only path that can approve a
+  // formula from chat, and it is bound to a fingerprint of the spec she was read.
+  "registerRecipeProposalRoutes",
+] as const;
 
 /** Strip comments so prose describing a writer is not mistaken for calling one. */
 function code(source: string): string {
@@ -142,6 +166,16 @@ describe("the agent surface cannot write", () => {
     // "change something". If /scale ever starts recording, this file is where
     // that decision has to be argued.
     expect(code(hermesRoutesSource)).not.toMatch(/\brecord\s*:\s*true\b/);
+  });
+
+  // The guard on the guard. Everything else here reads hermesRoutes.ts, so a
+  // writer added in a NEW file was invisible to this entire suite. Pinning the
+  // mounted set means a third one has to be argued for, in the list above.
+  it("mounts exactly the route modules that have been argued for", () => {
+    const mounted = [
+      ...code(serverIndexSource).matchAll(/\b(register[A-Za-z]*Routes)\s*\(\s*app\s*\)/g),
+    ].map(m => m[1]);
+    expect([...new Set(mounted)].sort()).toEqual([...DECLARED_ROUTE_MODULES].sort());
   });
 
   it("has no route that could approve a formula or a source", () => {
