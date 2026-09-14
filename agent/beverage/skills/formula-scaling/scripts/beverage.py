@@ -172,6 +172,79 @@ def cmd_propose(args):
     print(json.dumps({"ok": True, **result}, indent=2))
 
 
+def cmd_preview(args):
+    """Read a dictated recipe back to her. WRITES NOTHING.
+
+    She says a recipe; you turn it into lines and run this. It returns the whole
+    component list and a six-character token. Read every line out to her, exactly
+    as returned, and give her the token. Do not summarise it and do not say it is
+    saved — nothing has been written.
+
+    Pass each line as --item "Ingredient|quantity|unit", where unit is gr, ml or
+    unit. Every line needs a number; if she has not given one, ask her for it
+    rather than guessing.
+    """
+    base, token = _config()
+    items = []
+    for raw in args.item:
+        parts = raw.split("|")
+        if len(parts) < 3:
+            _fail('each --item must be "Ingredient|quantity|unit"')
+        items.append({
+            "ingredient_name": parts[0].strip(),
+            "quantity": parts[1].strip(),
+            "unit": parts[2].strip(),
+            "role": parts[3].strip() if len(parts) > 3 else "ingredient",
+        })
+    body = {
+        "name": args.name,
+        "product_category": args.category,
+        "items": items,
+    }
+    if args.method:
+        body["method"] = args.method
+    result = _call(f"{base}/api/hermes/recipe/preview", token, body)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_confirm(args):
+    """Save the recipe she just confirmed, and approve it.
+
+    Run this ONLY after she has said the token back to you. The token is the
+    first six characters of a hash of the exact spec you read out, so if a single
+    quantity has changed since, the server refuses and tells you the hash did not
+    match — re-run `preview` and read it out again rather than trying to force it.
+
+    Pass the SAME --item lines and --name you previewed, plus --fingerprint with
+    the token she said.
+    """
+    base, token = _config()
+    items = []
+    for raw in args.item:
+        parts = raw.split("|")
+        if len(parts) < 3:
+            _fail('each --item must be "Ingredient|quantity|unit"')
+        items.append({
+            "ingredient_name": parts[0].strip(),
+            "quantity": parts[1].strip(),
+            "unit": parts[2].strip(),
+            "role": parts[3].strip() if len(parts) > 3 else "ingredient",
+        })
+    spec = {
+        "name": args.name,
+        "product_category": args.category,
+        "items": items,
+    }
+    if args.method:
+        spec["method"] = args.method
+    result = _call(
+        f"{base}/api/hermes/recipe/confirm",
+        token,
+        {"spec": spec, "fingerprint": args.fingerprint},
+    )
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
 def cmd_pending(_args):
     """Citations waiting on Ashley's decision. Proposed only — never the ones
     she already discarded."""
@@ -298,6 +371,30 @@ def main():
     sub.add_parser(
         "pending", help="Citations waiting on Ashley's decision"
     ).set_defaults(func=cmd_pending)
+
+    preview = sub.add_parser(
+        "preview", help="Read a dictated recipe back to her. Writes nothing.")
+    preview.add_argument("--name", required=True, help="What she called it")
+    preview.add_argument(
+        "--category", default="syrup_or_related_product",
+        choices=["syrup_or_related_product", "cocktail"])
+    preview.add_argument(
+        "--item", required=True, action="append",
+        help='"Ingredient|quantity|unit" — unit is gr, ml or unit. Repeat per line.')
+    preview.add_argument("--method", default=None, help="How it is made, in her words")
+    preview.set_defaults(func=cmd_preview)
+
+    confirm = sub.add_parser(
+        "confirm", help="Save and approve the recipe she just confirmed by token")
+    confirm.add_argument("--name", required=True)
+    confirm.add_argument(
+        "--category", default="syrup_or_related_product",
+        choices=["syrup_or_related_product", "cocktail"])
+    confirm.add_argument("--item", required=True, action="append")
+    confirm.add_argument("--method", default=None)
+    confirm.add_argument(
+        "--fingerprint", required=True, help="The token she said back to you")
+    confirm.set_defaults(func=cmd_confirm)
 
     decide = sub.add_parser(
         "decide", help="Record HER decision on a queued citation (never your own)")
