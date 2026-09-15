@@ -586,3 +586,93 @@ export function recordCalculationPlan(
     p_output_payload: input.outputPayload,
   });
 }
+
+/**
+ * Batch capture. Quantities and money are strings end to end: these land in
+ * `numeric` columns, and a JS number would silently round a price.
+ */
+export function openProductionBatch(
+  identity: OperatorIdentity,
+  input: {
+    formulaVersionId: string;
+    batchLabel: string;
+    madeOn: string | null;
+    notes: string | null;
+  }
+) {
+  return callRpc<{ id: string }>("beverage_open_production_batch", {
+    ...operatorArgs(identity),
+    p_formula_version_id: input.formulaVersionId,
+    p_batch_label: input.batchLabel,
+    p_made_on: input.madeOn,
+    p_notes: input.notes,
+  });
+}
+
+export function recordBatchInput(
+  identity: OperatorIdentity,
+  input: {
+    productionBatchId: string;
+    itemName: string;
+    quantityPurchased: string;
+    unit: string;
+    amountPaid: string;
+    currencyCode: string;
+    supplier: string | null;
+    invoiceReference: string | null;
+    purchasedOn: string | null;
+    externalSource: string | null;
+    externalRecordKey: string | null;
+  }
+) {
+  return callRpc<{ id: string }>("beverage_record_batch_input", {
+    ...operatorArgs(identity),
+    p_production_batch_id: input.productionBatchId,
+    p_item_name: input.itemName,
+    p_quantity_purchased: input.quantityPurchased,
+    p_unit: input.unit,
+    p_amount_paid: input.amountPaid,
+    p_currency_code: input.currencyCode,
+    p_supplier: input.supplier,
+    p_invoice_reference: input.invoiceReference,
+    p_purchased_on: input.purchasedOn,
+    p_external_source: input.externalSource,
+    p_external_record_key: input.externalRecordKey,
+  });
+}
+
+export function recordMeasuredYield(
+  identity: OperatorIdentity,
+  input: {
+    productionBatchId: string;
+    measuredYieldValue: string;
+    measuredYieldUnit: string;
+  }
+) {
+  return callRpc<{ id: string }>("beverage_record_measured_yield", {
+    ...operatorArgs(identity),
+    p_production_batch_id: input.productionBatchId,
+    p_measured_yield_value: input.measuredYieldValue,
+    p_measured_yield_unit: input.measuredYieldUnit,
+  });
+}
+
+export function recordBatchCostDelta(
+  identity: OperatorIdentity,
+  input: {
+    productionBatchId: string;
+    costBaselineId: string;
+    label: string;
+    deltaAmount: string;
+    rationale: string;
+  }
+) {
+  return callRpc<{ id: string }>("beverage_record_batch_cost_delta", {
+    ...operatorArgs(identity),
+    p_production_batch_id: input.productionBatchId,
+    p_cost_baseline_id: input.costBaselineId,
+    p_label: input.label,
+    p_delta_amount: input.deltaAmount,
+    p_rationale: input.rationale,
+  });
+}
