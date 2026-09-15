@@ -75,6 +75,18 @@ function code(source: string): string {
  * never invented when absent — see researchCandidates.ts.
  *
  * Nothing that CREATES, APPROVES, INGESTS or EMBEDS may join this list.
+ *
+ * Phase 1 batch capture (2026-09-15) adds three more, argued for here:
+ * `openProductionBatch`, `recordBatchInput`, `recordMeasuredYield`. All three
+ * operate on a batch already opened against an APPROVED formula version — none
+ * of them can create, approve, or reopen one. Every numeric field they accept
+ * (quantity, amount paid, yield value) stays a string end to end, so there is
+ * no float round-trip that could quietly change a price or a measurement. The
+ * yield write is the one that matters most: `recordMeasuredYield` is only
+ * reachable through `/api/hermes/batch/yield/confirm`, which the routes below
+ * gate behind a fingerprint recomputed from the exact claim being stored — the
+ * same read-back-and-confirm shape as `recordResearchCandidates`'s existing
+ * exception, applied to a number every later cost divides by.
  */
 const ALLOWED_BEVERAGE_CALLS = [
   "listApprovedFormulas",
@@ -83,6 +95,9 @@ const ALLOWED_BEVERAGE_CALLS = [
   "knowledgeCoverage",
   "listResearchCandidates",
   "recordResearchCandidates",
+  "openProductionBatch",
+  "recordBatchInput",
+  "recordMeasuredYield",
 ];
 
 /** Writers that must never appear. Kept as a second, narrower net. */
@@ -155,11 +170,20 @@ describe("the agent surface cannot write", () => {
       .map(m => ({ verb: m[1], route: m[2] }));
 
     // /scale computes and stores nothing. /research queues a proposal the owner
-    // must decide on. Any THIRD mutating route has to be argued for here.
+    // must decide on. The four /batch/* routes are Phase 1 batch capture
+    // (2026-09-15): open and input write narrow, string-typed fields onto a
+    // batch that already requires an approved formula version; yield/preview
+    // writes nothing at all, and yield/confirm only stores what yield/preview
+    // already read back, gated on a matching fingerprint. Any FURTHER mutating
+    // route beyond these has to be argued for here.
     const mutating = verbs.filter(v => v.verb !== "get");
     expect(mutating).toEqual([
       { verb: "post", route: "/api/hermes/research" },
       { verb: "post", route: "/api/hermes/scale" },
+      { verb: "post", route: "/api/hermes/batch/open" },
+      { verb: "post", route: "/api/hermes/batch/input" },
+      { verb: "post", route: "/api/hermes/batch/yield/preview" },
+      { verb: "post", route: "/api/hermes/batch/yield/confirm" },
     ]);
 
     // POST here means "compute from a body too big for a query string", not
