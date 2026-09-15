@@ -161,19 +161,19 @@ describe("batch capture", () => {
     });
 
     const args = sentArgs();
-    expect(args.p_quantity_purchased).toBe("2.5");
-    expect(args.p_amount_paid).toBe("37.50");
     expect(typeof args.p_amount_paid).toBe("string");
-    expect(args.p_external_source).toBe("google_sheets_inventory");
-    expect(args.p_external_record_key).toBe("Ingredients!A42");
     expect(args).toMatchObject({
       p_production_batch_id: "batch-1",
       p_item_name: "Strawberries",
+      p_quantity_purchased: "2.5",
       p_unit: "kg",
+      p_amount_paid: "37.50",
       p_currency_code: "CAD",
       p_supplier: "Jean-Talon",
       p_invoice_reference: "INV-9912",
       p_purchased_on: "2026-09-14",
+      p_external_source: "google_sheets_inventory",
+      p_external_record_key: "Ingredients!A42",
     });
   });
 
