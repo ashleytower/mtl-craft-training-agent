@@ -197,7 +197,7 @@ describe("batch capture", () => {
   it("never asserts ownership for a subject not on the allowlist", async () => {
     rpc.mockResolvedValue({ data: { id: "batch-1" }, error: null });
     await beverage.openProductionBatch(STRANGER, {
-      formulaVersionId: "v1", batchLabel: "x", madeOn: null, notes: null,
+      formulaVersionId: "v1", batchLabel: "x", madeOn: "2026-09-15", notes: null,
     });
     expect(sentArgs().p_is_owner).toBe(false);
   });
@@ -206,7 +206,7 @@ describe("batch capture", () => {
     rpc.mockResolvedValue({ data: null, error: { message: "Batch label is required" } });
     await expect(
       beverage.openProductionBatch(ASHLEY, {
-        formulaVersionId: "v1", batchLabel: "", madeOn: null, notes: null,
+        formulaVersionId: "v1", batchLabel: "", madeOn: "2026-09-15", notes: null,
       })
     ).rejects.toThrow("Batch label is required");
   });
