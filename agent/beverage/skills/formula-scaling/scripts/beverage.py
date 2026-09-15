@@ -26,7 +26,51 @@ import urllib.request
 DEFAULT_BASE_URL = "http://localhost:3000"
 
 
+def _load_profile_env():
+    """Fill missing config from the profile's .env.
+
+    launchd does not read .env files, and the gateway plist only exports PATH,
+    VIRTUAL_ENV, HERMES_HOME and HERMES_SUPERVISED_CHILD. So a gateway-launched
+    agent reached _config() with no BEVERAGE_HERMES_TOKEN and every formula
+    lookup hard-failed, while the same command worked in a login shell. Read the
+    profile's .env directly so the token reaches the script no matter how it was
+    started.
+
+    A real environment variable always wins: only absent keys are filled, so an
+    explicit override still works. Missing or unreadable file is not an error —
+    _config() already fails closed with a clear message when the token is absent.
+    """
+    home = os.environ.get("HERMES_HOME")
+    candidates = []
+    if home:
+        candidates.append(os.path.join(home, ".env"))
+    # Fallback for a directly-invoked script: .../<profile>/skills/.../scripts/
+    here = os.path.dirname(os.path.abspath(__file__))
+    candidates.append(os.path.abspath(os.path.join(here, "..", "..", "..", "..", ".env")))
+
+    for path in candidates:
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                lines = handle.readlines()
+        except OSError:
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            if not key or key in os.environ:
+                continue
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+                value = value[1:-1]
+            os.environ[key] = value
+        return
+
+
 def _config():
+    _load_profile_env()
     base = os.environ.get("BEVERAGE_API_URL", DEFAULT_BASE_URL).rstrip("/")
     token = os.environ.get("BEVERAGE_HERMES_TOKEN", "").strip()
     if not token:
