@@ -100,7 +100,24 @@ def _call(path, token, body=None):
     req = urllib.request.Request(url, data=data, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=30) as response:
-            return json.loads(response.read().decode("utf-8"))
+            raw = response.read().decode("utf-8")
+            try:
+                return json.loads(raw)
+            except json.JSONDecodeError:
+                # The dev server is Vite with an SPA catch-all: any path it does
+                # not recognise still returns 200 with `<!doctype html>`, not a
+                # 404 — so an unrecognised route lands here, not in the
+                # HTTPError branch below. Without this guard that HTML would
+                # hit json.loads and print a raw Python traceback instead of
+                # the refusal this script is built around. Fail the same way
+                # a missing route should read: say so, do not answer from
+                # memory, and show enough of the body to diagnose it.
+                _fail(
+                    "beverage API returned something that was not JSON. This "
+                    "usually means the server does not have this route yet. "
+                    "Say so rather than answering from memory.",
+                    raw[:200],
+                )
     except urllib.error.HTTPError as exc:
         detail = exc.read().decode("utf-8", errors="replace")
         try:
@@ -362,6 +379,73 @@ def cmd_scale(args):
     print(json.dumps({"ok": True, **result}, indent=2))
 
 
+def cmd_batch_open(args):
+    """Start a batch against an APPROVED formula version."""
+    base, token = _config()
+    body = {
+        "formula_version_id": args.formula_version_id,
+        "batch_label": args.label,
+        "made_on": args.made_on,
+    }
+    if args.notes:
+        body["notes"] = args.notes
+    result = _call(f"{base}/api/hermes/batch/open", token, body)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_batch_input(args):
+    """Record what was bought for a batch. Amounts stay exactly as written."""
+    base, token = _config()
+    body = {
+        "production_batch_id": args.batch,
+        "item_name": args.item,
+        "quantity_purchased": args.quantity,
+        "unit": args.unit,
+        "amount_paid": args.amount,
+    }
+    for value, key in (
+        (args.currency, "currency_code"), (args.supplier, "supplier"),
+        (args.invoice, "invoice_reference"), (args.purchased_on, "purchased_on"),
+        (args.source, "external_source"), (args.record_key, "external_record_key"),
+    ):
+        if value:
+            body[key] = value
+    result = _call(f"{base}/api/hermes/batch/input", token, body)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_batch_yield_preview(args):
+    """Read a yield back to her. Writes NOTHING. She must say the token."""
+    base, token = _config()
+    result = _call(
+        f"{base}/api/hermes/batch/yield/preview",
+        token,
+        {"production_batch_id": args.batch, "value": args.value, "unit": args.unit},
+    )
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_batch_yield(args):
+    """Store the yield she confirmed by token.
+
+    Run ONLY after she has said the token back. Pass the SAME value and unit you
+    previewed. If a digit moved, the server refuses rather than storing a number
+    that every later cost divides by.
+    """
+    base, token = _config()
+    result = _call(
+        f"{base}/api/hermes/batch/yield/confirm",
+        token,
+        {
+            "production_batch_id": args.batch,
+            "value": args.value,
+            "unit": args.unit,
+            "fingerprint": args.fingerprint,
+        },
+    )
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -449,6 +533,44 @@ def main():
     decide.add_argument(
         "--rationale", required=True, help="What she actually said, in her words")
     decide.set_defaults(func=cmd_decide)
+
+    bopen = sub.add_parser("batch-open", help="Start a batch from an approved formula")
+    bopen.add_argument("--formula-version-id", required=True, dest="formula_version_id")
+    bopen.add_argument("--label", required=True, help="What to call this batch")
+    bopen.add_argument(
+        "--made-on", required=True, dest="made_on",
+        help="YYYY-MM-DD the batch was made. Required — never guess or default to today.")
+    bopen.add_argument("--notes", default=None)
+    bopen.set_defaults(func=cmd_batch_open)
+
+    binput = sub.add_parser("batch-input", help="Record something bought for a batch")
+    binput.add_argument("--batch", required=True, help="Batch id from batch-open")
+    binput.add_argument("--item", required=True)
+    binput.add_argument("--quantity", required=True, help="As written, e.g. 2.5")
+    binput.add_argument("--unit", required=True, help="kg, gr, L, ml or unit")
+    binput.add_argument("--amount", required=True, help="What was paid, e.g. 37.50")
+    binput.add_argument("--currency", default=None, help="Defaults to CAD")
+    binput.add_argument("--supplier", default=None)
+    binput.add_argument("--invoice", default=None)
+    binput.add_argument("--purchased-on", default=None, dest="purchased_on")
+    binput.add_argument("--source", default=None, help="e.g. google_sheets_inventory")
+    binput.add_argument("--record-key", default=None, dest="record_key")
+    binput.set_defaults(func=cmd_batch_input)
+
+    bprev = sub.add_parser(
+        "batch-yield-preview", help="Read a yield back to her. Writes nothing.")
+    bprev.add_argument("--batch", required=True)
+    bprev.add_argument("--value", required=True, help="Digits, e.g. 18.4")
+    bprev.add_argument("--unit", required=True, choices=["L", "ml", "kg", "gr"])
+    bprev.set_defaults(func=cmd_batch_yield_preview)
+
+    byield = sub.add_parser("batch-yield", help="Store the yield she confirmed")
+    byield.add_argument("--batch", required=True)
+    byield.add_argument("--value", required=True)
+    byield.add_argument("--unit", required=True, choices=["L", "ml", "kg", "gr"])
+    byield.add_argument(
+        "--fingerprint", required=True, help="The token she said back to you")
+    byield.set_defaults(func=cmd_batch_yield)
 
     args = parser.parse_args()
     args.func(args)
