@@ -2,10 +2,14 @@
  * Plain REST surface for the Hermes agent.
  *
  * tRPC's batching and superjson encoding are awkward to call from a skill
- * script, so the agent gets a small, explicit JSON API instead. It is
- * deliberately read-and-calculate only: there is no route here that creates or
- * approves a formula version, so the agent cannot perform a governed write even
- * if it is instructed to. Those live behind `humanProcedure` in the tRPC router.
+ * script, so the agent gets a small, explicit JSON API instead.
+ *
+ * Most of it is read-and-calculate. The writes it does allow are narrow and
+ * each carries its own gate: queued research candidates (nothing citable until
+ * approved), a dictated recipe behind a spoken fingerprint, and batch capture —
+ * where the measured yield is read back before it is stored. Approving a
+ * formula version is NOT among them; that lives behind `humanProcedure` in the
+ * tRPC router.
  */
 import type { Express, Request, Response } from "express";
 import { hermesIdentityFromRequest } from "./_core/hermesService";
@@ -16,6 +20,7 @@ import { isLocalTranscript } from "./knowledgeCorpus";
 import { loadedRevision } from "./buildRevision";
 import { parseResearchCandidates } from "./researchCandidates";
 import { methodForAgent, type StoredMethod } from "@shared/method";
+import { NUMERIC_PATTERN, parseYieldClaim, yieldToken } from "./batchYield";
 
 type ApprovedFormula = {
   id: string;
@@ -509,6 +514,171 @@ export function registerHermesRoutes(app: Express) {
     } catch (error) {
       res.status(400).json({
         error: error instanceof Error ? error.message : "scaling refused",
+      });
+    }
+  });
+
+  app.post("/api/hermes/batch/open", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+    const formulaVersionId =
+      typeof req.body?.formula_version_id === "string"
+        ? req.body.formula_version_id.trim() : "";
+    if (!formulaVersionId) {
+      res.status(400).json({ error: "formula_version_id is required" });
+      return;
+    }
+    const batchLabel =
+      typeof req.body?.batch_label === "string" ? req.body.batch_label.trim() : "";
+    if (!batchLabel) {
+      res.status(400).json({ error: "batch_label is required" });
+      return;
+    }
+    // Mandatory in the database (`beverage_open_production_batch` raises if
+    // p_made_on is null); validated here too so a missing date is a 400 naming
+    // the field, not a 502 carrying a raw Postgres exception. Never defaulted
+    // to today — she may be logging a batch made days ago, and inventing a
+    // date is exactly the guess these routes refuse to make.
+    const madeOn =
+      typeof req.body?.made_on === "string" ? req.body.made_on.trim() : "";
+    if (!madeOn) {
+      res.status(400).json({ error: "made_on is required" });
+      return;
+    }
+    try {
+      const opened = await beverage.openProductionBatch(identity, {
+        formulaVersionId,
+        batchLabel,
+        madeOn,
+        notes: typeof req.body?.notes === "string" ? req.body.notes : null,
+      });
+      res.json(opened);
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : "could not open batch",
+      });
+    }
+  });
+
+  app.post("/api/hermes/batch/input", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+    const str = (k: string) =>
+      typeof req.body?.[k] === "string" ? String(req.body[k]).trim() : "";
+    // Money and quantity stay strings: `numeric` columns, and a float
+    // round-trip would quietly change a price. A JSON number here is exactly
+    // the thing that discipline exists to keep out, so it gets its own
+    // message rather than being folded into "is required" — a caller sending
+    // `amount_paid: 12.50` needs to be told the actual problem.
+    for (const required of [
+      "production_batch_id", "item_name", "quantity_purchased", "unit", "amount_paid",
+    ]) {
+      const raw = req.body?.[required];
+      if (raw !== undefined && raw !== null && typeof raw !== "string") {
+        res.status(400).json({ error: `${required} must be a string` });
+        return;
+      }
+      if (!str(required)) {
+        res.status(400).json({ error: `${required} is required` });
+        return;
+      }
+    }
+    // `numeric` columns accept 'NaN', 'Infinity' and scientific notation
+    // without complaint, so the required-string check above lets all three
+    // through. Same pattern the yield read-back uses to keep a misheard
+    // number out of storage — see batchYield.ts.
+    for (const numeric of ["quantity_purchased", "amount_paid"]) {
+      if (!NUMERIC_PATTERN.test(str(numeric))) {
+        res.status(400).json({
+          error: `${numeric} must be a number, in digits, not "${str(numeric)}"`,
+        });
+        return;
+      }
+    }
+    try {
+      const recorded = await beverage.recordBatchInput(identity, {
+        productionBatchId: str("production_batch_id"),
+        itemName: str("item_name"),
+        quantityPurchased: str("quantity_purchased"),
+        unit: str("unit"),
+        amountPaid: str("amount_paid"),
+        currencyCode: str("currency_code") || "CAD",
+        supplier: str("supplier") || null,
+        invoiceReference: str("invoice_reference") || null,
+        purchasedOn: str("purchased_on") || null,
+        externalSource: str("external_source") || null,
+        externalRecordKey: str("external_record_key") || null,
+      });
+      res.json(recorded);
+    } catch (error) {
+      res.status(502).json({
+        error: error instanceof Error ? error.message : "could not record input",
+      });
+    }
+  });
+
+  /** Writes nothing. Returns the token she says back. */
+  app.post("/api/hermes/batch/yield/preview", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+    const { claim, error } = parseYieldClaim(req.body);
+    if (!claim) {
+      res.status(400).json({ error });
+      return;
+    }
+    res.json({
+      claim: { ...claim },
+      token: yieldToken(claim),
+      note:
+        `Read back: ${claim.value} ${claim.unit}. Nothing is stored until she ` +
+        "says the token, then call /api/hermes/batch/yield/confirm with it.",
+    });
+  });
+
+  app.post("/api/hermes/batch/yield/confirm", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+    const { claim, error } = parseYieldClaim(req.body);
+    if (!claim) {
+      res.status(400).json({ error });
+      return;
+    }
+    const claimed =
+      typeof req.body?.fingerprint === "string" ? req.body.fingerprint.trim() : "";
+    if (!claimed) {
+      res.status(400).json({ error: "fingerprint is required; preview it first" });
+      return;
+    }
+    if (claimed !== yieldToken(claim)) {
+      res.status(409).json({
+        error:
+          "the token did not match this yield — the number changed since the " +
+          "preview. Re-run the preview and read it out again.",
+      });
+      return;
+    }
+    try {
+      const recorded = await beverage.recordMeasuredYield(identity, {
+        productionBatchId: claim.productionBatchId,
+        measuredYieldValue: claim.value,
+        measuredYieldUnit: claim.unit,
+      });
+      res.json({ ...recorded, recorded: `${claim.value} ${claim.unit}` });
+    } catch (err) {
+      res.status(502).json({
+        error: err instanceof Error ? err.message : "could not record yield",
       });
     }
   });

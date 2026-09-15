@@ -119,3 +119,117 @@ describe("database refusals reach the operator intact", () => {
     );
   });
 });
+
+describe("batch capture", () => {
+  it("sends the operator args and the batch fields openProductionBatch was given", async () => {
+    rpc.mockResolvedValue({ data: { id: "batch-1" }, error: null });
+    process.env.BEVERAGE_OWNER_SUBJECTS = ASHLEY.subject;
+
+    await beverage.openProductionBatch(ASHLEY, {
+      formulaVersionId: "fa96080f-00d9-461d-91c4-295962f94489",
+      batchLabel: "Hibiscus 2026-09-15",
+      madeOn: "2026-09-15",
+      notes: null,
+    });
+
+    expect(rpc.mock.calls[0][0]).toBe("beverage_open_production_batch");
+    expect(sentArgs()).toMatchObject({
+      p_external_subject: ASHLEY.subject,
+      p_is_owner: true,
+      p_formula_version_id: "fa96080f-00d9-461d-91c4-295962f94489",
+      p_batch_label: "Hibiscus 2026-09-15",
+      p_made_on: "2026-09-15",
+      p_notes: null,
+    });
+  });
+
+  it("keeps money and quantities as strings so numeric precision survives", async () => {
+    rpc.mockResolvedValue({ data: { id: "input-1" }, error: null });
+
+    await beverage.recordBatchInput(ASHLEY, {
+      productionBatchId: "batch-1",
+      itemName: "Strawberries",
+      quantityPurchased: "2.5",
+      unit: "kg",
+      amountPaid: "37.50",
+      currencyCode: "CAD",
+      supplier: "Jean-Talon",
+      invoiceReference: "INV-9912",
+      purchasedOn: "2026-09-14",
+      externalSource: "google_sheets_inventory",
+      externalRecordKey: "Ingredients!A42",
+    });
+
+    const args = sentArgs();
+    expect(typeof args.p_amount_paid).toBe("string");
+    expect(args).toMatchObject({
+      p_production_batch_id: "batch-1",
+      p_item_name: "Strawberries",
+      p_quantity_purchased: "2.5",
+      p_unit: "kg",
+      p_amount_paid: "37.50",
+      p_currency_code: "CAD",
+      p_supplier: "Jean-Talon",
+      p_invoice_reference: "INV-9912",
+      p_purchased_on: "2026-09-14",
+      p_external_source: "google_sheets_inventory",
+      p_external_record_key: "Ingredients!A42",
+    });
+  });
+
+  it("records a measured yield against its batch", async () => {
+    rpc.mockResolvedValue({ data: { id: "batch-1" }, error: null });
+
+    await beverage.recordMeasuredYield(ASHLEY, {
+      productionBatchId: "batch-1",
+      measuredYieldValue: "18.4",
+      measuredYieldUnit: "L",
+    });
+
+    expect(rpc.mock.calls[0][0]).toBe("beverage_record_measured_yield");
+    expect(sentArgs()).toMatchObject({
+      p_production_batch_id: "batch-1",
+      p_measured_yield_value: "18.4",
+      p_measured_yield_unit: "L",
+    });
+  });
+
+  it("never asserts ownership for a subject not on the allowlist", async () => {
+    rpc.mockResolvedValue({ data: { id: "batch-1" }, error: null });
+    await beverage.openProductionBatch(STRANGER, {
+      formulaVersionId: "v1", batchLabel: "x", madeOn: "2026-09-15", notes: null,
+    });
+    expect(sentArgs().p_is_owner).toBe(false);
+  });
+
+  it("surfaces the database refusal verbatim", async () => {
+    rpc.mockResolvedValue({ data: null, error: { message: "Batch label is required" } });
+    await expect(
+      beverage.openProductionBatch(ASHLEY, {
+        formulaVersionId: "v1", batchLabel: "", madeOn: "2026-09-15", notes: null,
+      })
+    ).rejects.toThrow("Batch label is required");
+  });
+
+  it("records a batch cost delta with all fields", async () => {
+    rpc.mockResolvedValue({ data: { id: "delta-1" }, error: null });
+
+    await beverage.recordBatchCostDelta(ASHLEY, {
+      productionBatchId: "batch-1",
+      costBaselineId: "baseline-1",
+      label: "Supplier price adjustment",
+      deltaAmount: "-15.50",
+      rationale: "Volume discount applied",
+    });
+
+    expect(rpc.mock.calls[0][0]).toBe("beverage_record_batch_cost_delta");
+    expect(sentArgs()).toMatchObject({
+      p_production_batch_id: "batch-1",
+      p_cost_baseline_id: "baseline-1",
+      p_label: "Supplier price adjustment",
+      p_delta_amount: "-15.50",
+      p_rationale: "Volume discount applied",
+    });
+    expect(typeof sentArgs().p_delta_amount).toBe("string");
+  });
+});

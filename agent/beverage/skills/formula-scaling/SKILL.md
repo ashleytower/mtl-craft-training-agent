@@ -60,6 +60,20 @@ anyone measures.
 `propose` queues a citation you found, for Ashley to decide on. `pending` shows
 what is still waiting on her.
 
+`batch-open` starts a batch against an approved formula version and returns its
+id. `batch-input` records one thing bought for it — item, quantity, unit, amount
+paid — and takes `--source`/`--record-key` when the price came from the
+inventory sheet.
+
+A yield is NEVER stored in one step. `batch-yield-preview` reads the number back
+and returns a six-character token; she says it; only then does `batch-yield`
+store it, passing the SAME value and unit plus `--fingerprint`. If a digit moved
+in between, the server refuses. Every cost divides by this number, so a misheard
+yield is wrong money on every bottle forever.
+
+Phase 1 stores. It does not cost anything yet — there is no cost command, and
+you must not compute one in prose.
+
 ## When the corpus cannot answer: `propose`
 
 Run `knowledge` first, always. If it comes back with nothing that answers her —

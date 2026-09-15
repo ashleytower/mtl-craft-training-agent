@@ -59,6 +59,11 @@ jspm_packages/
 # TypeScript cache
 *.tsbuildinfo
 
+# Python bytecode cache. Written by `python3 -m py_compile`, the formula-scaling
+# skill's own build step — a local artifact, not a build input.
+__pycache__/
+*.pyc
+
 # Optional npm cache directory
 .npm
 
