@@ -18,6 +18,17 @@ export type YieldClaim = {
 /** Volume or mass. A syrup is sometimes weighed, per the hot-fill method. */
 export const YIELD_UNITS = ["L", "ml", "kg", "gr"] as const;
 
+/**
+ * A plain decimal, in digits, and nothing else. `numeric` columns accept
+ * `'NaN'`, `'Infinity'` and scientific notation without complaint — Postgres
+ * parses all three, so a value this pattern would reject can still commit and
+ * poison every later sum. No leading `-`, so it doubles as the "positive"
+ * check for anything that must never be negative. Batch capture in
+ * hermesRoutes.ts reuses this rather than keeping a second copy that could
+ * drift from it.
+ */
+export const NUMERIC_PATTERN = /^\d+(\.\d+)?$/;
+
 export function yieldFingerprint(claim: YieldClaim): string {
   const canonical = [claim.productionBatchId, claim.value.trim(), claim.unit];
   return createHash("sha256")
@@ -43,7 +54,7 @@ export function parseYieldClaim(
   }
 
   const value = typeof b.value === "string" ? b.value.trim() : "";
-  if (!/^\d+(\.\d+)?$/.test(value)) {
+  if (!NUMERIC_PATTERN.test(value)) {
     return {
       claim: null,
       error: `value must be a number, in digits, not "${String(b.value)}"`,

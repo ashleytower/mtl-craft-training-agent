@@ -85,6 +85,14 @@ describe("POST /api/hermes/batch/open", () => {
     });
     expect(r.status).toBe(200);
     expect(r.body.id).toBe("batch-1");
+    // A whole commit exists to fix made_on reaching the client — assert it
+    // gets there, not just that the route accepted it.
+    expect(openProductionBatch.mock.calls[0][1]).toEqual({
+      formulaVersionId: "v1",
+      batchLabel: "Hibiscus 2026-09-15",
+      madeOn: "2026-09-15",
+      notes: null,
+    });
   });
 });
 
@@ -105,6 +113,79 @@ describe("POST /api/hermes/batch/input", () => {
     });
     expect(recordBatchInput.mock.calls[0][1].amountPaid).toBe("12.00");
     expect(recordBatchInput.mock.calls[0][1].currencyCode).toBe("CAD");
+  });
+
+  it("passes all eleven fields through to recordBatchInput untransposed", async () => {
+    // Mocks return { id } regardless of input, so a transposed field (say,
+    // unit and quantity_purchased swapped) would still pass a test that only
+    // checks two of these. Distinct, recognizable values so a swap fails.
+    await harness()("POST", "/api/hermes/batch/input", {
+      production_batch_id: "batch-1",
+      item_name: "Hibiscus, dried",
+      quantity_purchased: "2.5",
+      unit: "kg",
+      amount_paid: "37.50",
+      currency_code: "USD",
+      supplier: "Jean-Talon Market",
+      invoice_reference: "INV-9912",
+      purchased_on: "2026-09-14",
+      // The link back to the inventory row Phase 2's evidence trail depends
+      // on. Silently dropping either is worse than any other field here.
+      external_source: "google_sheets_inventory",
+      external_record_key: "Ingredients!A42",
+    });
+    expect(recordBatchInput.mock.calls[0][1]).toEqual({
+      productionBatchId: "batch-1",
+      itemName: "Hibiscus, dried",
+      quantityPurchased: "2.5",
+      unit: "kg",
+      amountPaid: "37.50",
+      currencyCode: "USD",
+      supplier: "Jean-Talon Market",
+      invoiceReference: "INV-9912",
+      purchasedOn: "2026-09-14",
+      externalSource: "google_sheets_inventory",
+      externalRecordKey: "Ingredients!A42",
+    });
+  });
+
+  it("refuses NaN, Infinity and scientific notation, which a numeric column accepts silently", async () => {
+    for (const bad of ["NaN", "Infinity", "1e3"]) {
+      const r = await harness()("POST", "/api/hermes/batch/input", {
+        production_batch_id: "batch-1", item_name: "Sugar",
+        quantity_purchased: "10", unit: "kg", amount_paid: bad,
+      });
+      expect(r.status).toBe(400);
+      expect(String(r.body.error)).toMatch(/amount_paid/);
+    }
+  });
+
+  it("refuses a negative amount", async () => {
+    const r = await harness()("POST", "/api/hermes/batch/input", {
+      production_batch_id: "batch-1", item_name: "Sugar",
+      quantity_purchased: "10", unit: "kg", amount_paid: "-5",
+    });
+    expect(r.status).toBe(400);
+    expect(String(r.body.error)).toMatch(/amount_paid/);
+  });
+
+  it("refuses a non-numeric quantity", async () => {
+    const r = await harness()("POST", "/api/hermes/batch/input", {
+      production_batch_id: "batch-1", item_name: "Sugar",
+      quantity_purchased: "NaN", unit: "kg", amount_paid: "12.00",
+    });
+    expect(r.status).toBe(400);
+    expect(String(r.body.error)).toMatch(/quantity_purchased/);
+  });
+
+  it("refuses a JSON number, naming the real problem instead of claiming the field is missing", async () => {
+    const r = await harness()("POST", "/api/hermes/batch/input", {
+      production_batch_id: "batch-1", item_name: "Sugar",
+      quantity_purchased: "10", unit: "kg", amount_paid: 12.5,
+    });
+    expect(r.status).toBe(400);
+    expect(String(r.body.error)).toMatch(/amount_paid/);
+    expect(String(r.body.error)).not.toMatch(/is required/);
   });
 });
 

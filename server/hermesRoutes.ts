@@ -20,7 +20,7 @@ import { isLocalTranscript } from "./knowledgeCorpus";
 import { loadedRevision } from "./buildRevision";
 import { parseResearchCandidates } from "./researchCandidates";
 import { methodForAgent, type StoredMethod } from "@shared/method";
-import { parseYieldClaim, yieldToken } from "./batchYield";
+import { NUMERIC_PATTERN, parseYieldClaim, yieldToken } from "./batchYield";
 
 type ApprovedFormula = {
   id: string;
@@ -572,12 +572,32 @@ export function registerHermesRoutes(app: Express) {
     const str = (k: string) =>
       typeof req.body?.[k] === "string" ? String(req.body[k]).trim() : "";
     // Money and quantity stay strings: `numeric` columns, and a float
-    // round-trip would quietly change a price.
+    // round-trip would quietly change a price. A JSON number here is exactly
+    // the thing that discipline exists to keep out, so it gets its own
+    // message rather than being folded into "is required" — a caller sending
+    // `amount_paid: 12.50` needs to be told the actual problem.
     for (const required of [
       "production_batch_id", "item_name", "quantity_purchased", "unit", "amount_paid",
     ]) {
+      const raw = req.body?.[required];
+      if (raw !== undefined && raw !== null && typeof raw !== "string") {
+        res.status(400).json({ error: `${required} must be a string` });
+        return;
+      }
       if (!str(required)) {
         res.status(400).json({ error: `${required} is required` });
+        return;
+      }
+    }
+    // `numeric` columns accept 'NaN', 'Infinity' and scientific notation
+    // without complaint, so the required-string check above lets all three
+    // through. Same pattern the yield read-back uses to keep a misheard
+    // number out of storage — see batchYield.ts.
+    for (const numeric of ["quantity_purchased", "amount_paid"]) {
+      if (!NUMERIC_PATTERN.test(str(numeric))) {
+        res.status(400).json({
+          error: `${numeric} must be a number, in digits, not "${str(numeric)}"`,
+        });
         return;
       }
     }

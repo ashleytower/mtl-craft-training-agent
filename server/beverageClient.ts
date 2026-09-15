@@ -596,7 +596,7 @@ export function openProductionBatch(
   input: {
     formulaVersionId: string;
     batchLabel: string;
-    madeOn: string | null;
+    madeOn: string;
     notes: string | null;
   }
 ) {

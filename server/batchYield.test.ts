@@ -54,6 +54,12 @@ describe("yield read-back token", () => {
     expect(yieldToken(CLAIM)).not.toBe(yieldToken({ ...CLAIM, value: "18.5" }));
   });
 
+  it("changes when only the batch id changes, so a token previewed on one batch cannot confirm onto another", () => {
+    expect(yieldToken(CLAIM)).not.toBe(
+      yieldToken({ ...CLAIM, productionBatchId: "batch-2" })
+    );
+  });
+
   it("changes when the unit changes", () => {
     expect(yieldToken(CLAIM)).not.toBe(yieldToken({ ...CLAIM, unit: "kg" }));
   });

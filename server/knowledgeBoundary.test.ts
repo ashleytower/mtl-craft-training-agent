@@ -173,7 +173,7 @@ describe("the agent surface cannot write", () => {
     }
   });
 
-  it("exposes exactly two mutating HTTP verbs, and neither can approve anything", () => {
+  it("exposes exactly six mutating POST routes, and none can approve anything", () => {
     const verbs = [...code(hermesRoutesSource).matchAll(/app\.(get|post|put|patch|delete)\(\s*"([^"]+)"/g)]
       .map(m => ({ verb: m[1], route: m[2] }));
 
