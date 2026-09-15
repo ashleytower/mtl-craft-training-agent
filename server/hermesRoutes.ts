@@ -537,11 +537,22 @@ export function registerHermesRoutes(app: Express) {
       res.status(400).json({ error: "batch_label is required" });
       return;
     }
+    // Mandatory in the database (`beverage_open_production_batch` raises if
+    // p_made_on is null); validated here too so a missing date is a 400 naming
+    // the field, not a 502 carrying a raw Postgres exception. Never defaulted
+    // to today — she may be logging a batch made days ago, and inventing a
+    // date is exactly the guess these routes refuse to make.
+    const madeOn =
+      typeof req.body?.made_on === "string" ? req.body.made_on.trim() : "";
+    if (!madeOn) {
+      res.status(400).json({ error: "made_on is required" });
+      return;
+    }
     try {
       const opened = await beverage.openProductionBatch(identity, {
         formulaVersionId,
         batchLabel,
-        madeOn: typeof req.body?.made_on === "string" ? req.body.made_on : null,
+        madeOn,
         notes: typeof req.body?.notes === "string" ? req.body.notes : null,
       });
       res.json(opened);

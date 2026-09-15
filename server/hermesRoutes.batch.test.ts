@@ -71,9 +71,17 @@ describe("POST /api/hermes/batch/open", () => {
     expect(String(r.body.error)).toMatch(/formula_version_id/);
   });
 
-  it("opens the batch and returns its id", async () => {
+  it("requires made_on", async () => {
     const r = await harness()("POST", "/api/hermes/batch/open", {
       formula_version_id: "v1", batch_label: "Hibiscus 2026-09-15",
+    });
+    expect(r.status).toBe(400);
+    expect(String(r.body.error)).toMatch(/made_on/);
+  });
+
+  it("opens the batch and returns its id", async () => {
+    const r = await harness()("POST", "/api/hermes/batch/open", {
+      formula_version_id: "v1", batch_label: "Hibiscus 2026-09-15", made_on: "2026-09-15",
     });
     expect(r.status).toBe(200);
     expect(r.body.id).toBe("batch-1");

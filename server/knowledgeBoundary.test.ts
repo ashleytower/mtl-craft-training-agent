@@ -74,18 +74,26 @@ function code(source: string): string {
  * queue is bounded, the URL scheme is constrained to http(s), and the summary is
  * never invented when absent — see researchCandidates.ts.
  *
- * Nothing that CREATES, APPROVES, INGESTS or EMBEDS may join this list.
+ * Nothing that CREATES or APPROVES a formula version, or INGESTS or EMBEDS
+ * anything into the governed knowledge corpus, may join this list. That rule
+ * is about the formula and the corpus specifically — opening a production
+ * batch, or recording an input or a yield against one, is a different kind of
+ * row and is not an exception to it; each is argued for on its own below.
  *
  * Phase 1 batch capture (2026-09-15) adds three more, argued for here:
- * `openProductionBatch`, `recordBatchInput`, `recordMeasuredYield`. All three
- * operate on a batch already opened against an APPROVED formula version — none
- * of them can create, approve, or reopen one. Every numeric field they accept
- * (quantity, amount paid, yield value) stays a string end to end, so there is
- * no float round-trip that could quietly change a price or a measurement. The
- * yield write is the one that matters most: `recordMeasuredYield` is only
- * reachable through `/api/hermes/batch/yield/confirm`, which the routes below
- * gate behind a fingerprint recomputed from the exact claim being stored — the
- * same read-back-and-confirm shape as `recordResearchCandidates`'s existing
+ * `openProductionBatch`, `recordBatchInput`, `recordMeasuredYield`. None of
+ * them can create, approve, or reopen a formula version. Verified against the
+ * live SQL: `beverage_open_production_batch` refuses any formula version whose
+ * `lifecycle_status` is not `approved`, scoped to the caller's organization —
+ * enforced in Postgres, not in this route — and both it and the other two
+ * write their own row to `beverage.audit_events`. Every numeric field these
+ * calls accept (quantity, amount paid, yield value) stays a string end to end,
+ * so there is no float round-trip that could quietly change a price or a
+ * measurement. The yield write is the one that matters most:
+ * `recordMeasuredYield` is only reachable through
+ * `/api/hermes/batch/yield/confirm`, which the routes below gate behind a
+ * fingerprint recomputed from the exact claim being stored — the same
+ * read-back-and-confirm shape as `recordResearchCandidates`'s existing
  * exception, applied to a number every later cost divides by.
  */
 const ALLOWED_BEVERAGE_CALLS = [
