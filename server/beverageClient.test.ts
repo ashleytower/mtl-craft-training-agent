@@ -166,6 +166,15 @@ describe("batch capture", () => {
     expect(typeof args.p_amount_paid).toBe("string");
     expect(args.p_external_source).toBe("google_sheets_inventory");
     expect(args.p_external_record_key).toBe("Ingredients!A42");
+    expect(args).toMatchObject({
+      p_production_batch_id: "batch-1",
+      p_item_name: "Strawberries",
+      p_unit: "kg",
+      p_currency_code: "CAD",
+      p_supplier: "Jean-Talon",
+      p_invoice_reference: "INV-9912",
+      p_purchased_on: "2026-09-14",
+    });
   });
 
   it("records a measured yield against its batch", async () => {
@@ -200,5 +209,27 @@ describe("batch capture", () => {
         formulaVersionId: "v1", batchLabel: "", madeOn: null, notes: null,
       })
     ).rejects.toThrow("Batch label is required");
+  });
+
+  it("records a batch cost delta with all fields", async () => {
+    rpc.mockResolvedValue({ data: { id: "delta-1" }, error: null });
+
+    await beverage.recordBatchCostDelta(ASHLEY, {
+      productionBatchId: "batch-1",
+      costBaselineId: "baseline-1",
+      label: "Supplier price adjustment",
+      deltaAmount: "-15.50",
+      rationale: "Volume discount applied",
+    });
+
+    expect(rpc.mock.calls[0][0]).toBe("beverage_record_batch_cost_delta");
+    expect(sentArgs()).toMatchObject({
+      p_production_batch_id: "batch-1",
+      p_cost_baseline_id: "baseline-1",
+      p_label: "Supplier price adjustment",
+      p_delta_amount: "-15.50",
+      p_rationale: "Volume discount applied",
+    });
+    expect(typeof sentArgs().p_delta_amount).toBe("string");
   });
 });
