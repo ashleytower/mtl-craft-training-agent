@@ -208,6 +208,31 @@ EOF
   fi
 fi
 
+# The solid-wiggles skill filters on the source-key prefix. Rename those sources
+# and its script returns "empty" for every question, which the skill tells the
+# agent to read as "the book does not cover that": a silent miss. So the prefix
+# has to keep reaching a live source, by the book's name, at the service's full
+# search width (the same 25 the script asks for).
+if [ -n "$probe_token" ]; then
+  book_probe="$(curl -fsS --max-time 25 -G "$API_BASE/api/hermes/knowledge" \
+    --data-urlencode "q=Solid Wiggles cookbook jelly" --data-urlencode "limit=25" \
+    -H "x-hermes-service-token: $probe_token" 2>/dev/null)"
+  book_hit="$(printf '%s' "$book_probe" | python3 -c '
+import json, sys
+try:
+    rows = json.load(sys.stdin).get("results", [])
+except Exception:
+    rows = []
+print("yes" if any(str(r.get("source_key", "")).startswith("solid-wiggles") for r in rows) else "no")
+' 2>/dev/null)"
+  if [ "$book_hit" = "yes" ]; then
+    pass "book sources are reachable" "a solid-wiggles source ranked for the book's name"
+  else
+    fail "book sources are reachable" \
+      "no solid-wiggles source came back — the solid-wiggles skill filters on that prefix and would answer 'not held' to everything"
+  fi
+fi
+
 # ── 4. mirror ────────────────────────────────────────────────────────────────
 echo
 echo "mirror"

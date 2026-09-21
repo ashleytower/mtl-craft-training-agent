@@ -115,5 +115,56 @@ class ShapeTests(unittest.TestCase):
         self.assertNotIn("provenance", original)
 
 
+class LimitTests(unittest.TestCase):
+    def test_a_limit_below_one_still_returns_a_result_not_every_row(self):
+        # Called directly, shape() must not depend on the caller having clamped.
+        rows = [passage("solid-wiggles-tips", text=str(i)) for i in range(4)]
+        self.assertEqual(len(book.shape(payload(*rows), limit=0)["results"]), 1)
+        self.assertEqual(len(book.shape(payload(*rows), limit=-3)["results"]), 1)
+
+    def test_a_limit_above_the_maximum_is_capped(self):
+        rows = [passage("solid-wiggles-tips", text=str(i)) for i in range(25)]
+        self.assertEqual(len(book.shape(payload(*rows), limit=99)["results"]), book._MAX_RESULTS)
+
+
+class QueryTests(unittest.TestCase):
+    """cmd_query with the network stubbed: the request it builds and what it prints."""
+
+    def run_query(self, limit, rows):
+        seen = {}
+
+        def fake_call(path, token, body=None):
+            seen["path"], seen["token"] = path, token
+            return payload(*rows)
+
+        import contextlib
+        import io
+        import json
+
+        saved = (book.beverage._config, book.beverage._call)
+        book.beverage._config = lambda: ("http://svc", "tok")
+        book.beverage._call = fake_call
+        out = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(out):
+                book.cmd_query(type("A", (), {"query": "why won't it set", "limit": limit})())
+        finally:
+            book.beverage._config, book.beverage._call = saved
+        return seen, json.loads(out.getvalue())
+
+    def test_it_asks_the_service_for_its_full_width_so_the_filter_has_something_to_keep(self):
+        seen, _ = self.run_query(5, [passage("solid-wiggles-tips")])
+        self.assertTrue(seen["path"].startswith("http://svc/api/hermes/knowledge?q="))
+        self.assertIn("why%20won%27t%20it%20set", seen["path"])
+        self.assertTrue(seen["path"].endswith("&limit=25"))
+        self.assertEqual(seen["token"], "tok")
+
+    def test_it_prints_the_shaped_result_with_the_limit_applied(self):
+        rows = [passage("solid-wiggles-tips", text=str(i)) for i in range(20)]
+        _, printed = self.run_query(99, rows)
+        self.assertEqual(printed["count"], book._MAX_RESULTS)
+        self.assertTrue(all(r["quotable"] is False for r in printed["results"]))
+
+
 if __name__ == "__main__":
     unittest.main()

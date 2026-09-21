@@ -37,8 +37,8 @@ Optional `--limit` (default 5, max 10). Use the question in the person's own wor
 ## Reading the result
 
 - `citation`: already composed. **Use it exactly as given.** Do not shorten it, restyle it, or attach it to a claim it does not support.
-- `provenance`: on every passage. The first time the book comes up in an answer, say it in plain words: "a summary of the book says...". Never "the book says" on its own, and never in quotation marks as though it were the authors' sentence.
-- `quotable` is always `false` here. Do not read a passage out as a quotation. Relay what it says in your own words and give the citation.
+- `provenance`: on every passage that is a summary, which is every passage held today. The first time the book comes up in an answer, say it in plain words: "a summary of the book says...". Never "the book says" on its own, and never in quotation marks as though it were the authors' sentence.
+- `quotable` is `false` for a summary, which is every passage held today. Do not read a summary out as a quotation. Relay what it says in your own words and give the citation. If a passage ever comes back `quotable: true` with no `provenance`, it is the authors' own words and may be quoted, attributed.
 - `search_mode`: `text_only` means the embedding service was down and the results are narrower. If they look thin, say so; do not conclude the book has nothing.
 - `boundary`: the same sentence every time. Nothing here changes a formula.
 

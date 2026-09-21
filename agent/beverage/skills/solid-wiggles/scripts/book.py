@@ -34,12 +34,15 @@ _HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.abspath(os.path.join(_HERE, "..", "..", "formula-scaling", "scripts")))
 import beverage  # noqa: E402
 
-# Every source whose key starts with this belongs to the book.
+# Every source whose key starts with this belongs to the book. scripts/brix-status.sh
+# checks that a source with this prefix still exists: rename them and this script
+# would answer "empty" to everything, which reads as "the book does not cover it".
 BOOK_PREFIX = "solid-wiggles"
 
 # Sources under BOOK_PREFIX that hold the authors' own words verbatim. None today:
 # all three are summaries. A source not listed here is treated as a summary, which
-# is the safe direction to be wrong in.
+# is the safe direction to be wrong in. Listing one makes its passages come back
+# with the service's own `quotable` flag and no `provenance`; SKILL.md says so.
 VERBATIM_SOURCES = frozenset()
 
 SUMMARY_PROVENANCE = (
@@ -63,7 +66,12 @@ _MAX_RESULTS = 10
 
 
 def shape(payload, limit):
-    """Keep the book's passages, correct their labels, and say what is not held."""
+    """Keep the book's passages, correct their labels, and say what is not held.
+
+    The limit is clamped here, not by the caller: a limit below one would otherwise
+    never match `len(kept)` and this would return every row.
+    """
+    limit = max(1, min(int(limit), _MAX_RESULTS))
     kept = []
     for result in payload.get("results", []):
         key = str(result.get("source_key", ""))
@@ -97,8 +105,7 @@ def cmd_query(args):
     base, token = beverage._config()
     path = f"{base}/api/hermes/knowledge?q=" + urllib.parse.quote(args.query) + f"&limit={_SEARCH_WIDTH}"
     payload = beverage._call(path, token)
-    limit = max(1, min(int(args.limit), _MAX_RESULTS))
-    print(json.dumps(shape(payload, limit), indent=2, ensure_ascii=False))
+    print(json.dumps(shape(payload, args.limit), indent=2, ensure_ascii=False))
 
 
 def main():
