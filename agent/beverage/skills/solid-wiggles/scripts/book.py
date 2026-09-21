@@ -39,22 +39,28 @@ import beverage  # noqa: E402
 # would answer "empty" to everything, which reads as "the book does not cover it".
 BOOK_PREFIX = "solid-wiggles"
 
-# Sources under BOOK_PREFIX that hold the authors' own words verbatim. None today:
-# all three are summaries. A source not listed here is treated as a summary, which
-# is the safe direction to be wrong in. Listing one makes its passages come back
-# with the service's own `quotable` flag and no `provenance`; SKILL.md says so.
-VERBATIM_SOURCES = frozenset()
+# Sources under BOOK_PREFIX that hold the authors' own words verbatim: the passages the
+# owner pasted from the Kindle edition. The rest are summaries another tool compiled. A
+# source not listed here is treated as a summary, which is the safe direction to be wrong
+# in. Listing one makes its passages come back with the service's own `quotable` flag and
+# no `provenance`; SKILL.md says so.
+VERBATIM_SOURCES = frozenset({"solid-wiggles"})
 
 SUMMARY_PROVENANCE = (
     "Summary compiled by another tool from the book. Not the authors' words and not "
     "checked against the book."
 )
 
+# KEEP IN SYNC with what is actually ingested. This is the one place the agent learns what
+# the book sources do and do not hold. A section pasted in without editing this is invisible
+# to its "not held" answers, and a section named here that was never ingested is a lie.
 COVERAGE_NOTE = (
-    "These sources cover only the opening guidance and the Ingredients, Equipment + Tools "
-    "chapter (Kindle pp. 14-24). The Techniques and Design Language chapters are not held: "
-    "blooming and dissolving gelatin, unmolding, slicing, storage, layering and the design "
-    "methods are not in these sources."
+    "Held in the authors' own words (pasted by the owner, page numbers not recorded): "
+    "Clarification, Blooming Gelatin, Unmolding (Hot Towel and Dip N' Flip), Slicing, and "
+    "Storage + Service. Held only as summaries another tool compiled (Kindle pp. 14-24): the "
+    "opening guidance and the Ingredients, Equipment + Tools chapter. Not held: the design "
+    "methods (splatter, linear, lattice and floral designs, layering, scraping and torching), "
+    "the jelly and cake recipes themselves, and anything else in the book."
 )
 
 EMPTY = "Nothing in the Solid Wiggles sources answers that."
