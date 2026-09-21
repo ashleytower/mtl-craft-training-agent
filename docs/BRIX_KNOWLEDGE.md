@@ -428,19 +428,25 @@ Two things worth keeping for next time:
 
 ## Owner-supplied book sources (2026-09-21)
 
-The counts above predate this section: the corpus is now 74 sources and 558
-passages. The difference is three sources for one cookbook, *Solid Wiggles*
-(Derman and Schramm, Ten Speed Press): `solid-wiggles-checklist`,
-`solid-wiggles-tips` and `solid-wiggles-shopping-list`, 45 passages in all, each
-`authorized_private` and `pending_review`.
+The counts above predate this section: the corpus is now 75 sources and 566
+passages. The difference is four sources for one cookbook, *Solid Wiggles*
+(Derman and Schramm, Ten Speed Press), each `authorized_private` and
+`pending_review`:
 
-They are **summaries other tools compiled from the Kindle edition, not the
-authors' words**, they cover only the opening guidance and the Ingredients,
-Equipment + Tools chapter (Kindle pp. 14-24), and nobody has checked them against
-the book. Page numbers are Kindle pages; the shopping list has none and its
-citations say "page not recorded". Each source's `note` says all of this and
-reaches its governed summary. The Techniques and Design Language chapters are not
-held.
+- three **summaries other tools compiled from the Kindle edition, not the
+  authors' words**: `solid-wiggles-checklist`, `solid-wiggles-tips` and
+  `solid-wiggles-shopping-list`, 45 passages. They cover only the opening
+  guidance and the Ingredients, Equipment + Tools chapter (Kindle pp. 14-24), and
+  nobody has checked them against the book. Page numbers are Kindle pages; the
+  shopping list has none and its citations say "page not recorded".
+- `solid-wiggles`, 8 passages in **the authors' own words**, pasted by the owner
+  from the Kindle edition: Clarification, Blooming Gelatin, Unmolding (Hot Towel,
+  Dip N' Flip), Slicing, and Storage + Service. Page numbers were not recorded, so
+  the citation names the section.
+
+Each source's `note` says which it is and reaches its governed summary. The design
+methods (splatter, linear, lattice and floral designs, layering, scraping and
+torching) and the jelly and cake recipes are not held.
 
 The Kindle edition is DRM-locked and nothing reads it. The loader
 (`server/knowledgeBookExcerpts.ts`, `scripts/ingest-book-excerpts.ts`) takes a
@@ -451,7 +457,13 @@ file cannot grow into the book.
 The service marks every chunk `quotable: true`, which is wrong for a summary.
 Brix therefore reaches these sources through the `solid-wiggles` skill
 (`agent/beverage/skills/solid-wiggles/`), whose script keeps only the book's
-sources and forces `quotable: false` on them.
+sources, forces `quotable: false` on the summaries, and leaves the authors' own
+words as the service marked them (`VERBATIM_SOURCES` in `book.py`).
+
+**Ingesting more of the book means editing `COVERAGE_NOTE` in `book.py` too.** It
+is the one place the agent learns what the book sources hold and do not hold, so a
+section ingested without updating it stays invisible to the agent's "not held"
+answers, and it is mirrored to the live profile like the rest of the skill.
 
 ## Still open
 

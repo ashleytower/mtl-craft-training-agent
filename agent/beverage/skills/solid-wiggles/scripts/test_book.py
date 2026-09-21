@@ -93,10 +93,33 @@ class ShapeTests(unittest.TestCase):
         self.assertEqual(out["empty"], book.EMPTY)
         self.assertIn("Kindle pp. 14-24", out["coverage_note"])
 
-    def test_coverage_note_names_what_the_book_sources_do_not_hold(self):
+    def test_coverage_note_names_what_is_held_and_what_is_not(self):
+        # REQUIREMENTS CHANGED, so this replaces the old assertion that the Techniques
+        # chapter is not held: the owner has since pasted five technique sections in the
+        # authors' own words, and a note that still said "not held" would send Brix away
+        # from passages it now has.
         out = book.shape(payload(passage("solid-wiggles-tips")), limit=5)
-        self.assertIn("Techniques and Design Language", out["coverage_note"])
+        note = out["coverage_note"]
+        for held in ("Clarification", "Blooming Gelatin", "Unmolding", "Slicing", "Storage + Service"):
+            self.assertIn(held, note)
+        self.assertIn("Kindle pp. 14-24", note)
+        self.assertIn("Not held", note)
+        self.assertIn("design", note.lower())
         self.assertNotIn("empty", out)
+
+    def test_the_owners_pasted_passages_are_the_authors_words_and_stay_quotable(self):
+        # 'solid-wiggles' holds the authors' own words verbatim, so it is not forced to
+        # quotable false and carries no summary provenance.
+        result = book.shape(payload(passage("solid-wiggles", quotable=True)), limit=5)["results"][0]
+        self.assertIs(result["quotable"], True)
+        self.assertNotIn("provenance", result)
+
+    def test_a_summary_beside_the_verbatim_source_is_still_forced_not_quotable(self):
+        out = book.shape(payload(passage("solid-wiggles"), passage("solid-wiggles-tips")), limit=5)
+        by_key = {r["source_key"]: r for r in out["results"]}
+        self.assertIs(by_key["solid-wiggles"]["quotable"], True)
+        self.assertIs(by_key["solid-wiggles-tips"]["quotable"], False)
+        self.assertIn("provenance", by_key["solid-wiggles-tips"])
 
     def test_the_search_mode_and_boundary_pass_through(self):
         out = book.shape(payload(passage("solid-wiggles-tips"), mode="text_only"), limit=5)
