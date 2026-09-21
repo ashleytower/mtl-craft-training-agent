@@ -83,6 +83,17 @@ export function citationFor(result: beverage.KnowledgeResult): string {
   const url = typeof locator.source_url === "string" ? locator.source_url : null;
 
   if (result.kind === "chunk") {
+    // A pasted passage from a purchased book is cited as a book, by page. Its
+    // locator says `page_text_only` so migration 124 counts it citable, but the
+    // lesson wording below would attribute it to the course. See
+    // server/knowledgeBookExcerpts.ts before changing either.
+    if (locator.medium === "book_excerpt") {
+      const author = typeof locator.creator === "string" ? `${locator.creator}, ` : "";
+      const section = typeof locator.section === "string" ? `, "${locator.section}"` : "";
+      const page = locator.page_reference ?? "page not recorded";
+      return `${author}${result.source_title}, ${page}${section}${url ? ` — ${url}` : ""}`;
+    }
+
     const lessonNumber = locator.lesson_number;
     const lessonTitle = locator.lesson_title;
     const course = locator.course_title ?? "Art of Drink course";
