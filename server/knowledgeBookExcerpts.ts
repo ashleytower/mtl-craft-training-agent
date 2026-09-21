@@ -80,7 +80,14 @@ const HEADER = /^===\s*(.*?)\s*===\s*$/;
 
 export function parseBookExcerpts(text: string): { meta: BookMeta; excerpts: BookExcerpt[] } {
   // Comments let the template carry its own instructions without ingesting them.
-  const lines = text.replace(/<!--[\s\S]*?-->/g, "").split(/\r?\n/);
+  // Only the comment's characters go; its newlines stay, so a comment that spans
+  // lines cannot weld the next header onto the previous passage and file that
+  // page's text under the wrong page.
+  const stripped = text.replace(/<!--[\s\S]*?-->/g, comment => comment.replace(/[^\n]/g, ""));
+  if (stripped.includes("<!--")) {
+    throw new Error('An HTML comment ("<!--") is never closed with "-->".');
+  }
+  const lines = stripped.split(/\r?\n/);
 
   let i = 0;
   while (i < lines.length && lines[i].trim() === "") i += 1;
@@ -128,15 +135,19 @@ export function parseBookExcerpts(text: string): { meta: BookMeta; excerpts: Boo
   };
 
   for (; i < lines.length; i += 1) {
-    const header = HEADER.exec(lines[i]);
+    const header = HEADER.exec(lines[i].trim());
     if (header) {
       close();
       const [pageReference, ...rest] = header[1].split("|");
       const section = rest.join("|").trim() || null;
-      if (!pageReference.trim()) {
+      // A page reference needs at least one letter or digit. A Markdown underline
+      // ("=======" under a pasted heading) matches the header shape with only
+      // punctuation in the middle, and must not become a passage of its own.
+      if (!/[A-Za-z0-9]/.test(pageReference)) {
         throw new Error(
-          `Excerpt ${excerpts.length + 1}${section ? ` ("${section}")` : ""} has no page ` +
-            `reference. A passage must be findable in the book.`
+          `Excerpt ${excerpts.length + 1}${section ? ` ("${section}")` : ""} has no usable ` +
+            `page reference ("${header[1]}"). A passage must be findable in the book. A line of ` +
+            `= characters left over from a pasted heading can cause this; delete it.`
         );
       }
       current = { pageReference: pageReference.trim(), section, lines: [] };
@@ -181,7 +192,9 @@ export function bookSource(meta: BookMeta, excerptCount: number): SourcePayload 
       (meta.note ? ` ${meta.note}` : "") +
       ` Tier B training reference: it explains technique and never supplies an approved measure.`,
     source_metadata: {
-      medium: "book_excerpts",
+      // `media_type` is the key knowledgeCorpus.ts already uses. The locator's
+      // `medium: "book_excerpt"` is a different thing and the only one read.
+      media_type: "book",
       excerpts_total: excerptCount,
       isbn: meta.isbn,
       year: meta.year,

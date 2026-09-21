@@ -109,6 +109,16 @@ describe("citationFor", () => {
     expect(cite).not.toMatch(/lesson|Art of Drink/);
   });
 
+  it("cites a book passage without inventing a page, author or link it lacks", () => {
+    const cite = citationFor(
+      result({
+        source_title: "Example Book",
+        locator: { retrieval_type: "page_text_only", medium: "book_excerpt" },
+      })
+    );
+    expect(cite).toBe("Example Book, page not recorded");
+  });
+
   it("survives a locator missing everything", () => {
     // Locators are JSON; a field can be absent or the wrong type.
     expect(() => citationFor(result({ locator: {} }))).not.toThrow();

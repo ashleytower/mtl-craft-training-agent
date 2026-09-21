@@ -82,6 +82,36 @@ describe("parseBookExcerpts", () => {
     );
   });
 
+  it("keeps a header that follows a multi-line comment on its own line", () => {
+    // A comment spanning lines must not weld the next header onto the previous
+    // passage, or page 2's text would be cited as page 1.
+    const { excerpts } = parseBookExcerpts(
+      `${FRONT}\n=== p. 1 ===\nbody one <!-- a\nb --> === p. 2 ===\nbody two\n`
+    );
+    expect(excerpts.map(e => [e.pageReference, e.body])).toEqual([
+      ["p. 1", "body one"],
+      ["p. 2", "body two"],
+    ]);
+  });
+
+  it("refuses a Markdown underline, which looks like a header with no page", () => {
+    expect(() =>
+      parseBookExcerpts(`${FRONT}\n=== p. 3 ===\nChapter Three\n=============\nbody text\n`)
+    ).toThrow(/page reference/i);
+  });
+
+  it("refuses a comment that is never closed instead of filing its text as the book's", () => {
+    expect(() =>
+      parseBookExcerpts(`${FRONT}\n<!-- paste under the header\n=== p. 1 ===\ntext\n`)
+    ).toThrow(/never closed/i);
+  });
+
+  it("reads a file saved with Windows line endings the same way", () => {
+    expect(parseBookExcerpts(TWO.replace(/\n/g, "\r\n")).excerpts).toEqual(
+      parseBookExcerpts(TWO).excerpts
+    );
+  });
+
   it("refuses one excerpt longer than the per-excerpt limit", () => {
     const big = "x".repeat(MAX_EXCERPT_CHARS + 1);
     expect(() => parseBookExcerpts(`${FRONT}\n=== p. 1 ===\n${big}\n`)).toThrow(/p\. 1/);
