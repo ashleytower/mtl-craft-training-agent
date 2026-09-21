@@ -30,7 +30,8 @@ with `python3 -m unittest agent/beverage/skills/solid-wiggles/scripts/test_book.
 
 A running gateway caches its skills list in memory, so a NEW skill is not seen
 until the gateway restarts (`launchctl kickstart -k
-gui/$(id -u)/ai.hermes.gateway-beverage`) or the chat starts a new session.
+gui/$(id -u)/ai.hermes.gateway-beverage`). A new chat session is not enough: the
+cache is per process, not per session.
 `scripts/brix-status.sh` checks the mirror for both skills.
 
 Note the path shape differs: the live skill sits under `skills/beverage/`
