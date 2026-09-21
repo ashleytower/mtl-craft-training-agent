@@ -87,6 +87,38 @@ describe("citationFor", () => {
     expect(cite).toMatch(/no paragraph recorded/);
   });
 
+  it("cites a pasted book passage as a book, by page, never as a lesson", () => {
+    // Invented book. Its locator says page_text_only so migration 124 counts it
+    // citable; the citation must still not read "lesson page" or name the course.
+    const cite = citationFor(
+      result({
+        source_title: "Example Book",
+        locator: {
+          retrieval_type: "page_text_only",
+          medium: "book_excerpt",
+          creator: "Jane Roe and John Doe",
+          page_reference: "p. 42",
+          section: "Setting agar",
+          source_url: "https://example.com/book",
+        },
+      })
+    );
+    expect(cite).toBe(
+      'Jane Roe and John Doe, Example Book, p. 42, "Setting agar" — https://example.com/book'
+    );
+    expect(cite).not.toMatch(/lesson|Art of Drink/);
+  });
+
+  it("cites a book passage without inventing a page, author or link it lacks", () => {
+    const cite = citationFor(
+      result({
+        source_title: "Example Book",
+        locator: { retrieval_type: "page_text_only", medium: "book_excerpt" },
+      })
+    );
+    expect(cite).toBe("Example Book, page not recorded");
+  });
+
   it("survives a locator missing everything", () => {
     // Locators are JSON; a field can be absent or the wrong type.
     expect(() => citationFor(result({ locator: {} }))).not.toThrow();
