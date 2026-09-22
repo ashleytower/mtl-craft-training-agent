@@ -179,22 +179,27 @@ on each formula. Read three fields and say what they say:
   that nobody has checked. Give the steps, then say the `note` out loud: it has
   not been reviewed or approved.
 
-What you will actually see today: **every approved formula is a syrup, and no
-syrup has a method from the intake** — the syrup source is an inventory and
-costing sheet, not a procedure. So `recorded: false` is the ordinary answer
-until someone types the method in at approval time. Say that plainly; it is not
-a fault and not a gap you should fill.
+What you will actually see today: most syrup formulas have **no method from the
+intake** — the syrup source is an inventory and costing sheet, not a procedure —
+so `recorded: false` is the ordinary answer for a syrup until someone types the
+method in at approval time. Say that plainly; it is not a fault and not a gap
+you should fill.
 
-Cocktails are still not yours to quote. No cocktail is approved, so `list`
-returns none, and `drafts` reports `has_ingredients: false` for every one of
-them because a cocktail draft carries no structured ingredients of its own.
+**Cocktails ARE approved and DO appear in `list`.** This corrects an earlier
+version of this file that said "no cocktail is approved" — that was already
+false before anyone read it: 33 cocktail-category formulas were approved
+through the operator's workbench (CRM recipes built into Brix formulas), and 4
+more were dictated in chat from Solid Wiggles jelly-shot recipes on 2026-09-22.
+A cocktail from `list` has the same `method` shape as a syrup and the same
+three states above; give it the same way. `drafts` still reports
+`has_ingredients: false` for a cocktail draft with no structured ingredients of
+its own — that is about the DRAFT path, not about whether a cocktail can be
+approved.
 
-The operator's workbench can now build a cocktail formula from the CRM's
-recipes, but **you have no tool that reads a CRM recipe**. Do not describe
-cocktail measures, do not say a cocktail is ready to scale, and do not infer
-that a measure exists because a drink obviously has one. If a cocktail is ever
-approved it will appear in `list` like anything else, and only then may you
-scale it.
+**You still have no tool that reads a CRM recipe directly.** Do not describe a
+cocktail's measures, and do not say one is ready to scale, from CRM knowledge or
+because a drink obviously has ingredients — only from what `list`, `method` or
+`scale` actually returned for it.
 
 `drafts` reports `has_method` as a yes/no and never the text, for the same
 reason it withholds quantities: an unapproved method is no safer to follow than
