@@ -5,6 +5,7 @@ import {
   bookChunkPayloads,
   bookSource,
   parseBookExcerpts,
+  recipeCitationSource,
 } from "./knowledgeBookExcerpts";
 
 // Every string below is invented. None of it is from any book.
@@ -161,6 +162,55 @@ describe("bookSource", () => {
     expect(s.source_metadata.note).toBe("A summary, not the authors' words.");
     // and a file with no note adds nothing
     expect(source.governed_summary).not.toMatch(/summary, not/);
+  });
+});
+
+describe("recipeCitationSource", () => {
+  const { meta } = parseBookExcerpts(FRONT);
+  const source = recipeCitationSource(meta, {
+    source_key: "example-book-recipe-example-drink",
+    recipeTitle: "Example Drink",
+    description: "A jelly-shot recipe combining lime juice, sugar and silver sheet gelatin.",
+    formulaKey: "example-drink",
+  });
+
+  it("holds a citation only — no chunks, so `holding` derives to citation_only, never passages", () => {
+    // db/migrations/124: holding = 'passages' when chunks > 0, else 'citation_only' when
+    // governed_summary is non-empty. This source must never carry a chunk.
+    expect(source.source_key).toBe("example-book-recipe-example-drink");
+    expect(source.governed_summary.length).toBeGreaterThan(0);
+  });
+
+  it("names the recipe as the title, not the book, so search finds it by the recipe's name", () => {
+    expect(source.title).toBe("Example Drink (Solid Wiggles jelly-shot recipe)");
+  });
+
+  it("carries the description and points to the Brix formula that holds the real quantities", () => {
+    expect(source.governed_summary).toContain(
+      "A jelly-shot recipe combining lime juice, sugar and silver sheet gelatin."
+    );
+    expect(source.governed_summary).toMatch(/no recipe text is held/i);
+    expect(source.governed_summary).toContain("example-drink");
+  });
+
+  it("is filed the same as every other book source: private, pending human review", () => {
+    expect(source).toMatchObject({
+      publisher: "Example Press",
+      creator: "Jane Roe and John Doe",
+      source_url: "https://example.com/book",
+      authority_tier: "tier_b_authorized_course",
+      rights_status: "authorized_private",
+      operational_status: "reference_only",
+      citation_required: true,
+    });
+  });
+
+  it("marks itself as holding no text, for anything that reads source_metadata directly", () => {
+    expect(source.source_metadata).toMatchObject({
+      medium: "book_recipe_citation",
+      formula_key: "example-drink",
+      no_text_held: true,
+    });
   });
 });
 

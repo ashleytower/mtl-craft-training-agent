@@ -58,9 +58,12 @@ COVERAGE_NOTE = (
     "Held in the authors' own words (pasted by the owner, page numbers not recorded): "
     "Clarification, Blooming Gelatin, Unmolding (Hot Towel and Dip N' Flip), Slicing, and "
     "Storage + Service. Held only as summaries another tool compiled (Kindle pp. 14-24): the "
-    "opening guidance and the Ingredients, Equipment + Tools chapter. Not held: the design "
-    "methods (splatter, linear, lattice and floral designs, layering, scraping and torching), "
-    "the jelly and cake recipes themselves, and anything else in the book."
+    "opening guidance and the Ingredients, Equipment + Tools chapter. Four recipes have a "
+    "citation only (no recipe text, page not recorded): Amaretto + Carciofo Sour, Arnold "
+    "Palmer, Cherry Lime Rickey, Gin + Tonic — each dictated into an approved Brix formula of "
+    "the same name; ask for that by name for the real ingredients, exact quantities and "
+    "method. Not held at all: the design methods (splatter, linear, lattice and floral "
+    "designs, layering, scraping and torching), and every other recipe in the book."
 )
 
 EMPTY = "Nothing in the Solid Wiggles sources answers that."

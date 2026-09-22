@@ -204,6 +204,51 @@ export function bookSource(meta: BookMeta, excerptCount: number): SourcePayload 
   };
 }
 
+/**
+ * A pointer to a recipe in the book, with no recipe text at all.
+ *
+ * The book's own recipes carry a full narrated headnote and method in the
+ * authors' voice — a different thing from the short procedural pages above,
+ * and not something to store even privately. What this exists for instead:
+ * once a recipe has been dictated into an approved Brix formula (its own
+ * ingredient/quantity facts, in a method paraphrased by whoever dictated it,
+ * never the book's sentences), a one-line citation lets `solid-wiggles`
+ * answer "which page is this from" without holding any of the book's prose.
+ *
+ * `description` must be a fact restated in plain words (an ingredient list,
+ * for instance), never a sentence lifted from the book.
+ */
+export type RecipeCitation = {
+  /** Must start with BOOK_PREFIX ("solid-wiggles") in book.py or the skill never finds it. */
+  source_key: string;
+  recipeTitle: string;
+  description: string;
+  /** The Brix formula this citation points to. Quantities live there, not here. */
+  formulaKey: string;
+};
+
+export function recipeCitationSource(meta: BookMeta, citation: RecipeCitation): SourcePayload {
+  return {
+    source_key: citation.source_key,
+    title: `${citation.recipeTitle} (Solid Wiggles jelly-shot recipe)`,
+    publisher: meta.publisher,
+    creator: meta.creator,
+    source_url: meta.url,
+    authority_tier: "tier_b_authorized_course",
+    rights_status: "authorized_private",
+    operational_status: "reference_only",
+    citation_required: true,
+    governed_summary:
+      `${citation.description} No recipe text is held here; the exact quantities are the Brix ` +
+      `formula "${citation.formulaKey}". Page number not recorded.`,
+    source_metadata: {
+      medium: "book_recipe_citation",
+      formula_key: citation.formulaKey,
+      no_text_held: true,
+    },
+  };
+}
+
 export function bookChunkPayloads(meta: BookMeta, excerpts: BookExcerpt[]): ChunkPayload[] {
   return excerpts.map((excerpt, index) => ({
     chunk_key: `${meta.source_key}-e${String(index + 1).padStart(3, "0")}`,
