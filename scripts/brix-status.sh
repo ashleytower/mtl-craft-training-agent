@@ -255,6 +255,8 @@ check_mirror "skills/formula-scaling/SKILL.md" "skills/beverage/formula-scaling/
 check_mirror "skills/formula-scaling/scripts/beverage.py" "skills/beverage/formula-scaling/scripts/beverage.py"
 check_mirror "skills/solid-wiggles/SKILL.md" "skills/beverage/solid-wiggles/SKILL.md"
 check_mirror "skills/solid-wiggles/scripts/book.py" "skills/beverage/solid-wiggles/scripts/book.py"
+check_mirror "skills/inventory-read/SKILL.md" "skills/beverage/inventory-read/SKILL.md"
+check_mirror "skills/inventory-read/scripts/inventory.py" "skills/beverage/inventory-read/scripts/inventory.py"
 [ "$mirror_ok" = 1 ] && pass "mirror" "committed agent/beverage matches the live profile"
 
 # ── 5. corpus ────────────────────────────────────────────────────────────────
