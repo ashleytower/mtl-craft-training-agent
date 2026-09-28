@@ -26,15 +26,25 @@ would let an unreviewed live edit overwrite a reviewed one.
     cp ~/.hermes/profiles/beverage/skills/beverage/solid-wiggles/scripts/book.py \
        agent/beverage/skills/solid-wiggles/scripts/book.py
 
-The inventory-read skill uses the already-deployed Railway REST bridge, not an
-MCP server. Its distinct `BRIX_INVENTORY_READ_TOKEN` permits only reads; set
-`INVENTORY_SERVICE_URL` and that token in the profile's private `.env`, never
-in this repository. The live skill is copied from this reviewed mirror after
-tests, then the multiprofile gateway is reloaded. Ashley does not maintain the
-inventory app's counts or pickup list: this bridge exposes an item catalogue to
-Brix, not verified on-hand stock. Reconcile physical counts item by item before
-enabling any stock-quantity answer or write workflow; do not reset all counts
-to zero or reuse the service's broad write credential as a shortcut.
+The inventory-read skill calls the Railway REST bridge, not an MCP server.
+`BRIX_INVENTORY_READ_TOKEN` reads the catalogue, and the distinct
+`BRIX_INVENTORY_WRITE_TOKEN` can only call the exact-row count/add/remove and
+verified-item-create endpoints. Put both tokens and `INVENTORY_SERVICE_URL` in
+the profile's private `.env`, never in this repository. Copy the reviewed skill
+to the live profile after tests, then reload the beverage gateway. Old Sheet
+counts remain unverified until a physical count is recorded item by item; do
+not reset all counts to zero or substitute the broad Hermes service token.
+The old pickup list is still not maintained.
+The action journal is the private `state/brix-inventory-actions.sqlite3` in the
+live profile. It must survive restarts and be backed up with that profile. A
+pending or uncertain action blocks further writes until the Sheet is checked;
+do not remove or reset the journal to make an action retry. This guarantee
+depends on the current single Brix writer and one Railway replica/process;
+adding writers or replicas requires server-side idempotency first.
+The profile-root `.brix-inventory-journal-initialized` marker prevents silent
+recreation after journal loss. Resolve a stuck action with `journal-status`
+and, after canonical Sheet readback and Ashley approval, `reconcile`; never
+delete the SQLite file or marker as a shortcut.
 
 `solid-wiggles/scripts/test_book.py` lives only here, not in the profile. Run it
 with `python3 -m unittest agent/beverage/skills/solid-wiggles/scripts/test_book.py`.
