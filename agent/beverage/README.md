@@ -6,6 +6,7 @@ profile at runtime:
     ~/.hermes/profiles/beverage/SOUL.md
     ~/.hermes/profiles/beverage/skills/beverage/formula-scaling/
     ~/.hermes/profiles/beverage/skills/beverage/solid-wiggles/
+    ~/.hermes/profiles/beverage/skills/beverage/inventory-read/
 
 Nothing under `~/.hermes` is version controlled, so this directory is the
 committed mirror. It is the record of what Brix was told, alongside the API it
@@ -24,6 +25,12 @@ would let an unreviewed live edit overwrite a reviewed one.
        agent/beverage/skills/solid-wiggles/SKILL.md
     cp ~/.hermes/profiles/beverage/skills/beverage/solid-wiggles/scripts/book.py \
        agent/beverage/skills/solid-wiggles/scripts/book.py
+
+The inventory-read skill uses the already-deployed Railway REST bridge, not an
+MCP server. Its distinct `BRIX_INVENTORY_READ_TOKEN` permits only reads; set
+`INVENTORY_SERVICE_URL` and that token in the profile's private `.env`, never
+in this repository. The live skill is copied from this reviewed mirror after
+tests, then the multiprofile gateway is reloaded.
 
 `solid-wiggles/scripts/test_book.py` lives only here, not in the profile. Run it
 with `python3 -m unittest agent/beverage/skills/solid-wiggles/scripts/test_book.py`.
