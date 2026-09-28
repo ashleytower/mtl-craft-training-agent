@@ -30,6 +30,7 @@ set -uo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROFILE="${HERMES_BEVERAGE_PROFILE:-$HOME/.hermes/profiles/beverage}"
 GATEWAY_LABEL="ai.hermes.gateway-beverage"
+MULTIPLEX_LABEL="ai.hermes.gateway"
 API_LABEL="ai.mtlcraft.beverage-api"
 API_BASE="${BEVERAGE_API_URL:-http://127.0.0.1:3000}"
 
@@ -69,29 +70,50 @@ echo
 # ── 1. gateway ───────────────────────────────────────────────────────────────
 echo "gateway"
 gateway_state="$(launchctl print "gui/$(id -u)/$GATEWAY_LABEL" 2>/dev/null)"
-if [ -z "$gateway_state" ]; then
-  fail "launchd service" "$GATEWAY_LABEL is not loaded (launchctl print found no such service)"
-else
+gateway_pid="$(printf '%s' "$gateway_state" | sed -n 's/^[[:space:]]*pid = \([0-9]*\).*/\1/p' | head -1)"
+gateway_state_file="$PROFILE/gateway_state.json"
+telegram_key="telegram"
+if [ -z "$gateway_pid" ]; then
+  gateway_state="$(launchctl print "gui/$(id -u)/$MULTIPLEX_LABEL" 2>/dev/null)"
   gateway_pid="$(printf '%s' "$gateway_state" | sed -n 's/^[[:space:]]*pid = \([0-9]*\).*/\1/p' | head -1)"
-  if [ -n "$gateway_pid" ]; then
-    pass "launchd service" "$GATEWAY_LABEL running, pid $gateway_pid"
+  gateway_state_file="$HOME/.hermes/gateway_state.json"
+  telegram_key="beverage:telegram"
+  if [ -n "$gateway_pid" ] && [ -f "$gateway_state_file" ] && python3 - "$gateway_state_file" <<'PY' >/dev/null 2>&1
+import json, os, sys, time
+with open(sys.argv[1], encoding="utf-8") as handle:
+    state = json.load(handle)
+assert time.time() - os.stat(sys.argv[1]).st_mtime < 120
+assert state.get("gateway_state") == "running"
+assert "beverage" in state.get("served_profiles", [])
+pid = state.get("pid")
+assert isinstance(pid, int) and pid > 0
+os.kill(pid, 0)
+PY
+  then
+    GATEWAY_LABEL="$MULTIPLEX_LABEL (serving beverage)"
   else
-    fail "launchd service" "$GATEWAY_LABEL is loaded but has no running pid"
+    gateway_state=""
+    gateway_pid=""
   fi
+fi
+if [ -z "$gateway_pid" ]; then
+  fail "launchd service" "neither Brix gateway nor default multiplexer serving beverage is running"
+else
+  pass "launchd service" "$GATEWAY_LABEL running, pid $gateway_pid"
 fi
 
 # The gateway's own view of Telegram. This is the difference between "the
 # process is alive" and "Brix can be reached in Telegram", which is the thing
 # actually being asked for.
-if [ -f "$PROFILE/gateway_state.json" ]; then
-  tg="$(python3 - "$PROFILE/gateway_state.json" <<'PY' 2>/dev/null
+if [ -f "$gateway_state_file" ]; then
+  tg="$(python3 - "$gateway_state_file" "$telegram_key" <<'PY' 2>/dev/null
 import json, sys
 try:
     d = json.load(open(sys.argv[1]))
 except Exception:
     print("unreadable|")
     sys.exit()
-tg = (d.get("platforms") or {}).get("telegram") or {}
+tg = (d.get("platforms") or {}).get(sys.argv[2]) or {}
 print(f"{tg.get('state', 'absent')}|{tg.get('error_message') or ''}")
 PY
 )"
@@ -103,7 +125,7 @@ PY
     fail "telegram" "state=$tg_state ${tg_error:+(${tg_error})}"
   fi
 else
-  fail "telegram" "no gateway_state.json at $PROFILE"
+  fail "telegram" "no gateway_state.json at $gateway_state_file"
 fi
 
 # ── 2 & 3. api and loaded revision ───────────────────────────────────────────
