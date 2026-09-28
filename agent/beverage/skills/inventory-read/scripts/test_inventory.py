@@ -25,7 +25,7 @@ class InventoryReadTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "origin"):
                 inventory._config()
 
-    def test_reads_filtered_rows_without_costs_or_write(self):
+    def test_reads_filtered_catalogue_without_unverified_counts_costs_or_write(self):
         calls = []
 
         def fake_open(request, timeout):
@@ -37,20 +37,26 @@ class InventoryReadTests(unittest.TestCase):
         with patch.dict("os.environ", {"INVENTORY_SERVICE_URL": "https://inventory.example", "BRIX_INVENTORY_READ_TOKEN": "test-token"}):
             with patch.object(inventory, "_open", side_effect=lambda request: fake_open(request, 15)):
                 result = inventory.run("inventory", category="syrups", search="butterfly")
-        self.assertEqual(result["count"], 1)
-        self.assertEqual(result["items"][0]["quantity"], 3)
+        self.assertEqual(result["item_count"], 1)
+        self.assertEqual(result["quantity_status"], "unverified")
+        self.assertEqual(result["source"], "inventory_sheet_catalogue")
+        self.assertNotIn("quantity", result["items"][0])
         self.assertNotIn("cost", result["items"][0])
         self.assertIn("category=syrups", calls[0].full_url)
 
-    def test_pickup_is_read_only_and_unknown_command_refuses(self):
-        with patch.object(inventory, "_get", return_value={"success": True, "items": [{"item": "Vodka", "quantity": 2}]}):
-            self.assertEqual(inventory.run("pickup")["count"], 1)
+    def test_unmaintained_pickup_and_unknown_command_refuse_without_network_call(self):
+        with patch.object(inventory, "_get") as get:
+            with self.assertRaisesRegex(ValueError, "not maintained"):
+                inventory.run("pickup")
             with self.assertRaisesRegex(ValueError, "Unsupported"):
                 inventory.run("restock")
+            get.assert_not_called()
 
     def test_status_reports_brix_credential_not_master_credential(self):
         with patch.object(inventory, "_get", return_value={"success": True, "configured": True, "brix_read_configured": False, "active_workbook_title": "MTL Inventory"}):
-            self.assertIs(inventory.run("status")["configured"], False)
+            result = inventory.run("status")
+            self.assertIs(result["configured"], False)
+            self.assertEqual(result["quantity_status"], "unverified")
 
     def test_redirect_is_refused_before_bearer_can_be_forwarded(self):
         request = inventory.urllib.request.Request(

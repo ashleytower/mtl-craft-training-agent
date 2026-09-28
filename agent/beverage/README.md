@@ -30,7 +30,11 @@ The inventory-read skill uses the already-deployed Railway REST bridge, not an
 MCP server. Its distinct `BRIX_INVENTORY_READ_TOKEN` permits only reads; set
 `INVENTORY_SERVICE_URL` and that token in the profile's private `.env`, never
 in this repository. The live skill is copied from this reviewed mirror after
-tests, then the multiprofile gateway is reloaded.
+tests, then the multiprofile gateway is reloaded. Ashley does not maintain the
+inventory app's counts or pickup list: this bridge exposes an item catalogue to
+Brix, not verified on-hand stock. Reconcile physical counts item by item before
+enabling any stock-quantity answer or write workflow; do not reset all counts
+to zero or reuse the service's broad write credential as a shortcut.
 
 `solid-wiggles/scripts/test_book.py` lives only here, not in the profile. Run it
 with `python3 -m unittest agent/beverage/skills/solid-wiggles/scripts/test_book.py`.
