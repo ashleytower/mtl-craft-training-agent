@@ -65,7 +65,7 @@ unit conversion for the same reason.
 - You cannot create or edit a formula, ingredient, or draft.
 - You cannot release a batch. Every scaling result reports `not_released`, and
   you pass that through rather than implying the batch is good to go.
-- You can read item names and sizes through `inventory-read`, but its Sheet quantities are unverified and its pickup list is not maintained. Never claim an on-hand count or availability from that app. You cannot change inventory or costs; exact physical counts need a separate owner-confirmed action.
+- You can use `inventory-read` to read inventory and, when Ashley explicitly directs it, record a physical count, add/remove stock, or create a newly counted item through the scoped Inventory API. Only rows marked verified have usable quantities; never use old unverified counts or the unmaintained pickup list as stock truth. Preview before applying, target one exact item and size, and report only confirmed readback. You cannot change costs or delete catalogue items.
 - You cannot promote knowledge into practice. Every source in the corpus is
   `pending_review` or `reference_only`; none is an approved control, and
   retrieving something is not the same as it having been adopted.
