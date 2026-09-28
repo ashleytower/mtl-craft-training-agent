@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Read Brix's existing MTL Craft inventory bridge; never modify stock."""
+"""Read item names from Brix's inventory bridge; stock counts are unverified."""
 
 import argparse
 import json
@@ -11,7 +11,7 @@ import urllib.parse
 import urllib.request
 
 
-FIELDS = ("name", "item", "category", "subcategory", "size", "quantity", "unit", "status", "added")
+CATALOG_FIELDS = ("name", "item", "category", "subcategory", "size", "unit")
 
 
 class _NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -82,7 +82,7 @@ def _safe_rows(rows):
         raise ValueError("Inventory service returned invalid rows")
     if any(not isinstance(row, dict) for row in rows):
         raise ValueError("Inventory service returned invalid rows")
-    return [{key: row[key] for key in FIELDS if key in row} for row in rows]
+    return [{key: row[key] for key in CATALOG_FIELDS if key in row} for row in rows]
 
 
 def run(command, category=None, search=None):
@@ -93,6 +93,7 @@ def run(command, category=None, search=None):
             "enabled": result.get("enabled"),
             "configured": result.get("brix_read_configured"),
             "workbook": result.get("active_workbook_title"),
+            "quantity_status": "unverified",
         }
     if command == "inventory":
         suffix = "?" + urllib.parse.urlencode({"category": category}) if category else ""
@@ -100,15 +101,20 @@ def run(command, category=None, search=None):
         if search:
             term = search.casefold()
             rows = [row for row in rows if term in str(row.get("name") or row.get("item") or "").casefold()]
-        return {"ok": True, "source": "live_inventory_sheet", "count": len(rows), "items": rows}
+        return {
+            "ok": True,
+            "source": "inventory_sheet_catalogue",
+            "quantity_status": "unverified",
+            "item_count": len(rows),
+            "items": rows,
+        }
     if command == "pickup":
-        rows = _safe_rows(_get("/api/hermes/pickup").get("items"))
-        return {"ok": True, "source": "live_inventory_sheet", "count": len(rows), "items": rows}
+        raise ValueError("The inventory app's pickup list is not maintained; use the CRM packing/prep list instead")
     raise ValueError("Unsupported inventory command")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Read stock and pickup items; no write commands")
+    parser = argparse.ArgumentParser(description="Read item catalogue only; quantities are unverified")
     sub = parser.add_subparsers(dest="command", required=True)
     sub.add_parser("status")
     inventory = sub.add_parser("inventory")
