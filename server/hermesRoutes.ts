@@ -6,7 +6,7 @@
  *
  * Most of it is read-and-calculate. The writes it does allow are narrow and
  * each carries its own gate: queued research candidates (nothing citable until
- * approved), a dictated recipe behind a spoken fingerprint, and batch capture —
+ * approved), a recipe Ashley sends (saved and approved in one step, her rule 2026-10-20), and batch capture —
  * where the measured yield is read back before it is stored. Approving a
  * formula version is NOT among them; that lives behind `humanProcedure` in the
  * tRPC router.

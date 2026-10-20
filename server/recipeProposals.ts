@@ -1,41 +1,21 @@
 /**
- * Dictate a recipe to Brix, read it back, confirm it, and it is approved.
+ * Ashley sends Brix a recipe (typed, dictated or a photo) and it is saved and
+ * approved in one call.
  *
- * WHY THIS EXISTS AND WHY IT IS NOT AN EXTENSION OF ownerDecisions
+ * HISTORY
  *
- * That file says, in its own header, that approving a formula version "deserves
- * seeing the whole component list rather than answering yes to a sentence. If
- * she wants that too it is a deliberate build with a confirmation step, not an
- * extension of this one." This is that build. Ashley asked for it on 2026-09-14
- * and supplied the safety property herself: "can it ask me, are you sure you
- * want this recipe, or can I just say confirm".
- *
- * WHY THERE IS NO PENDING-PROPOSAL TABLE
- *
- * The obvious design stores the proposal, hands back a token, and looks it up on
- * confirm. That is a second source of truth with an expiry, a cleanup job, and a
- * window where the stored spec and the spec she was read differ. The corpus
- * already carries one open bug of exactly that shape (an in-memory approval
- * store).
- *
- * So nothing is stored. `preview` validates and returns the canonical spec plus
- * its fingerprint; `confirm` sends that same spec back and the server RECOMPUTES
- * the fingerprint from it. If a single quantity changed in between, the hash
- * does not match and the write is refused. Her yes is bound to the bytes she was
- * read, not to a row that might have moved underneath it.
- *
- * WHY THE TOKEN IS THE FINGERPRINT
- *
- * "confirm" on its own lands on whatever is pending. Two recipes in a row and
- * the wrong one gets approved. The token she says out loud IS the first six
- * characters of the content hash, so the word and the content cannot come apart.
+ * Built 2026-09-14 as preview -> "confirm <token>" -> approve, with the token a
+ * hash of the spec she was read. On 2026-10-20 she retired that step: "I don't
+ * want to have to approve". The preview and confirm routes are gone; `save`
+ * is the only path, and Brix shows her the saved lines afterwards so a misread
+ * line is visible at once.
  *
  * WHAT IT STILL REFUSES
  *
- * A formula key that is already approved. Migration 127 makes approval supersede
- * every other approved version under the same key, so creating one from chat
- * would silently retire the recipe the bar is using. That is the Spicy Margarita
- * failure with a shorter fuse, and it is refused rather than resolved here.
+ * A line with no number or with a unit other than gr, ml or unit. A formula key
+ * that is already approved: migration 127 makes approval supersede every other
+ * approved version under the same key, so saving one from chat would silently
+ * retire the recipe the bar is using. A cocktail the CRM already owns.
  */
 import type { Express, Request, Response } from "express";
 import { createHash } from "node:crypto";
@@ -71,11 +51,12 @@ export function formulaKey(name: string): string {
 }
 
 /**
- * The hash her confirmation is bound to.
+ * The content hash stored on the draft, used to find the exact draft just
+ * written when reading it back.
  *
  * Canonical on purpose: the item order is preserved because line order is part
  * of a recipe, but every field is normalised so that whitespace or casing drift
- * in the agent's echo does not read as a different recipe.
+ * does not read as a different recipe.
  */
 export function specFingerprint(spec: RecipeSpec): string {
   const canonical = {
@@ -87,12 +68,6 @@ export function specFingerprint(spec: RecipeSpec): string {
     method: (spec.method ?? "").trim(),
   };
   return createHash("sha256").update(JSON.stringify(canonical)).digest("hex").slice(0, 12);
-}
-
-/** What she says out loud. Six characters is enough to be unambiguous and short
- *  enough to read off a phone. */
-export function confirmToken(spec: RecipeSpec): string {
-  return specFingerprint(spec).slice(0, 6);
 }
 
 const bad = (error: string): ParsedSpec => ({ spec: null, error });
@@ -141,14 +116,13 @@ export function parseSpec(input: unknown): ParsedSpec {
   return { spec: { name, product_category: category as RecipeSpec["product_category"], items, method }, error: null };
 }
 
-/** The whole component list, in words, because that is the point of the step. */
-export function renderReadback(spec: RecipeSpec): string {
+/** Every saved line, in words, so she sees exactly what went in. */
+export function renderSaved(spec: RecipeSpec): string {
   const lines = [`${spec.name} (${spec.product_category.replace(/_/g, " ")})`, ""];
   for (const i of spec.items) {
     lines.push(`  ${i.ingredient_name} — ${i.quantity} ${i.unit}${i.role === "garnish" ? " (garnish)" : ""}`);
   }
   lines.push("", spec.method ? `Method:\n${spec.method}` : "No method given.");
-  lines.push("", `Reply: confirm ${confirmToken(spec)}`);
   return lines.join("\n");
 }
 
@@ -186,29 +160,7 @@ export function draftFor(spec: RecipeSpec, fingerprint: string) {
 }
 
 export function registerRecipeProposalRoutes(app: Express): void {
-  app.post("/api/hermes/recipe/preview", async (req: Request, res: Response) => {
-    if (!hermesIdentityFromRequest(req)) {
-      res.status(401).json({ error: "hermes service token required" });
-      return;
-    }
-    const { spec, error } = parseSpec(req.body);
-    if (error || !spec) {
-      res.status(400).json({ error });
-      return;
-    }
-    const fingerprint = specFingerprint(spec);
-    res.json({
-      spec,
-      fingerprint,
-      confirm_token: confirmToken(spec),
-      readback: renderReadback(spec),
-      note:
-        "Nothing was written. Read this back in full, then send the same spec to " +
-        "/api/hermes/recipe/confirm with this fingerprint.",
-    });
-  });
-
-  app.post("/api/hermes/recipe/confirm", async (req: Request, res: Response) => {
+  app.post("/api/hermes/recipe/save", async (req: Request, res: Response) => {
     if (!hermesIdentityFromRequest(req)) {
       res.status(401).json({ error: "hermes service token required" });
       return;
@@ -217,30 +169,16 @@ export function registerRecipeProposalRoutes(app: Express): void {
     // subject would let anything reaching this route name itself owner.
     const owner = ownerForDecision();
     if (!owner) {
-      res.status(503).json({ error: "no owner configured; nothing can be confirmed" });
+      res.status(503).json({ error: "no owner configured; nothing can be saved" });
       return;
     }
 
-    const { spec, error } = parseSpec((req.body ?? {}).spec);
+    const { spec, error } = parseSpec(req.body);
     if (error || !spec) {
       res.status(400).json({ error });
       return;
     }
-    const claimed = typeof req.body?.fingerprint === "string" ? req.body.fingerprint.trim() : "";
-    if (!claimed) {
-      res.status(400).json({ error: "fingerprint is required; preview it first" });
-      return;
-    }
     const actual = specFingerprint(spec);
-    if (claimed !== actual && claimed !== actual.slice(0, 6)) {
-      res.status(409).json({
-        error:
-          `this spec hashes to ${actual}, not ${claimed}. Something changed between ` +
-          `the read-back and the confirmation. Preview it again and read it out.`,
-      });
-      return;
-    }
-
     const key = formulaKey(spec.name);
     try {
       const approved = (await beverage.listApprovedFormulas(owner)) as Array<{
@@ -317,7 +255,7 @@ export function registerRecipeProposalRoutes(app: Express): void {
       });
       await beverage.approveFormulaVersion(owner, {
         formulaVersionId: version.id,
-        rationale: `Ashley dictated this to Brix and confirmed ${confirmToken(spec)}.`,
+        rationale: "Ashley sent this to Brix. Saved and approved at once (her rule 2026-10-20: no confirm step).",
       });
 
       const live = (await beverage.listApprovedFormulas(owner)) as Array<{
@@ -332,6 +270,7 @@ export function registerRecipeProposalRoutes(app: Express): void {
         version_id: version.id,
         version_number: version.version_number,
         scalable,
+        saved: renderSaved(spec),
         note: scalable
           ? "Approved and scalable. Ask for it by name with a multiplier."
           : "Approved, but it did not come back scalable — do not rely on it until that is looked at.",

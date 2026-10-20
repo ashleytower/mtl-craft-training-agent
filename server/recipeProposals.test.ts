@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  confirmToken, draftFor, formulaKey, parseSpec, renderReadback, specFingerprint,
+  draftFor, formulaKey, parseSpec, renderSaved, specFingerprint,
   type RecipeSpec,
 } from "./recipeProposals";
 import { resolveDraftIngredients } from "../shared/ingredients";
@@ -67,7 +67,7 @@ describe("a dictated recipe must be measurable before it is anything", () => {
   });
 });
 
-describe("her confirmation is bound to the bytes she was read", () => {
+describe("the fingerprint identifies the exact draft written", () => {
   it("changes when any measurable thing changes", () => {
     const base = specFingerprint(spec());
     expect(specFingerprint(spec({ name: "Saline Solution 2" }))).not.toBe(base);
@@ -92,14 +92,11 @@ describe("her confirmation is bound to the bytes she was read", () => {
     expect(specFingerprint(flipped)).not.toBe(specFingerprint(spec()));
   });
 
-  it("is what she says out loud", () => {
-    expect(confirmToken(spec())).toBe(specFingerprint(spec()).slice(0, 6));
-    expect(renderReadback(spec())).toContain(`confirm ${confirmToken(spec())}`);
-  });
-
-  // The point of the step: she is read the whole component list, not a summary.
-  it("reads back every line and the method", () => {
-    const text = renderReadback(spec());
+  // Requirement changed 2026-10-20: no confirm token. She is shown every saved
+  // line after the save, never a summary, and never asked to confirm.
+  it("shows every saved line and the method, and asks for nothing", () => {
+    const text = renderSaved(spec());
+    expect(text).not.toMatch(/confirm/i);
     expect(text).toContain("Salt — 200 gr");
     expect(text).toContain("Water — 800 ml");
     expect(text).toContain("Mix until it dissolves.");
