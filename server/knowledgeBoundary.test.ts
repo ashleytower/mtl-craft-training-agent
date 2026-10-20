@@ -36,8 +36,8 @@ const DECLARED_ROUTE_MODULES = [
   // Her yes on a research candidate. Cannot reach a formula; ownerDecisions.test.ts
   // asserts the file cannot even mention one.
   "registerOwnerDecisionRoutes",
-  // Dictate a recipe, read it back, confirm it. The only path that can approve a
-  // formula from chat, and it is bound to a fingerprint of the spec she was read.
+  // A recipe she sends Brix is saved and approved in one step (2026-10-20). The
+  // only path that can approve a formula from chat; owner comes from server env.
   "registerRecipeProposalRoutes",
 ] as const;
 

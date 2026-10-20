@@ -3,6 +3,7 @@
 
 import argparse
 from contextlib import contextmanager
+import difflib
 import json
 import os
 from pathlib import Path
@@ -305,7 +306,73 @@ def _reconcile_action(action_id, outcome, note, owner_approved):
     return {"ok": True, "action_id": action_id, "outcome": outcome, "readback": result}
 
 
-def run(command, category=None, search=None, *, name=None, size=None, quantity=None, operation=None, reason=None, subcategory=None, action_id=None, outcome=None, note=None, owner_approved=False):
+def _norm(text):
+    return " ".join(str(text).casefold().replace(".", " ").split())
+
+
+def _inventory_match(name):
+    """Is a shopping-list name already an inventory item? The list entry is saved either way."""
+    try:
+        names = list(dict.fromkeys(str(r.get("item_name") or r.get("name") or "").strip() for r in _items()))
+    except ValueError:
+        return {"in_inventory": None}
+    wanted = _norm(name)
+    if any(_norm(n) == wanted for n in names):
+        return {"in_inventory": True}
+    close = set(difflib.get_close_matches(wanted, [_norm(n) for n in names], n=5, cutoff=0.75))
+    similar = [n for n in names if n and (wanted in _norm(n) or _norm(n) in wanted or _norm(n) in close)][:5]
+    return {"in_inventory": False, "similar_items": similar,
+            "ask_ashley": f"{name} is on your list. It is not in inventory yet. Want me to add it?"}
+
+
+def _shopping_list():
+    rows = _get("/api/hermes/pickup").get("items")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("Inventory service returned an invalid shopping list")
+    items = []
+    for row in rows:
+        entry = {"item": str(row.get("item", "")).strip()}
+        unit = str(row.get("unit") or "").strip()
+        if type(row.get("quantity")) is int and row["quantity"] > 0:
+            entry.update(quantity=row["quantity"], unit=unit or "units")
+        elif unit and unit.lower() != "units":
+            entry["unit"] = unit  # a size with no count, e.g. "2L bottles"
+        items.append(entry)
+    return items
+
+
+def _to_buy():
+    """Ashley's shopping list plus counted items below their keep-at-least level."""
+    shopping = _shopping_list()
+    low = _get("/api/hermes/low-stock")
+    rows = low.get("items")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise ValueError("Inventory service returned invalid low-stock rows")
+    listed = {entry["item"].casefold() for entry in shopping}
+    running_low = [{"item": row["name"], "have": row["current"], "keep_at_least": row["threshold"], "unit": row.get("unit") or "units"}
+                   for row in rows if str(row.get("name", "")).strip().casefold() not in listed]
+    return {"ok": True, "shopping_list": shopping, "running_low": running_low,
+            "uncounted_items": low.get("unverified_count", 0)}
+
+
+def to_buy_message(result):
+    """Telegram text for the daily ping; empty string means send nothing."""
+    lines = []
+    if result["shopping_list"]:
+        lines.append("To buy:")
+        lines += [f"- {e['item']}: {e['quantity']} {e['unit']}" if "quantity" in e
+                  else f"- {e['item']}: {e['unit']}" if "unit" in e else f"- {e['item']}"
+                  for e in result["shopping_list"]]
+    if result["running_low"]:
+        if lines:
+            lines.append("")
+        lines.append("Running low (counted):")
+        lines += [f"- {e['item']}: {e['have']} left, keep at least {e['keep_at_least']} {e['unit']}"
+                  for e in result["running_low"]]
+    return "\n".join(lines)
+
+
+def run(command, category=None, search=None, *, name=None, size=None, quantity=None, operation=None, reason=None, subcategory=None, action_id=None, outcome=None, note=None, owner_approved=False, unit=None):
     if command == "status":
         result = _get("/api/hermes/status")
         return {
@@ -353,8 +420,31 @@ def run(command, category=None, search=None, *, name=None, size=None, quantity=N
         return _journal_status()
     if command == "reconcile":
         return _reconcile_action(action_id, outcome, note, owner_approved)
-    if command == "pickup":
-        raise ValueError("The inventory app's pickup list is not maintained; use the CRM packing/prep list instead")
+    if command == "need":
+        if not name or not name.strip():
+            raise ValueError("Say what needs buying")
+        if quantity is not None and (type(quantity) is not int or quantity <= 0):
+            raise ValueError("Quantity must be a positive whole number, or leave it out")
+        payload = {"item_name": name.strip()}
+        if quantity is not None:
+            payload.update(quantity=quantity, unit=(unit or "units").strip())
+        elif unit and unit.strip():
+            payload["unit"] = unit.strip()  # a size with no count, e.g. "2L bottles"
+        result = {"ok": True, "result": _post("/api/hermes/pickup/need", payload)}
+        result.update(_inventory_match(name.strip()))
+        return result
+    if command == "bought":
+        if not name or not name.strip():
+            raise ValueError("Say which shopping-list item was bought")
+        try:
+            return {"ok": True, "result": _post("/api/hermes/pickup/bought", {"item_name": name.strip()})}
+        except ValueError as error:
+            if "HTTP 409" not in str(error):
+                raise
+            names = ", ".join(entry["item"] for entry in _shopping_list()) or "nothing"
+            raise ValueError(f"'{name.strip()}' is not on the shopping list by that exact name. On the list: {names}. Nothing was changed.") from None
+    if command == "to-buy":
+        return _to_buy()
     raise ValueError("Unsupported inventory command")
 
 
@@ -386,7 +476,13 @@ def main():
     reconcile.add_argument("--outcome", required=True, choices=("applied", "not-applied"))
     reconcile.add_argument("--note", required=True)
     reconcile.add_argument("--owner-approved", action="store_true")
-    sub.add_parser("pickup")
+    need = sub.add_parser("need")
+    need.add_argument("--name", required=True)
+    need.add_argument("--quantity", type=int)
+    need.add_argument("--unit")
+    bought = sub.add_parser("bought")
+    bought.add_argument("--name", required=True)
+    sub.add_parser("to-buy")
     args = parser.parse_args()
     try:
         output = run(args.command, getattr(args, "category", None), getattr(args, "search", None),
@@ -394,7 +490,8 @@ def main():
                      quantity=getattr(args, "quantity", None), operation=getattr(args, "operation", None),
                      reason=getattr(args, "reason", None), subcategory=getattr(args, "subcategory", None),
                      action_id=getattr(args, "action_id", None), outcome=getattr(args, "outcome", None),
-                     note=getattr(args, "note", None), owner_approved=getattr(args, "owner_approved", False))
+                     note=getattr(args, "note", None), owner_approved=getattr(args, "owner_approved", False),
+                     unit=getattr(args, "unit", None))
         print(json.dumps(output, ensure_ascii=False))
     except ValueError as error:
         print(json.dumps({"ok": False, "error": str(error)}))
