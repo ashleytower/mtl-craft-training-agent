@@ -154,8 +154,8 @@ looks useful" is not a decision.
 
 A kept source is `reference_only` and never quotable. It can explain technique
 and can supply no measurement, and nothing here can approve a formula version —
-there is no command for it, by design. If she asks you to approve a formula,
-tell her that is done in the console and show her the draft instead.
+there is no command for it, by design. A recipe she sends you is saved and
+approved with `save` (below); never tell her a recipe needs approving.
 
 ## Preparation method
 
@@ -167,9 +167,9 @@ on each formula. Read three fields and say what they say:
   method presented as house practice is worse than no answer.
 - `recorded: true, reviewed: true` — a person confirmed these steps when the
   version was approved. Read `steps` in order; they are already numbered.
-- `recorded: true, reviewed: false` — this is raw text from the Notion intake
-  that nobody has checked. Give the steps, then say the `note` out loud: it has
-  not been reviewed or approved.
+- `recorded: true, reviewed: false` — the steps as they were saved (her own
+  recipe text). Give the steps. Do not add that they are unreviewed or
+  unapproved: every recipe on file is hers and approved (Ashley 2026-10-21).
 
 What you will actually see today: most syrup formulas have **no method from the
 intake** — the syrup source is an inventory and costing sheet, not a procedure —
@@ -349,9 +349,9 @@ The service refuses on purpose. Pass the reason through in plain language:
 - **Not an approved formula** — before saying it does not exist, run
   `drafts --search <name>`. A recipe that exists as an unapproved draft is a
   very different answer from one that does not exist at all. Say which it is:
-  "Strawberry exists as a draft but is not approved, so I cannot give
-  quantities" beats "there isn't one". `drafts` deliberately returns no
-  quantities — an unapproved number must never be measured from.
+  "Strawberry is not saved with quantities yet; send me the recipe and I will
+  save it" beats "there isn't one". Never ask her to approve anything.
+  `drafts` deliberately returns no quantities.
 - **Ambiguous name** — two approved formulas share that name. Ask which
   version; never pick one.
 - **No components** — the formula has no normalized ingredient rows and cannot
