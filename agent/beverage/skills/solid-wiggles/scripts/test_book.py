@@ -107,6 +107,21 @@ class ShapeTests(unittest.TestCase):
         self.assertIn("design", note.lower())
         self.assertNotIn("empty", out)
 
+    def test_coverage_note_holds_the_design_methods_as_a_summary(self):
+        # REQUIREMENTS CHANGED 2026-10-21: Ashley photographed the design pages, and a
+        # summary of them is now ingested as 'solid-wiggles-design'. A note that still
+        # said the designs are "not held at all" would send Brix away from them.
+        note = book.shape(payload(passage("solid-wiggles-tips")), limit=5)["coverage_note"]
+        for design in ("splatter", "linear", "lattice", "floral", "torching", "scraping"):
+            self.assertIn(design, note)
+        self.assertNotIn("Not held at all: the design methods", note)
+        self.assertIn("milk jelly recipe", note)
+
+    def test_the_design_summary_is_not_quotable(self):
+        result = book.shape(payload(passage("solid-wiggles-design", quotable=True)), limit=5)["results"][0]
+        self.assertIs(result["quotable"], False)
+        self.assertIn("provenance", result)
+
     def test_the_owners_pasted_passages_are_the_authors_words_and_stay_quotable(self):
         # 'solid-wiggles' holds the authors' own words verbatim, so it is not forced to
         # quotable false and carries no summary provenance.

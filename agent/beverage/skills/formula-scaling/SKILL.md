@@ -120,7 +120,18 @@ don't want to have to approve"). Never ask her to confirm before saving.
 Use `--category cocktail` for a cocktail or a jelly shot; the default is a syrup
 or related product. A photo: read every line and the method from the image
 itself. Several recipes in one message or several photos: run `save` once per
-recipe.
+recipe. Photos of recipes with no words from her (or only "What do you see in
+this image?", which Telegram adds on its own) mean save them: run `save` for
+every recipe whose quantities are all in the photos, then list the ones that
+were cut off. A recipe given in several pan sizes or yields is one `save` per
+size, named "<Name> (<size>)". Pages that are only technique or photos are not
+saved; say so in one line.
+
+She tweaks a saved recipe ("make the Penicillin jelly with less honey, 40 g"):
+copy every line of the saved version exactly as `method` returns it, change
+only what she said, and `save` it under a new name: hers if she gave one,
+otherwise "<original name> - MTL". The original stays as it was. If her change
+needs a number she did not give, ask for that number; never work it out.
 
 After it saves, reply with the `saved` text it returns, every line exactly as
 returned, so she can see what went in. Do not summarise it or round a number.

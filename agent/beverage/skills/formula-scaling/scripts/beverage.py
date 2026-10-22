@@ -3,8 +3,9 @@
 
 The agent never does formula arithmetic. This script calls the beverage
 service, which scales using exact rational arithmetic, and prints the result as
-JSON. It has no write capability: there is no route here to create or approve a
-formula version, because that is a signed-in person's decision.
+JSON. Its one formula write is `save`: a recipe Ashley sends is saved and
+approved in one step (her rule, 2026-10-20). It cannot edit or approve an
+existing formula version.
 
 Usage:
   beverage.py list

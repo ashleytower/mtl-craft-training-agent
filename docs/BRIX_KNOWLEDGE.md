@@ -444,9 +444,15 @@ passages. The difference is four sources for one cookbook, *Solid Wiggles*
   Dip N' Flip), Slicing, and Storage + Service. Page numbers were not recorded, so
   the citation names the section.
 
-Each source's `note` says which it is and reaches its governed summary. The design
-methods (splatter, linear, lattice and floral designs, layering, scraping and
-torching) and the jelly and cake recipes are not held.
+- `solid-wiggles-design`, 9 passages, a **summary in Claude's words** of the design
+  pages Ashley photographed on 2026-10-21 (file `~/Desktop/Solid Wiggles/design-methods.md`):
+  milk jelly best practices, scraping, torching, and the splatter, linear, lattice
+  and floral designs. Not quotable; page numbers were not visible.
+
+Each source's `note` says which it is and reaches its governed summary. The jelly
+recipes Ashley photographed are approved Brix formulas (one per pan size), not
+corpus passages. The milk jelly recipe, the glitter method and the other recipes
+are not held.
 
 The Kindle edition is DRM-locked and nothing reads it. The loader
 (`server/knowledgeBookExcerpts.ts`, `scripts/ingest-book-excerpts.ts`) takes a

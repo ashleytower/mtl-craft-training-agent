@@ -62,8 +62,12 @@ COVERAGE_NOTE = (
     "citation only (no recipe text, page not recorded): Amaretto + Carciofo Sour, Arnold "
     "Palmer, Cherry Lime Rickey, Gin + Tonic — each dictated into an approved Brix formula of "
     "the same name; ask for that by name for the real ingredients, exact quantities and "
-    "method. Not held at all: the design methods (splatter, linear, lattice and floral "
-    "designs, layering, scraping and torching), and every other recipe in the book."
+    "method. Held as a summary in Claude's words from Ashley's screenshots (2026-10-21, page "
+    "numbers not visible): the decoration methods: milk jelly best practices, scraping, "
+    "torching, and the splatter, linear, lattice and floral designs. The jelly recipes she "
+    "photographed are approved Brix formulas, one per pan size (e.g. Penicillin Jelly, Moscow "
+    "Mule Jelly, Naked + Famous Jelly): run `list` for them, not this book search. Not held at "
+    "all: the milk jelly recipe, the glitter method, and every other recipe in the book."
 )
 
 EMPTY = "Nothing in the Solid Wiggles sources answers that."
