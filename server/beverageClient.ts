@@ -676,3 +676,47 @@ export function recordBatchCostDelta(
     p_rationale: input.rationale,
   });
 }
+
+// Recipe tests (migration 157). A test is an experiment pointing at the approved
+// "<family> - test <date>" formula; a tasting is a test run with her words.
+
+export type RecipeTest = {
+  test_id: string;
+  family: string;
+  change: string;
+  made_on: string;
+  formula_version_id: string | null;
+  logged_at: string;
+  tastings: Array<{ notes: string; at: string }>;
+};
+
+export function openRecipeTest(
+  identity: OperatorIdentity,
+  input: { family: string; change: string; madeOn: string; formulaVersionId: string }
+) {
+  return callRpc<{ test_id: string; made_on: string }>("beverage_open_recipe_test", {
+    ...operatorArgs(identity),
+    p_family: input.family,
+    p_change: input.change,
+    p_made_on: input.madeOn,
+    p_formula_version_id: input.formulaVersionId,
+  });
+}
+
+export function recordRecipeTasting(
+  identity: OperatorIdentity,
+  input: { testId: string; notes: string }
+) {
+  return callRpc<{ tasting_id: string; test_id: string }>("beverage_record_recipe_tasting", {
+    ...operatorArgs(identity),
+    p_test_id: input.testId,
+    p_notes: input.notes,
+  });
+}
+
+export function listRecipeTests(identity: OperatorIdentity, family: string) {
+  return callRpc<RecipeTest[]>("beverage_list_recipe_tests", {
+    ...operatorArgs(identity),
+    p_family: family,
+  });
+}

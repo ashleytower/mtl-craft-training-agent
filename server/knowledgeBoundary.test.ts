@@ -36,9 +36,14 @@ const DECLARED_ROUTE_MODULES = [
   // Her yes on a research candidate. Cannot reach a formula; ownerDecisions.test.ts
   // asserts the file cannot even mention one.
   "registerOwnerDecisionRoutes",
-  // A recipe she sends Brix is saved and approved in one step (2026-10-20). The
-  // only path that can approve a formula from chat; owner comes from server env.
+  // A recipe she sends Brix is saved and approved in one step (2026-10-20). Owner
+  // comes from server env. `saveApproved` here is the only code that approves a
+  // formula from chat.
   "registerRecipeProposalRoutes",
+  // Her recipe tests (2026-10-22): a dated test saved next to the others, her
+  // tasting words, and confirming one test as the recipe. Approves only through
+  // `saveApproved`; recipeTests.routes.test.ts pins what it may call.
+  "registerRecipeTestRoutes",
 ] as const;
 
 /** Strip comments so prose describing a writer is not mistaken for calling one. */

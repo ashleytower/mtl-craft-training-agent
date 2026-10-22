@@ -26,7 +26,7 @@ import { ownerForDecision } from "./ownerDecisions";
 
 /** gr, ml, unit. The house units, and the only ones the scaler can reason about. */
 const HOUSE_UNITS = ["gr", "ml", "unit"] as const;
-const CATEGORIES = ["syrup_or_related_product", "cocktail"] as const;
+const CATEGORIES = ["syrup_or_related_product", "cocktail", "jelly"] as const;
 const MAX_ITEMS = 40;
 
 export type SpecItem = {
@@ -79,7 +79,13 @@ export function parseSpec(input: unknown): ParsedSpec {
   if (!name) return bad("the recipe needs a name");
   if (name.length > 120) return bad("that name is too long to be a recipe name");
 
-  const category = typeof raw.product_category === "string" ? raw.product_category.trim() : "";
+  // No category given: a gelatin line makes it a jelly, anything else a syrup
+  // (the old default, which is how four jelly shots ended up filed as syrups).
+  const given = typeof raw.product_category === "string" ? raw.product_category.trim() : "";
+  const hasGelatin = Array.isArray(raw.items) && raw.items.some(
+    i => /g[eé]latin/i.test(String((i as Record<string, unknown> | null)?.ingredient_name ?? ""))
+  );
+  const category = given || (hasGelatin ? "jelly" : "syrup_or_related_product");
   if (!CATEGORIES.includes(category as never)) {
     return bad(`product_category must be one of ${CATEGORIES.join(", ")}`);
   }
@@ -159,6 +165,122 @@ export function draftFor(spec: RecipeSpec, fingerprint: string) {
   };
 }
 
+type Reply = { status: number; body: Record<string, unknown> };
+const reply = (status: number, body: Record<string, unknown>): Reply => ({ status, body });
+
+/**
+ * Save a recipe and approve it, as one step. Shared by `save` and by confirming a
+ * recipe test.
+ *
+ * `replace: false` (save) refuses a key that is already approved. `replace: true`
+ * is only for confirming a test: she said "this is the confirmed recipe", so the
+ * new version is approved under the family key on purpose and migration 127
+ * supersedes the previous one. The CRM cocktail refusal applies either way.
+ */
+export async function saveApproved(
+  owner: NonNullable<ReturnType<typeof ownerForDecision>>,
+  spec: RecipeSpec,
+  opts: { replace: boolean; rationale?: string }
+): Promise<Reply> {
+  const actual = specFingerprint(spec);
+  const key = formulaKey(spec.name);
+  try {
+    const approved = (await beverage.listApprovedFormulas(owner)) as Array<{
+      formula_key: string; name: string;
+    }>;
+    if (!opts.replace && approved.some(a => a.formula_key === key)) {
+      return reply(409, {
+        error:
+          `"${spec.name}" already has an approved formula. Approving another under ` +
+          `the same key would supersede the one the bar is using, so this refuses. ` +
+          `Rename it, or retire the existing version on purpose first.`,
+      });
+    }
+
+    // A cocktail's quantities live in the CRM and the CRM is authoritative.
+    // Dictating one that already exists there would create a second answer.
+    if (spec.product_category === "cocktail") {
+      const crm = (await beverage.listCrmRecipes()) as Array<{ name: string }>;
+      if (crm.some(r => r.name.trim().toLowerCase() === spec.name.trim().toLowerCase())) {
+        return reply(409, {
+          error:
+            `"${spec.name}" is a CRM recipe, and the CRM is authoritative for house ` +
+            `cocktail quantities. Change it there, not here.`,
+        });
+      }
+    }
+
+    await beverage.ingestFormulaDrafts(owner, {
+      run: {
+        intake_kind: "other",
+        source_label: "Brix, dictated by the owner",
+        original_reference: `brix-dictated:${key}`,
+        parser_version: "brix-dictated/1.0.0",
+        warnings: [],
+      },
+      drafts: [draftFor(spec, actual)],
+    });
+
+    // Find the draft we just wrote, through the same list Brix reads.
+    const drafts = (await beverage.listFormulaDrafts(owner)) as Array<{
+      id: string; name: string; original_recipe_json: { dictated_fingerprint?: string } | null;
+    }>;
+    const draft = drafts.find(
+      d => d.original_recipe_json?.dictated_fingerprint === actual && d.name === spec.name
+    );
+    if (!draft) {
+      return reply(502, { error: "the draft was written but could not be read back" });
+    }
+
+    // The reader's verdict, not the writer's. A stored recipe nothing can open
+    // is the failure this corpus has already had once.
+    const resolved = resolveDraftIngredients(draft as never, []);
+    if (resolved.blocked || resolved.items.length === 0) {
+      return reply(502, {
+        error: `the draft was written but does not resolve: ${resolved.blockedReason ?? "no items"}`,
+      });
+    }
+
+    const version = await beverage.createFormulaVersion(owner, {
+      formulaDraftId: draft.id,
+      formulaKey: key,
+      name: spec.name,
+      components: spec.items.map((i, index) => ({
+        line_number: index + 1,
+        ingredient_name: i.ingredient_name,
+        quantity: i.quantity,
+        unit: i.unit,
+        component_role: i.role,
+      })),
+    });
+    await beverage.approveFormulaVersion(owner, {
+      formulaVersionId: version.id,
+      rationale: opts.rationale ??
+          "Ashley sent this to Brix. Saved and approved at once (her rule 2026-10-20: no confirm step).",
+    });
+
+    const live = (await beverage.listApprovedFormulas(owner)) as Array<{
+      formula_key: string; components: unknown[];
+    }>;
+    const scalable = (live.find(f => f.formula_key === key)?.components ?? []).length > 0;
+
+    return reply(200, {
+      approved: true,
+      formula_key: key,
+      name: spec.name,
+      version_id: version.id,
+      version_number: version.version_number,
+      scalable,
+      saved: renderSaved(spec),
+      note: scalable
+        ? "Approved and scalable. Ask for it by name with a multiplier."
+        : "Approved, but it did not come back scalable — do not rely on it until that is looked at.",
+    });
+  } catch (err) {
+    return reply(502, { error: err instanceof Error ? err.message : "could not record the recipe" });
+  }
+}
+
 export function registerRecipeProposalRoutes(app: Express): void {
   app.post("/api/hermes/recipe/save", async (req: Request, res: Response) => {
     if (!hermesIdentityFromRequest(req)) {
@@ -178,107 +300,7 @@ export function registerRecipeProposalRoutes(app: Express): void {
       res.status(400).json({ error });
       return;
     }
-    const actual = specFingerprint(spec);
-    const key = formulaKey(spec.name);
-    try {
-      const approved = (await beverage.listApprovedFormulas(owner)) as Array<{
-        formula_key: string; name: string;
-      }>;
-      if (approved.some(a => a.formula_key === key)) {
-        res.status(409).json({
-          error:
-            `"${spec.name}" already has an approved formula. Approving another under ` +
-            `the same key would supersede the one the bar is using, so this refuses. ` +
-            `Rename it, or retire the existing version on purpose first.`,
-        });
-        return;
-      }
-
-      // A cocktail's quantities live in the CRM and the CRM is authoritative.
-      // Dictating one that already exists there would create a second answer.
-      if (spec.product_category === "cocktail") {
-        const crm = (await beverage.listCrmRecipes()) as Array<{ name: string }>;
-        if (crm.some(r => r.name.trim().toLowerCase() === spec.name.trim().toLowerCase())) {
-          res.status(409).json({
-            error:
-              `"${spec.name}" is a CRM recipe, and the CRM is authoritative for house ` +
-              `cocktail quantities. Change it there, not here.`,
-          });
-          return;
-        }
-      }
-
-      await beverage.ingestFormulaDrafts(owner, {
-        run: {
-          intake_kind: "other",
-          source_label: "Brix, dictated by the owner",
-          original_reference: `brix-dictated:${key}`,
-          parser_version: "brix-dictated/1.0.0",
-          warnings: [],
-        },
-        drafts: [draftFor(spec, actual)],
-      });
-
-      // Find the draft we just wrote, through the same list Brix reads.
-      const drafts = (await beverage.listFormulaDrafts(owner)) as Array<{
-        id: string; name: string; original_recipe_json: { dictated_fingerprint?: string } | null;
-      }>;
-      const draft = drafts.find(
-        d => d.original_recipe_json?.dictated_fingerprint === actual && d.name === spec.name
-      );
-      if (!draft) {
-        res.status(502).json({ error: "the draft was written but could not be read back" });
-        return;
-      }
-
-      // The reader's verdict, not the writer's. A stored recipe nothing can open
-      // is the failure this corpus has already had once.
-      const resolved = resolveDraftIngredients(draft as never, []);
-      if (resolved.blocked || resolved.items.length === 0) {
-        res.status(502).json({
-          error: `the draft was written but does not resolve: ${resolved.blockedReason ?? "no items"}`,
-        });
-        return;
-      }
-
-      const version = await beverage.createFormulaVersion(owner, {
-        formulaDraftId: draft.id,
-        formulaKey: key,
-        name: spec.name,
-        components: spec.items.map((i, index) => ({
-          line_number: index + 1,
-          ingredient_name: i.ingredient_name,
-          quantity: i.quantity,
-          unit: i.unit,
-          component_role: i.role,
-        })),
-      });
-      await beverage.approveFormulaVersion(owner, {
-        formulaVersionId: version.id,
-        rationale: "Ashley sent this to Brix. Saved and approved at once (her rule 2026-10-20: no confirm step).",
-      });
-
-      const live = (await beverage.listApprovedFormulas(owner)) as Array<{
-        formula_key: string; components: unknown[];
-      }>;
-      const scalable = (live.find(f => f.formula_key === key)?.components ?? []).length > 0;
-
-      res.json({
-        approved: true,
-        formula_key: key,
-        name: spec.name,
-        version_id: version.id,
-        version_number: version.version_number,
-        scalable,
-        saved: renderSaved(spec),
-        note: scalable
-          ? "Approved and scalable. Ask for it by name with a multiplier."
-          : "Approved, but it did not come back scalable — do not rely on it until that is looked at.",
-      });
-    } catch (err) {
-      res.status(502).json({
-        error: err instanceof Error ? err.message : "could not record the recipe",
-      });
-    }
+    const out = await saveApproved(owner, spec, { replace: false });
+    res.status(out.status).json(out.body);
   });
 }
