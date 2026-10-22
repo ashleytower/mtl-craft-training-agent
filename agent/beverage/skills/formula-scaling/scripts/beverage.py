@@ -3,9 +3,9 @@
 
 The agent never does formula arithmetic. This script calls the beverage
 service, which scales using exact rational arithmetic, and prints the result as
-JSON. Its one formula write is `save`: a recipe Ashley sends is saved and
-approved in one step (her rule, 2026-10-20). It cannot edit or approve an
-existing formula version.
+JSON. Its formula writes are `save` (a recipe Ashley sends is saved and
+approved in one step, her rule 2026-10-20) and the recipe tests `test`,
+`taste` and `confirm` (2026-10-22). It cannot edit an existing formula version.
 
 Usage:
   beverage.py list
@@ -80,6 +80,9 @@ def _config():
             "without it. Do not answer from memory."
         )
     return base, token
+
+
+CATEGORIES = ["syrup_or_related_product", "cocktail", "jelly"]
 
 
 def _fail(message, payload=None):
@@ -243,8 +246,19 @@ def cmd_save(args):
     one. The result's `saved` text is every line that went in: show it to her.
     """
     base, token = _config()
+    body = {"name": args.name, "items": _items(args.item)}
+    # No category: the server files a recipe with a gelatin line as jelly, else syrup.
+    if args.category:
+        body["product_category"] = args.category
+    if args.method:
+        body["method"] = args.method
+    result = _call(f"{base}/api/hermes/recipe/save", token, body)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def _items(raw_items):
     items = []
-    for raw in args.item:
+    for raw in raw_items:
         parts = raw.split("|")
         if len(parts) < 3:
             _fail('each --item must be "Ingredient|quantity|unit"')
@@ -254,14 +268,46 @@ def cmd_save(args):
             "unit": parts[2].strip(),
             "role": parts[3].strip() if len(parts) > 3 else "ingredient",
         })
-    body = {
-        "name": args.name,
-        "product_category": args.category,
-        "items": items,
-    }
-    if args.method:
-        body["method"] = args.method
-    result = _call(f"{base}/api/hermes/recipe/save", token, body)
+    return items
+
+
+def cmd_test(args):
+    """A test she made on a date: saved next to the others as
+    "<family> - test <YYYY-MM-DD>" and logged with what changed. --made-on is the
+    date she made it, from her; never today by default."""
+    base, token = _config()
+    body = {"family": args.family, "made_on": args.made_on, "items": _items(args.item)}
+    for key in ("change", "method"):
+        if getattr(args, key):
+            body[key] = getattr(args, key)
+    if args.category:
+        body["product_category"] = args.category
+    result = _call(f"{base}/api/hermes/recipe/test", token, body)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_taste(args):
+    """How a test tasted, in her exact words. Pass them as she said them."""
+    base, token = _config()
+    result = _call(f"{base}/api/hermes/recipe/taste", token,
+                   {"family": args.family, "made_on": args.made_on, "notes": args.notes})
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_tests(args):
+    """Every test of a recipe, oldest first: date, what changed, lines, tastings,
+    and which one is the confirmed recipe."""
+    base, token = _config()
+    result = _call(f"{base}/api/hermes/recipe/tests", token, {"family": args.family})
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
+def cmd_confirm(args):
+    """She said this test is the confirmed recipe: its exact lines become
+    "<family>". The previous confirmed version is retired; every test stays."""
+    base, token = _config()
+    result = _call(f"{base}/api/hermes/recipe/confirm", token,
+                   {"family": args.family, "made_on": args.made_on})
     print(json.dumps({"ok": True, **result}, indent=2))
 
 
@@ -463,13 +509,41 @@ def main():
         "save", help="Save and approve a recipe she sent, in one step")
     save.add_argument("--name", required=True, help="What she called it")
     save.add_argument(
-        "--category", default="syrup_or_related_product",
-        choices=["syrup_or_related_product", "cocktail"])
+        "--category", default=None, choices=CATEGORIES,
+        help="Leave out to let the server decide: gelatin -> jelly, else syrup")
     save.add_argument(
         "--item", required=True, action="append",
         help='"Ingredient|quantity|unit" — unit is gr, ml or unit. Repeat per line.')
     save.add_argument("--method", default=None, help="How it is made, in her words")
     save.set_defaults(func=cmd_save)
+
+    MADE_ON = "YYYY-MM-DD she made it. Required: never guess or default to today."
+    test = sub.add_parser(
+        "test", help="Save a test she made on a date, next to the earlier ones")
+    test.add_argument("--family", required=True, help='The recipe, e.g. "Spicy Mango Jelly"')
+    test.add_argument("--made-on", required=True, dest="made_on", help=MADE_ON)
+    test.add_argument("--change", default=None, help='What she changed, her words ("first test" if none)')
+    test.add_argument("--category", default=None, choices=CATEGORIES)
+    test.add_argument(
+        "--item", required=True, action="append",
+        help='"Ingredient|quantity|unit" — unit is gr, ml or unit. Repeat per line.')
+    test.add_argument("--method", default=None, help="How it is made, in her words")
+    test.set_defaults(func=cmd_test)
+
+    taste = sub.add_parser("taste", help="Record how a test tasted, in her words")
+    taste.add_argument("--family", required=True)
+    taste.add_argument("--made-on", required=True, dest="made_on", help=MADE_ON)
+    taste.add_argument("--notes", required=True, help="Exactly what she said")
+    taste.set_defaults(func=cmd_taste)
+
+    tests = sub.add_parser("tests", help="Every test of a recipe, with tastings")
+    tests.add_argument("--family", required=True)
+    tests.set_defaults(func=cmd_tests)
+
+    confirm = sub.add_parser("confirm", help="Make one test the confirmed recipe")
+    confirm.add_argument("--family", required=True)
+    confirm.add_argument("--made-on", required=True, dest="made_on", help=MADE_ON)
+    confirm.set_defaults(func=cmd_confirm)
 
     decide = sub.add_parser(
         "decide", help="Record HER decision on a queued citation (never your own)")

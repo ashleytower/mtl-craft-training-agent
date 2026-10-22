@@ -164,3 +164,19 @@ describe("the blast radius of this file", () => {
     }
   });
 });
+
+// Ashley 2026-10-22: jellies are their own group. Four jelly shots had been filed
+// as syrups because a save with no category defaulted to syrup.
+describe("jelly is a category, and a gelatin recipe with no category is a jelly", () => {
+  const gel = [{ ingredient_name: "Silver gelatin sheets", quantity: "14.1", unit: "gr" }];
+  it("accepts jelly", () => {
+    expect(parseSpec(body({ product_category: "jelly" })).spec?.product_category).toBe("jelly");
+  });
+  it("no category + a gelatin line -> jelly; no category and no gelatin -> syrup, as before", () => {
+    expect(parseSpec(body({ product_category: undefined, items: gel })).spec?.product_category).toBe("jelly");
+    expect(parseSpec(body({ product_category: undefined })).spec?.product_category).toBe("syrup_or_related_product");
+  });
+  it("an explicit category is never overridden", () => {
+    expect(parseSpec(body({ product_category: "cocktail", items: gel })).spec?.product_category).toBe("cocktail");
+  });
+});

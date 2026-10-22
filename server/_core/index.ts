@@ -6,6 +6,7 @@ import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { registerHermesRoutes } from "../hermesRoutes";
 import { registerOwnerDecisionRoutes } from "../ownerDecisions";
 import { registerRecipeProposalRoutes } from "../recipeProposals";
+import { registerRecipeTestRoutes } from "../recipeTests";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
@@ -41,6 +42,7 @@ async function startServer() {
   // guarantees in knowledgeBoundary.test.ts still apply to hermesRoutes.
   registerOwnerDecisionRoutes(app);
   registerRecipeProposalRoutes(app);
+  registerRecipeTestRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",
