@@ -89,6 +89,8 @@ declare
 begin
   if not p_is_owner then raise exception 'Only the MTL Craft owner may record a tasting'; end if;
   if btrim(coalesce(p_notes, '')) = '' then raise exception 'A tasting needs what she said'; end if;
+  -- Verbatim means never cut short: a note too long to store is refused, not truncated.
+  if length(p_notes) > 4000 then raise exception 'A tasting note is limited to 4000 characters'; end if;
   v_context := public.beverage_ensure_context(p_external_subject, p_display_name, p_is_owner);
   v_org_id := (v_context->>'organization_id')::uuid;
   v_principal_id := (v_context->>'principal_id')::uuid;
@@ -98,7 +100,7 @@ begin
   ) then raise exception 'Recipe test not found'; end if;
 
   insert into beverage.experiment_test_runs (organization_id, experiment_id, outcome, sensory_notes, completed_by)
-  values (v_org_id, p_test_id, 'completed', left(p_notes, 4000), v_principal_id)
+  values (v_org_id, p_test_id, 'completed', p_notes, v_principal_id)
   returning id into v_id;
   insert into beverage.audit_events (organization_id, principal_id, event_type, entity_type, entity_id, details)
   values (v_org_id, v_principal_id, 'recipe_test_tasted', 'experiment', p_test_id,
@@ -153,10 +155,11 @@ grant execute on function public.beverage_list_recipe_tests(text, text, boolean,
 
 -- 4. Jellies get their own group. A gelatin line is what makes it a jelly; the
 -- four jelly shots filed as syrups and the practice canvases move with the rest.
+-- Same match as parseSpec's gelatin rule. Live count 2026-10-22: 45 versions, 45 drafts.
 update beverage.formula_versions f set product_category = 'jelly'
  where f.product_category is distinct from 'jelly'
    and exists (select 1 from beverage.formula_components c
-                where c.formula_version_id = f.id and c.ingredient_name ilike '%gelatin%');
+                where c.formula_version_id = f.id and c.ingredient_name ~* 'g[eé]latin');
 update beverage.formula_drafts d set product_category = 'jelly'
  where d.product_category is distinct from 'jelly'
    and exists (select 1 from beverage.formula_versions f

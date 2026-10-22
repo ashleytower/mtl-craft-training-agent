@@ -198,7 +198,8 @@ export function registerRecipeTestRoutes(app: Express): void {
       }
       const spec: RecipeSpec = {
         name: f.family,
-        product_category: (row.product_category ?? "jelly") as RecipeSpec["product_category"],
+        // Same default as `save` when a row has no category.
+        product_category: (row.product_category ?? "syrup_or_related_product") as RecipeSpec["product_category"],
         items: row.components.map(c => ({
           ingredient_name: c.ingredient_name,
           quantity: String(c.quantity),
