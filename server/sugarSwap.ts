@@ -2,8 +2,9 @@
  * How much of one of her syrups replaces the sugar in a jelly recipe.
  *
  * Ashley 2026-10-22: "this is your syrup recipe ... try this amount". Her rule for
- * this one calculation (2026-10-23): 1 ml of WATER counts as 1 g. Nothing else is
- * converted: a syrup with any other ml line (juice, puree) is refused, by name.
+ * this one calculation (2026-10-23): 1 ml of water, and 1 ml of any line named
+ * juice ("so Brix can do my mango and pineapple syrups"), counts as 1 g. Nothing
+ * else is converted: any other ml line (milk, puree, "Pomegranate") is refused, by name.
  *
  * The syrup's sugar share is Sugar g / every line's weight, as written. The fruit's
  * own sugar and anything strained out are not counted, so the answer is a starting
@@ -48,7 +49,7 @@ export type SugarSwap = {
 };
 
 const ASSUMPTION =
-  "Counts 1 ml of water as 1 g. Does not count the fruit's own sugar, or anything " +
+  "Counts 1 ml of water or juice as 1 g. Does not count the fruit's own sugar, or anything " +
   "strained out or cooked off, so treat it as a starting amount to test.";
 
 /** "Sugar" or "Sugar (<layer>)". Never "Sugar syrup", "Sugar, invert", "Brown sugar". */
@@ -77,12 +78,13 @@ function syrupShare(syrup: NormalizedFormula): Rational {
         : `${syrup.name} has ${sugar.length} Sugar lines; cannot tell which one.`
     );
   }
-  const waterMl = (c: FormulaComponent) => named(c, "water") && canonicalUnit(c.unit) === "ml";
-  const unweighable = syrup.components.filter(c => !isGrams(c) && !waterMl(c));
+  const mlAsGrams = (c: FormulaComponent) =>
+    canonicalUnit(c.unit) === "ml" && (named(c, "water") || /\bjuice\b/i.test(c.ingredientName));
+  const unweighable = syrup.components.filter(c => !isGrams(c) && !mlAsGrams(c));
   if (unweighable.length > 0) {
     throw new Error(
       `${syrup.name} has lines Brix cannot weigh: ${unweighable.map(show).join("; ")}. ` +
-        "Only water counts 1 ml as 1 g."
+        "Only water and juice count 1 ml as 1 g."
     );
   }
   const total = sum(syrup.components.map(c => parseRational(c.quantity, c.ingredientName)));

@@ -166,8 +166,9 @@ suggest a new water amount. Say it is a starting amount to test (`assumption`).
 
 - A layered jelly with two Sugar lines comes back refused, listing them: ask which
   layer (one question), then rerun with `--sugar-line "<that exact line>"`.
-- A syrup with juice or puree in ml is refused by name (only water counts 1 ml as
-  1 g). Relay it; do not convert it yourself or pick another syrup.
+- Water and any line named juice count 1 ml as 1 g (her rule 2026-10-23). Any
+  other ml line (milk, "Pomegranate", puree) is refused by name. Relay it; do not
+  convert it yourself or pick another syrup.
 - If she makes it, `lines` is the trial recipe: pass it to `test` with the date
   she made it.
 
