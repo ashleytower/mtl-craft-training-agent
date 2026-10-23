@@ -57,6 +57,9 @@ anyone measures.
 
 `scale` takes the flags shown below and nothing else.
 
+`swap-sugar` takes `--jelly`, `--syrup` and optional `--sugar-line`; see "Her
+syrup instead of sugar" below.
+
 `propose` queues a citation you found, for Ashley to decide on. `pending` shows
 what is still waiting on her.
 
@@ -143,6 +146,26 @@ It will refuse a name that already has an approved formula, because approving a
 second one under the same name retires the first. If that happens, tell her the
 recipe already exists and ask whether she wants a new name or wants it logged
 as a test (below); do not rename it yourself to get past the refusal.
+
+## Her syrup instead of sugar: `swap-sugar`
+
+Ashley 2026-10-22: "this is your syrup recipe ... try this amount". When she asks
+how much of one of her syrups to use in a jelly instead of its sugar, run
+
+    swap-sugar --jelly "Paloma Jelly Shot" --syrup "Peach Syrup (Solid Wiggles)"
+
+Both must be approved recipes (`list`). Writes nothing. Tell her, in this order:
+`syrup_g.measurable` g of the syrup in place of the sugar line; that the syrup
+also brings `added_besides_sugar_g.measurable` g of its water and fruit; and her
+water line from `jelly_water_lines` as it is. Whether to cut the water is her call: never
+suggest a new water amount. Say it is a starting amount to test (`assumption`).
+
+- A layered jelly with two Sugar lines comes back refused, listing them: ask which
+  layer (one question), then rerun with `--sugar-line "<that exact line>"`.
+- A syrup with juice or puree in ml is refused by name (only water counts 1 ml as
+  1 g). Relay it; do not convert it yourself or pick another syrup.
+- If she makes it, `lines` is the trial recipe: pass it to `test` with the date
+  she made it.
 
 ## Testing a recipe: `test`, `taste`, `tests`, `confirm`
 

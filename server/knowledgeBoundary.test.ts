@@ -178,7 +178,7 @@ describe("the agent surface cannot write", () => {
     }
   });
 
-  it("exposes exactly six mutating POST routes, and none can approve anything", () => {
+  it("exposes exactly seven POST routes, and none can approve anything", () => {
     const verbs = [...code(hermesRoutesSource).matchAll(/app\.(get|post|put|patch|delete)\(\s*"([^"]+)"/g)]
       .map(m => ({ verb: m[1], route: m[2] }));
 
@@ -187,12 +187,15 @@ describe("the agent surface cannot write", () => {
     // (2026-09-15): open and input write narrow, string-typed fields onto a
     // batch that already requires an approved formula version; yield/preview
     // writes nothing at all, and yield/confirm only stores what yield/preview
-    // already read back, gated on a matching fingerprint. Any FURTHER mutating
-    // route beyond these has to be argued for here.
+    // already read back, gated on a matching fingerprint. /recipe/swap-sugar
+    // (2026-10-23) computes like /scale and stores nothing;
+    // hermesRoutes.swapSugar.test.ts asserts no writer is called. Any FURTHER
+    // mutating route beyond these has to be argued for here.
     const mutating = verbs.filter(v => v.verb !== "get");
     expect(mutating).toEqual([
       { verb: "post", route: "/api/hermes/research" },
       { verb: "post", route: "/api/hermes/scale" },
+      { verb: "post", route: "/api/hermes/recipe/swap-sugar" },
       { verb: "post", route: "/api/hermes/batch/open" },
       { verb: "post", route: "/api/hermes/batch/input" },
       { verb: "post", route: "/api/hermes/batch/yield/preview" },

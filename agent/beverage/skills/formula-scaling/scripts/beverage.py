@@ -384,6 +384,17 @@ def cmd_scale(args):
     print(json.dumps({"ok": True, **result}, indent=2))
 
 
+def cmd_swap_sugar(args):
+    """How much of one of her syrups replaces the sugar in a jelly. Read-only.
+    Counts water ml as g (her rule 2026-10-23); refuses any other ml line by name."""
+    base, token = _config()
+    body = {"jelly": args.jelly, "syrup": args.syrup}
+    if args.sugar_line:
+        body["sugar_line"] = args.sugar_line
+    result = _call(f"{base}/api/hermes/recipe/swap-sugar", token, body)
+    print(json.dumps({"ok": True, **result}, indent=2))
+
+
 def cmd_batch_open(args):
     """Start a batch against an APPROVED formula version."""
     base, token = _config()
@@ -554,6 +565,15 @@ def main():
     decide.add_argument(
         "--rationale", required=True, help="What she actually said, in her words")
     decide.set_defaults(func=cmd_decide)
+
+    swap = sub.add_parser(
+        "swap-sugar", help="How much of a syrup replaces a jelly's sugar (writes nothing)")
+    swap.add_argument("--jelly", required=True, help="Approved jelly recipe, name or id")
+    swap.add_argument("--syrup", required=True, help="Approved syrup recipe, name or id")
+    swap.add_argument(
+        "--sugar-line", default=None, dest="sugar_line",
+        help='Which Sugar line, when the jelly has layers, e.g. "Sugar (ginger beer layer)"')
+    swap.set_defaults(func=cmd_swap_sugar)
 
     bopen = sub.add_parser("batch-open", help="Start a batch from an approved formula")
     bopen.add_argument("--formula-version-id", required=True, dest="formula_version_id")
