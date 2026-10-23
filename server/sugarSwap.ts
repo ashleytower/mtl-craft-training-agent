@@ -4,8 +4,9 @@
  * Ashley 2026-10-22: "this is your syrup recipe ... try this amount". Her rule for
  * this one calculation (2026-10-23): 1 ml counts as 1 g, for every ml line (water,
  * then juice, then "Grenadine (pomegranate) and Dragonfruit ... dont ask me this just
- * do it"). Nothing else is converted: a line with no weight ("64 unit" eggs) or in
- * another unit (l, kg) is refused, by name.
+ * do it"). Counted eggs and nutmeg get a standard weight (2026-10-23: "use standard
+ * weights for the eggs and nutmeg"). Nothing else is converted: any other counted
+ * line ("12 unit" limes) or another unit (l, kg) is refused, by name.
  *
  * The syrup's sugar share is Sugar g / every line's weight, as written. The fruit's
  * own sugar and anything strained out are not counted, so the answer is a starting
@@ -53,11 +54,24 @@ const ASSUMPTION =
   "Counts 1 ml as 1 g. Does not count the fruit's own sugar, or anything " +
   "strained out or cooked off, so treat it as a starting amount to test.";
 
+/**
+ * Standard weight of one counted piece, by exact line name. Egg: USDA FoodData
+ * Central, Grade A large, egg whole (out of the shell), 50 g. Nutmeg: one whole nut
+ * grates to 2-3 tsp (Illinois Extension) at 2.2 g/tsp ground (USDA), about 6 g.
+ */
+const PIECE_G = new Map<string, { g: bigint; said: string }>([
+  ["egg", { g: 50n, said: "1 egg as 50 g" }],
+  ["eggs", { g: 50n, said: "1 egg as 50 g" }],
+  ["nutmeg", { g: 6n, said: "1 nutmeg as 6 g" }],
+]);
+
 /** "Sugar" or "Sugar (<layer>)". Never "Sugar syrup", "Sugar, invert", "Brown sugar". */
 const SUGAR_LINE = /^sugar(\s*\([^()]*\))?$/i;
 const WATER_LINE = /^water(\s*\([^()]*\))?$/i;
 const named = (c: FormulaComponent, name: string) => c.ingredientName.trim().toLowerCase() === name;
 const isGrams = (c: FormulaComponent) => canonicalUnit(c.unit) === "gr";
+const piece = (c: FormulaComponent) =>
+  canonicalUnit(c.unit) === "unit" ? PIECE_G.get(c.ingredientName.trim().toLowerCase()) : undefined;
 const show = (c: FormulaComponent) => `${c.ingredientName} ${c.quantity} ${c.unit}`;
 
 function amount(r: Rational): Amount {
@@ -70,7 +84,7 @@ function asLine(c: FormulaComponent): Line {
   return { ingredient_name: c.ingredientName, quantity: String(c.quantity), unit: c.unit };
 }
 
-function syrupShare(syrup: NormalizedFormula): Rational {
+function syrupShare(syrup: NormalizedFormula): { share: Rational; pieces: string[] } {
   const sugar = syrup.components.filter(c => named(c, "sugar"));
   if (sugar.length !== 1) {
     throw new Error(
@@ -79,17 +93,26 @@ function syrupShare(syrup: NormalizedFormula): Rational {
         : `${syrup.name} has ${sugar.length} Sugar lines; cannot tell which one.`
     );
   }
-  const unweighable = syrup.components.filter(c => !isGrams(c) && canonicalUnit(c.unit) !== "ml");
+  const unweighable = syrup.components.filter(
+    c => !isGrams(c) && canonicalUnit(c.unit) !== "ml" && !piece(c)
+  );
   if (unweighable.length > 0) {
     throw new Error(
       `${syrup.name} has lines Brix cannot weigh: ${unweighable.map(show).join("; ")}. ` +
-        "Only gr and ml lines can be weighed (1 ml counts as 1 g)."
+        "Only gr and ml lines, eggs and nutmeg can be weighed (1 ml counts as 1 g)."
     );
   }
-  const total = sum(syrup.components.map(c => parseRational(c.quantity, c.ingredientName)));
+  const grams = (c: FormulaComponent): Rational => {
+    const q = parseRational(c.quantity, c.ingredientName);
+    const p = piece(c);
+    return p ? { n: q.n * p.g, d: q.d } : q;
+  };
+  const total = sum(syrup.components.map(grams));
   const sugarG = parseRational(sugar[0].quantity, "Sugar");
   if (sugarG.n <= 0n) throw new Error(`${syrup.name} has no sugar to give.`);
-  return divide(sugarG, total);
+  const pieces = new Set<string>();
+  syrup.components.forEach(c => piece(c) && pieces.add(piece(c)!.said));
+  return { share: divide(sugarG, total), pieces: [...pieces] };
 }
 
 function pickSugarLine(jelly: NormalizedFormula, wanted?: string): FormulaComponent {
@@ -123,7 +146,7 @@ export function swapSugar(
   if (!isGrams(line)) {
     throw new Error(`${show(line)} is not in grams; Brix does not convert it.`);
   }
-  const share = syrupShare(syrup);
+  const { share, pieces } = syrupShare(syrup);
   const jellySugar = parseRational(line.quantity, line.ingredientName);
   const syrupG = divide(jellySugar, share);
   // " (lime-vodka layer)" or "". Keeps the layer on the syrup line and finds that
@@ -147,6 +170,6 @@ export function swapSugar(
         ? { ingredient_name: syrup.name + layer, quantity: amount(syrupG).measurable, unit: "gr" }
         : asLine(c)
     ),
-    assumption: ASSUMPTION,
+    assumption: pieces.length ? `Counts ${pieces.join(" and ")}. ${ASSUMPTION}` : ASSUMPTION,
   };
 }
