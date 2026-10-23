@@ -57,7 +57,7 @@ describe("swapSugar", () => {
     const r = swapSugar(CANVAS, SIMPLE);
     expect(r.syrup_sugar_share.exact).toBe("1/2");
     expect(r.syrup_g.exact).toBe("244");
-    expect(r.extra_liquid_g.exact).toBe("122");
+    expect(r.added_besides_sugar_g.exact).toBe("122");
     // Her water is shown, never changed: that is her call.
     expect(r.jelly_water_lines).toEqual([{ ingredient_name: "Water", quantity: "348", unit: "gr" }]);
     expect(r.lines).toEqual([
@@ -71,7 +71,7 @@ describe("swapSugar", () => {
     const r = swapSugar(PALOMA, PEACH_SYRUP);
     expect(r.syrup_sugar_share.exact).toBe("104/229");
     expect(r.syrup_g.exact).toBe("229");
-    expect(r.extra_liquid_g.exact).toBe("125");
+    expect(r.added_besides_sugar_g.exact).toBe("125");
     expect(line(r, "Sugar")).toBeUndefined();
     expect(r.lines.map(l => l.ingredient_name)).toEqual([
       "Lime juice, strained", "Water", "Grapefruit juice, strained", "Blanco tequila",
@@ -82,7 +82,7 @@ describe("swapSugar", () => {
 
   it("counts a water line in gr and in ml the same way", () => {
     expect(swapSugar(GIN_TONIC, SIMPLE_2_1).syrup_g.exact).toBe("78");
-    expect(swapSugar(GIN_TONIC, SIMPLE_2_1).extra_liquid_g.exact).toBe("26");
+    expect(swapSugar(GIN_TONIC, SIMPLE_2_1).added_besides_sugar_g.exact).toBe("26");
     expect(swapSugar(GIN_TONIC, SIMPLE_2_1).jelly_water_lines).toEqual([]);
   });
 
@@ -135,6 +135,19 @@ describe("swapSugar", () => {
     expect(line(bottom, "Sugar (lime-vodka layer)")?.quantity).toBe("118");
   });
 
+  it("lists only the chosen layer's water when both layers have water", () => {
+    const two = formula("Naked + Famous Jelly (6-inch Round)", [
+      ["Water (lime-mezcal layer)", "74", "gr"], ["Sugar (lime-mezcal layer)", "74", "gr"],
+      ["Water (Aperol-lime-Chartreuse layer)", "25", "gr"],
+      ["Sugar (Aperol-lime-Chartreuse layer)", "38", "gr"],
+    ]);
+    const r = swapSugar(two, SIMPLE, "Sugar (Aperol-lime-Chartreuse layer)");
+    expect(r.jelly_water_lines).toEqual([
+      { ingredient_name: "Water (Aperol-lime-Chartreuse layer)", quantity: "25", unit: "gr" },
+    ]);
+    expect(swapSugar(CANVAS, SIMPLE).jelly_water_lines).toHaveLength(1);
+  });
+
   it("refuses a sugar_line that is not a Sugar line of the recipe", () => {
     expect(() => swapSugar(MULE, SIMPLE, "Honey")).toThrow(/Honey.*not a Sugar line/);
   });
@@ -147,6 +160,6 @@ describe("swapSugar", () => {
   });
 
   it("states what the number does not count", () => {
-    expect(swapSugar(CANVAS, SIMPLE).assumption).toMatch(/fruit.*own sugar/i);
+    expect(swapSugar(CANVAS, SIMPLE).assumption).toMatch(/fruit.*own sugar.*cooked off/i);
   });
 });

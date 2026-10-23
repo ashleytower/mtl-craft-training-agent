@@ -109,12 +109,19 @@ export function parseRational(raw: Quantity | null | undefined, label: string): 
   return reduce({ n, d });
 }
 
-export function multiply(a: Rational, b: Rational): Rational {
+function multiply(a: Rational, b: Rational): Rational {
   return reduce({ n: a.n * b.n, d: a.d * b.d });
 }
 
 export function subtract(a: Rational, b: Rational): Rational {
   return reduce({ n: a.n * b.d - b.n * a.d, d: a.d * b.d });
+}
+
+export function sum(values: Rational[]): Rational {
+  return values.reduce(
+    (total, v) => reduce({ n: total.n * v.d + v.n * total.d, d: total.d * v.d }),
+    { n: 0n, d: 1n }
+  );
 }
 
 export function divide(a: Rational, b: Rational): Rational {

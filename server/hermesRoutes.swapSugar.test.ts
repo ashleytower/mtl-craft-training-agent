@@ -96,7 +96,7 @@ describe("POST /api/hermes/recipe/swap-sugar", () => {
     const r = await harness()({ jelly: "blank practice canvas (6-inch round)", syrup: "Simple Syrup" });
     expect(r.status).toBe(200);
     expect(r.body.syrup_g.exact).toBe("244");
-    expect(r.body.extra_liquid_g.exact).toBe("122");
+    expect(r.body.added_besides_sugar_g.exact).toBe("122");
     expect(r.body.lines).toContainEqual({ ingredient_name: "Simple Syrup", quantity: "244", unit: "gr" });
     Object.values(writers).forEach(w => expect(w).not.toHaveBeenCalled());
   });

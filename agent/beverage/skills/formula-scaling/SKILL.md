@@ -155,9 +155,9 @@ how much of one of her syrups to use in a jelly instead of its sugar, run
     swap-sugar --jelly "Paloma Jelly Shot" --syrup "Peach Syrup (Solid Wiggles)"
 
 Both must be approved recipes (`list`). Writes nothing. Tell her, in this order:
-`syrup_g.measurable` g of the syrup in place of the sugar line; that it adds
-`extra_liquid_g.measurable` g of liquid; and her water line(s) from
-`jelly_water_lines` as they are. Whether to cut the water is her call: never
+`syrup_g.measurable` g of the syrup in place of the sugar line; that the syrup
+also brings `added_besides_sugar_g.measurable` g of its water and fruit; and her
+water line from `jelly_water_lines` as it is. Whether to cut the water is her call: never
 suggest a new water amount. Say it is a starting amount to test (`assumption`).
 
 - A layered jelly with two Sugar lines comes back refused, listing them: ask which

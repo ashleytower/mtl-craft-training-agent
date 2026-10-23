@@ -19,6 +19,7 @@ import {
   measurable,
   parseRational,
   subtract,
+  sum,
   toDecimal,
   type FormulaComponent,
   type NormalizedFormula,
@@ -37,9 +38,9 @@ export type SugarSwap = {
   syrup_sugar_share: { exact: string; decimal: string };
   /** How much syrup carries the same sugar. */
   syrup_g: Amount;
-  /** What the syrup adds besides sugar: water, juice, fruit. */
-  extra_liquid_g: Amount;
-  /** Her water lines, as they are. */
+  /** What the syrup adds besides its sugar: its water and fruit. */
+  added_besides_sugar_g: Amount;
+  /** Her water line in the same layer as the swapped sugar, as it is. */
   jelly_water_lines: Line[];
   /** The jelly with that one sugar line swapped for the syrup. Ready for `test`. */
   lines: Line[];
@@ -47,8 +48,8 @@ export type SugarSwap = {
 };
 
 const ASSUMPTION =
-  "Counts 1 ml of water as 1 g. Does not count the fruit's own sugar or anything " +
-  "strained out of the syrup, so treat it as a starting amount to test.";
+  "Counts 1 ml of water as 1 g. Does not count the fruit's own sugar, or anything " +
+  "strained out or cooked off, so treat it as a starting amount to test.";
 
 /** "Sugar" or "Sugar (<layer>)". Never "Sugar syrup", "Sugar, invert", "Brown sugar". */
 const SUGAR_LINE = /^sugar(\s*\([^()]*\))?$/i;
@@ -84,11 +85,7 @@ function syrupShare(syrup: NormalizedFormula): Rational {
         "Only water counts 1 ml as 1 g."
     );
   }
-  // Sum of every line's grams. subtract(a, -b) is a + b; no separate add helper needed.
-  const total = syrup.components.reduce<Rational>((sum, c) => {
-    const q = parseRational(c.quantity, c.ingredientName);
-    return subtract(sum, { n: -q.n, d: q.d });
-  }, { n: 0n, d: 1n });
+  const total = sum(syrup.components.map(c => parseRational(c.quantity, c.ingredientName)));
   const sugarG = parseRational(sugar[0].quantity, "Sugar");
   if (sugarG.n <= 0n) throw new Error(`${syrup.name} has no sugar to give.`);
   return divide(sugarG, total);
@@ -128,8 +125,12 @@ export function swapSugar(
   const share = syrupShare(syrup);
   const jellySugar = parseRational(line.quantity, line.ingredientName);
   const syrupG = divide(jellySugar, share);
-  // Keep the layer label, so a layered recipe still reads as its layers.
-  const syrupLine = syrup.name + line.ingredientName.trim().slice("sugar".length);
+  // " (lime-vodka layer)" or "". Keeps the layer on the syrup line and finds that
+  // layer's water, so a layered recipe still reads as its layers.
+  const layer = line.ingredientName.trim().slice("sugar".length);
+  const sameLayerWater = (c: FormulaComponent) =>
+    WATER_LINE.test(c.ingredientName.trim()) &&
+    c.ingredientName.trim().slice("water".length).toLowerCase() === layer.toLowerCase();
 
   return {
     jelly: jelly.name,
@@ -138,11 +139,11 @@ export function swapSugar(
     jelly_sugar_g: String(line.quantity),
     syrup_sugar_share: { exact: formatExact(share), decimal: toDecimal(share).text },
     syrup_g: amount(syrupG),
-    extra_liquid_g: amount(subtract(syrupG, jellySugar)),
-    jelly_water_lines: jelly.components.filter(c => WATER_LINE.test(c.ingredientName.trim())).map(asLine),
+    added_besides_sugar_g: amount(subtract(syrupG, jellySugar)),
+    jelly_water_lines: jelly.components.filter(sameLayerWater).map(asLine),
     lines: jelly.components.map(c =>
       c === line
-        ? { ingredient_name: syrupLine, quantity: amount(syrupG).measurable, unit: "gr" }
+        ? { ingredient_name: syrup.name + layer, quantity: amount(syrupG).measurable, unit: "gr" }
         : asLine(c)
     ),
     assumption: ASSUMPTION,
