@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import sqlite3
 import sys
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -74,7 +75,9 @@ def _request(path, payload=None):
         with _open(request) as response:
             result = json.load(response)
     except urllib.error.HTTPError as error:
-        raise ValueError(f"Inventory service refused the {'action' if write else 'read'} (HTTP {error.code})") from None
+        message = f"Inventory service refused the {'action' if write else 'read'} (HTTP {error.code})"
+        reason = _refusal_reason(error, token) if error.code in (409, 429, 503) else ""
+        raise ValueError(f"{message}: {reason}" if reason else message) from None
     except (urllib.error.URLError, TimeoutError):
         raise ValueError("Inventory service response is uncertain; refresh inventory before retrying") from None
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -82,6 +85,19 @@ def _request(path, payload=None):
     if not isinstance(result, dict) or result.get("success") is not True:
         raise ValueError("Inventory service did not confirm the action; refresh inventory before retrying")
     return result
+
+
+def _refusal_reason(error, token):
+    """The service's own reason for a refusal or outage, e.g. "API quota exceeded.
+    Please wait a moment and try again." Never for auth failures, never if it
+    would repeat the credential."""
+    try:
+        detail = json.load(error).get("detail")
+    except (OSError, ValueError, AttributeError, TypeError):
+        return ""
+    if not isinstance(detail, str) or (token and token in detail):
+        return ""
+    return " ".join(detail.split())[:200]
 
 
 def _get(path):
@@ -310,10 +326,35 @@ def _norm(text):
     return " ".join(str(text).casefold().replace(".", " ").split())
 
 
+# Reading the whole inventory costs about 9 Google Sheets reads; the Sheets limit is
+# 60 a minute. 2026-10-22, 11 pickup items at once each re-read it and the last 4
+# were refused. The stocked check only names a match, so 2-minute-old names are fine.
+NAMES_TTL_SECONDS = 120
+
+
+def _inventory_names():
+    profile = Path(os.environ.get("HERMES_HOME") or Path(__file__).resolve().parents[4])
+    path = profile / "state" / "brix-inventory-names.json"
+    now = time.time()
+    try:
+        cached = json.loads(path.read_text(encoding="utf-8"))
+        if 0 <= now - cached["at"] < NAMES_TTL_SECONDS and isinstance(cached["names"], list):
+            return cached["names"]
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    names = list(dict.fromkeys(str(r.get("item_name") or r.get("name") or "").strip() for r in _items()))
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"at": now, "names": names}), encoding="utf-8")
+    except OSError:
+        pass
+    return names
+
+
 def _inventory_match(name):
     """Is a shopping-list name already an inventory item? The list entry is saved either way."""
     try:
-        names = list(dict.fromkeys(str(r.get("item_name") or r.get("name") or "").strip() for r in _items()))
+        names = _inventory_names()
     except ValueError:
         return {"in_inventory": None}
     wanted = _norm(name)

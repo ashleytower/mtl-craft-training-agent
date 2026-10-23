@@ -188,5 +188,68 @@ class InventoryReadTests(unittest.TestCase):
                     self.assertNotIn("previous_raw_quantity", result["result"])
 
 
+class PickupQuotaTests(unittest.TestCase):
+    """2026-10-22: Ashley sent 11 pickup items at once. Each `need` re-read the whole
+    inventory (about 9 Google Sheets reads) only to say whether the item is stocked,
+    so the 8th item onward hit the Sheets limit (60 reads a minute) and came back
+    "refused (HTTP 409)" with the reason dropped. Loire's 4 items never landed."""
+
+    ENV = {"INVENTORY_SERVICE_URL": "https://inventory.example",
+           "BRIX_INVENTORY_READ_TOKEN": "read-token", "BRIX_INVENTORY_WRITE_TOKEN": "write-token"}
+
+    def _fake_service(self, calls):
+        def fake_open(request):
+            calls.append((request.get_method(), request.full_url))
+            if request.full_url.endswith("/api/hermes/pickup/need"):
+                return io.BytesIO(b'{"success":true,"action":"added"}')
+            return io.BytesIO(b'{"success":true,"items":[{"item_name":"Gin","category":"alcohol"}]}')
+        return fake_open
+
+    def test_eleven_needs_read_the_inventory_once(self):
+        calls = []
+        with tempfile.TemporaryDirectory() as home, \
+                patch.dict("os.environ", {**self.ENV, "HERMES_HOME": home}), \
+                patch.object(inventory, "_open", side_effect=self._fake_service(calls)):
+            results = [inventory.run("need", name=f"item {i}", quantity=1, unit="bottle") for i in range(11)]
+            gin = inventory.run("need", name="gin", quantity=3, unit="bottles")
+        reads = [c for c in calls if "/api/hermes/inventory" in c[1]]
+        writes = [c for c in calls if c[1].endswith("/pickup/need")]
+        self.assertEqual(len(writes), 12)
+        self.assertEqual(len(reads), 1)
+        # The stocked check still answers from the reused names.
+        self.assertIs(gin["in_inventory"], True)
+        self.assertIs(results[0]["in_inventory"], False)
+
+    def test_names_are_read_again_after_two_minutes(self):
+        calls = []
+        clock = [1000.0]
+        with tempfile.TemporaryDirectory() as home, \
+                patch.dict("os.environ", {**self.ENV, "HERMES_HOME": home}), \
+                patch.object(inventory, "_open", side_effect=self._fake_service(calls)), \
+                patch.object(inventory.time, "time", side_effect=lambda: clock[0]):
+            inventory.run("need", name="a", quantity=1, unit="bottle")
+            clock[0] += 119
+            inventory.run("need", name="b", quantity=1, unit="bottle")
+            clock[0] += 2
+            inventory.run("need", name="c", quantity=1, unit="bottle")
+        self.assertEqual(len([c for c in calls if "/api/hermes/inventory" in c[1]]), 2)
+
+    def test_a_refusal_says_the_service_reason(self):
+        body = io.BytesIO(b'{"detail":"API quota exceeded. Please wait a moment and try again."}')
+        error = urllib.error.HTTPError("https://inventory.example/api/hermes/pickup/need", 409, "Conflict", {}, body)
+        with patch.dict("os.environ", self.ENV), patch.object(inventory, "_open", side_effect=error):
+            with self.assertRaisesRegex(ValueError, r"HTTP 409\): API quota exceeded\. Please wait") as caught:
+                inventory.run("need", name="vodka for Loire's event", quantity=1, unit="bottle")
+        self.assertNotIn("write-token", str(caught.exception))
+
+    def test_an_auth_refusal_still_shows_no_detail(self):
+        body = io.BytesIO(b'{"detail":"token read-token is wrong"}')
+        error = urllib.error.HTTPError("https://inventory.example/api/hermes/inventory", 401, "bad", {}, body)
+        with patch.dict("os.environ", self.ENV), patch.object(inventory, "_open", side_effect=error):
+            with self.assertRaisesRegex(ValueError, r"HTTP 401\)$") as caught:
+                inventory.run("inventory")
+        self.assertNotIn("read-token", str(caught.exception))
+
+
 if __name__ == "__main__":
     unittest.main()
