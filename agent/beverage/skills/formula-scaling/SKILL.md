@@ -1,6 +1,6 @@
 ---
 name: formula-scaling
-description: "Use when asked to scale a syrup or cocktail formula, batch a recipe up or down, work out quantities for a target yield, or figure out what can be made from the amount of an ingredient on hand. Also use for technique and theory questions — emulsions, acids, water activity, solubility, extraction, preservation, clear ice, flavour dosing in ppm — which are answered from a cited knowledge corpus. Reads approved formulas from the governed beverage schema; recipe quantities always come from the formula, never from the corpus."
+description: "Use for MTL Craft's own recipes (syrups, cocktails, jellies): what is in one, scale or batch it, quantities for a target yield or from what is on hand; how much of her syrup replaces the sugar in a jelly (swap-sugar); saving a recipe she sends; a test she made on a date, how it tasted, and which test is the confirmed recipe. Also technique and theory questions (emulsions, acids, water activity, solubility, extraction, preservation, clear ice, ppm dosing), answered from a cited knowledge corpus. Quantities always come from approved formulas, never from the corpus."
 metadata:
   version: "1.1.0"
   created_from_session: "2026-08-29 beverage intelligence rebuild"
@@ -22,9 +22,13 @@ Scale an **approved** MTL Craft formula exactly, using the beverage service.
 - "What order do I add acid in?" → `knowledge`
 - "How do I make clear ice?" → `knowledge`
 - "What does the course say about water activity?" → `knowledge`
+- "How much of my strawberry syrup instead of the sugar in the Paloma jelly?" → `swap-sugar`
+- "Here's my new jelly recipe" → `save`
+- "I made the spicy mango jelly Oct 30 with less sugar" → `test`
+- "The Oct 30 one was too tart" → `taste`; "Oct 30 is the one" → `confirm`
 
-Do not use this skill to change a recipe, approve a formula, create a draft,
-update inventory, or price a batch. None of those have a route here.
+Do not use this skill to update inventory or price a batch. Neither has a route
+here.
 
 **A question about a house recipe is never a `knowledge` question.** "How much
 sugar is in our jalapeño syrup" is `list`, even though the corpus has passages
