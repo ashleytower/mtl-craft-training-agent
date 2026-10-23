@@ -59,11 +59,11 @@ const ASSUMPTION =
  * Central, Grade A large, egg whole (out of the shell), 50 g. Nutmeg: one whole nut
  * grates to 2-3 tsp (Illinois Extension) at 2.2 g/tsp ground (USDA), about 6 g.
  */
-const PIECE_G: Record<string, { g: bigint; said: string }> = {
-  egg: { g: 50n, said: "1 egg as 50 g" },
-  eggs: { g: 50n, said: "1 egg as 50 g" },
-  nutmeg: { g: 6n, said: "1 nutmeg as 6 g" },
-};
+const PIECE_G = new Map<string, { g: bigint; said: string }>([
+  ["egg", { g: 50n, said: "1 egg as 50 g" }],
+  ["eggs", { g: 50n, said: "1 egg as 50 g" }],
+  ["nutmeg", { g: 6n, said: "1 nutmeg as 6 g" }],
+]);
 
 /** "Sugar" or "Sugar (<layer>)". Never "Sugar syrup", "Sugar, invert", "Brown sugar". */
 const SUGAR_LINE = /^sugar(\s*\([^()]*\))?$/i;
@@ -71,7 +71,7 @@ const WATER_LINE = /^water(\s*\([^()]*\))?$/i;
 const named = (c: FormulaComponent, name: string) => c.ingredientName.trim().toLowerCase() === name;
 const isGrams = (c: FormulaComponent) => canonicalUnit(c.unit) === "gr";
 const piece = (c: FormulaComponent) =>
-  canonicalUnit(c.unit) === "unit" ? PIECE_G[c.ingredientName.trim().toLowerCase()] : undefined;
+  canonicalUnit(c.unit) === "unit" ? PIECE_G.get(c.ingredientName.trim().toLowerCase()) : undefined;
 const show = (c: FormulaComponent) => `${c.ingredientName} ${c.quantity} ${c.unit}`;
 
 function amount(r: Rational): Amount {
