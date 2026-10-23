@@ -69,9 +69,10 @@ const SIMPLE = approved("s1", "Simple Syrup", [["Sugar", "6000", "gr"], ["Water"
 const MANGO = approved("s2", "Mango Syrup", [
   ["Mango Juice", "1000", "ml"], ["Sugar", "1000", "gr"], ["Water", "1000", "ml"],
 ]);
+const GRENADINE = approved("s3", "Grenadine", [["Pomegranate", "500", "ml"], ["Sugar", "500", "gr"]]);
 
 beforeEach(() => {
-  listApprovedFormulas.mockReset().mockResolvedValue([CANVAS, MULE, SIMPLE, MANGO]);
+  listApprovedFormulas.mockReset().mockResolvedValue([CANVAS, MULE, SIMPLE, MANGO, GRENADINE]);
   Object.values(writers).forEach(w => w.mockReset());
 });
 
@@ -101,10 +102,13 @@ describe("POST /api/hermes/recipe/swap-sugar", () => {
     Object.values(writers).forEach(w => expect(w).not.toHaveBeenCalled());
   });
 
-  it("refuses a syrup with juice in ml, naming the line", async () => {
-    const r = await harness()({ jelly: "j1", syrup: "Mango Syrup" });
+  it("does Mango Syrup (juice ml counts as g) and refuses an ml line that is not juice", async () => {
+    const mango = await harness()({ jelly: "j1", syrup: "Mango Syrup" });
+    expect(mango.status).toBe(200);
+    expect(mango.body.syrup_g.exact).toBe("366");
+    const r = await harness()({ jelly: "j1", syrup: "Grenadine" });
     expect(r.status).toBe(409);
-    expect(r.body.error).toMatch(/Mango Juice 1000 ml/);
+    expect(r.body.error).toMatch(/Pomegranate 500 ml/);
   });
 
   it("asks which sugar line on a layered jelly, then uses the one named", async () => {

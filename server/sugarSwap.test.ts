@@ -3,7 +3,8 @@ import { swapSugar } from "./sugarSwap";
 import type { NormalizedFormula } from "./beverageScaling";
 
 // Ashley 2026-10-22: when she wants to use her syrup in a jelly, Brix says how much.
-// Her rule for this (2026-10-23): count 1 ml of WATER as 1 g. Nothing else converts.
+// Her rule for this (2026-10-23): count 1 ml of WATER as 1 g, then (same day) "count
+// 1 ml of juice as 1 g too so Brix can do my mango and pineapple syrups". Nothing else.
 // Every recipe below is a real approved recipe, copied line for line.
 
 function formula(name: string, lines: Array<[string, string, string]>): NormalizedFormula {
@@ -27,6 +28,13 @@ const MANGO_SYRUP = formula("Mango Syrup", [
   ["Mango Juice", "1000", "ml"], ["Sugar", "1000", "gr"], ["Water", "1000", "ml"],
 ]);
 const LEMON_JUICE = formula("Lemon Juice", [["Lemon Juice", "1000", "ml"]]);
+const PINEAPPLE_SYRUP = formula("Pineapple Syrup", [
+  ["Pineapple Juice", "1500", "ml"], ["Sugar", "1500", "gr"], ["Water", "1500", "ml"],
+]);
+const GRENADINE = formula("Grenadine", [["Pomegranate", "500", "ml"], ["Sugar", "500", "gr"]]);
+const COCONUT = formula("Coconut Cream", [
+  ["Coconut Milk", "400", "ml"], ["Sugar", "200", "gr"], ["Water", "200", "ml"],
+]);
 
 const CANVAS = formula("Blank Practice Canvas (6-inch Round)", [
   ["Water", "348", "gr"], ["Sugar", "122", "gr"], ["Gelatin", "21", "gr"],
@@ -96,8 +104,18 @@ describe("swapSugar", () => {
     expect(line(odd, "S")?.quantity).toBe("23.33");
   });
 
-  it("refuses a syrup with a non-water ml line, naming it, and gives no number", () => {
-    expect(() => swapSugar(CANVAS, MANGO_SYRUP)).toThrow(/Mango Juice.*1000 ml/);
+  it("counts juice ml as grams too: Mango and Pineapple syrups are 1/3 sugar", () => {
+    const mango = swapSugar(CANVAS, MANGO_SYRUP);
+    expect(mango.syrup_sugar_share.exact).toBe("1/3");
+    expect(mango.syrup_g.exact).toBe("366");
+    expect(mango.added_besides_sugar_g.exact).toBe("244");
+    expect(swapSugar(PALOMA, PINEAPPLE_SYRUP).syrup_g.exact).toBe("312");
+    expect(mango.assumption).toMatch(/water or juice/);
+  });
+
+  it("refuses an ml line not named water or juice, naming it, and gives no number", () => {
+    expect(() => swapSugar(CANVAS, GRENADINE)).toThrow(/Pomegranate 500 ml/);
+    expect(() => swapSugar(CANVAS, COCONUT)).toThrow(/Coconut Milk 400 ml.*water and juice/);
   });
 
   it("does not count a line that only contains the word water as water", () => {
