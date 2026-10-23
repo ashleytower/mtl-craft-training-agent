@@ -70,7 +70,7 @@ export type ScaleResult = {
   components: ScaledComponent[];
 };
 
-type Rational = { n: bigint; d: bigint };
+export type Rational = { n: bigint; d: bigint };
 
 function gcd(a: bigint, b: bigint): bigint {
   let x = a < 0n ? -a : a;
@@ -97,7 +97,7 @@ function reduce({ n, d }: Rational): Rational {
  * either way; precision already lost in JSON cannot be recovered here, which is
  * why the API casts numerics to text at the source.
  */
-function parseRational(raw: Quantity | null | undefined, label: string): Rational {
+export function parseRational(raw: Quantity | null | undefined, label: string): Rational {
   const text = (typeof raw === "number" ? String(raw) : (raw ?? "")).trim();
   if (!/^-?\d+(\.\d+)?$/.test(text)) {
     throw new Error(`${label} must be a decimal number, received "${raw ?? ""}"`);
@@ -109,11 +109,15 @@ function parseRational(raw: Quantity | null | undefined, label: string): Rationa
   return reduce({ n, d });
 }
 
-function multiply(a: Rational, b: Rational): Rational {
+export function multiply(a: Rational, b: Rational): Rational {
   return reduce({ n: a.n * b.n, d: a.d * b.d });
 }
 
-function divide(a: Rational, b: Rational): Rational {
+export function subtract(a: Rational, b: Rational): Rational {
+  return reduce({ n: a.n * b.d - b.n * a.d, d: a.d * b.d });
+}
+
+export function divide(a: Rational, b: Rational): Rational {
   if (b.n === 0n) {
     throw new Error("Cannot divide by zero");
   }
@@ -124,7 +128,7 @@ function isPositive({ n, d }: Rational): boolean {
   return n > 0n && d > 0n;
 }
 
-function formatExact({ n, d }: Rational): string {
+export function formatExact({ n, d }: Rational): string {
   return d === 1n ? n.toString() : `${n.toString()}/${d.toString()}`;
 }
 
@@ -134,7 +138,7 @@ function formatExact({ n, d }: Rational): string {
  * at DECIMAL_DIGITS and reports `isExact: false`. It never rounds — a truncated
  * value is always <= the true value, so a scaled batch is never overstated.
  */
-function toDecimal({ n, d }: Rational): { text: string; isExact: boolean } {
+export function toDecimal({ n, d }: Rational): { text: string; isExact: boolean } {
   const negative = n < 0n;
   let numerator = negative ? -n : n;
   const whole = numerator / d;
@@ -153,6 +157,19 @@ function toDecimal({ n, d }: Rational): { text: string; isExact: boolean } {
     text: `${negative ? "-" : ""}${whole.toString()}.${digits}`,
     isExact: remainder === 0n,
   };
+}
+
+/**
+ * A number someone can actually measure. The exact value stays alongside it —
+ * "185/9 gr" is correct but nobody weighs that, and an agent asked to choose
+ * between the two will sometimes choose the useless one. So the API decides.
+ * Cut to 2 places, never rounded up. Shared by /scale and the sugar swap.
+ */
+export function measurable(value: string, isExact: boolean): string {
+  const dot = value.indexOf(".");
+  if (dot === -1) return value;
+  const short = value.slice(0, dot + 3).replace(/\.?0+$/, "");
+  return isExact && short === value ? value : `${short}`;
 }
 
 /**

@@ -14,7 +14,8 @@
 import type { Express, Request, Response } from "express";
 import { hermesIdentityFromRequest } from "./_core/hermesService";
 import * as beverage from "./beverageClient";
-import { scaleFormula, type NormalizedFormula } from "./beverageScaling";
+import { measurable, scaleFormula, type NormalizedFormula } from "./beverageScaling";
+import { swapSugar } from "./sugarSwap";
 import { embedToLiteral } from "./knowledgeEmbedding";
 import { isLocalTranscript } from "./knowledgeCorpus";
 import { loadedRevision } from "./buildRevision";
@@ -39,16 +40,34 @@ type ApprovedFormula = {
   }>;
 };
 
-/**
- * A number someone can actually measure. The exact value stays alongside it —
- * "185/9 gr" is correct but nobody weighs that, and an agent asked to choose
- * between the two will sometimes choose the useless one. So the API decides.
- */
-function measurable(value: string, isExact: boolean): string {
-  const dot = value.indexOf(".");
-  if (dot === -1) return value;
-  const short = value.slice(0, dot + 3).replace(/\.?0+$/, "");
-  return isExact && short === value ? value : `${short}`;
+/** One approved formula by id or exact name (any case). Never guesses between two. */
+function findApproved(
+  approved: ApprovedFormula[],
+  wanted: string
+): { formula: ApprovedFormula } | { status: number; body: Record<string, unknown> } {
+  const name = wanted.trim().toLowerCase();
+  const matches = approved.filter(
+    f => f.id === wanted.trim() || f.name.trim().toLowerCase() === name
+  );
+  if (matches.length === 0) {
+    return {
+      status: 404,
+      body: {
+        error: `No approved formula matches "${wanted}".`,
+        approved_names: approved.map(f => f.name),
+      },
+    };
+  }
+  if (matches.length > 1) {
+    return {
+      status: 409,
+      body: {
+        error: `"${wanted}" matches ${matches.length} approved formulas. Use the id.`,
+        candidates: matches.map(f => ({ id: f.id, name: f.name, version: f.version_number })),
+      },
+    };
+  }
+  return { formula: matches[0] };
 }
 
 function toNormalized(formula: ApprovedFormula): NormalizedFormula {
@@ -480,38 +499,19 @@ export function registerHermesRoutes(app: Express) {
       return;
     }
 
-    const wanted = formula.trim().toLowerCase();
-    const matches = approved.filter(
-      f => f.id === formula.trim() || f.name.trim().toLowerCase() === wanted
-    );
-
-    if (matches.length === 0) {
-      res.status(404).json({
-        error: `No approved formula matches "${formula}".`,
-        approved_names: approved.map(f => f.name),
-      });
-      return;
-    }
-    if (matches.length > 1) {
-      // Never guess between two approved formulas with the same name.
-      res.status(409).json({
-        error: `"${formula}" matches ${matches.length} approved formulas. Use the id.`,
-        candidates: matches.map(f => ({
-          id: f.id,
-          name: f.name,
-          version: f.version_number,
-        })),
-      });
+    const found = findApproved(approved, formula);
+    if ("status" in found) {
+      res.status(found.status).json(found.body);
       return;
     }
 
     try {
-      const result = scaleFormula(toNormalized(matches[0]), scaleRequest);
+      const result = scaleFormula(toNormalized(found.formula), scaleRequest);
       res.json({
         ...result,
         // Scaling is when someone is about to make the thing, so the method
         // belongs in this response rather than behind another call.
-        method: methodForAgent(matches[0].process_json),
+        method: methodForAgent(found.formula.process_json),
         factor: {
           ...result.factor,
           measurable: measurable(result.factor.decimal, result.factor.decimalIsExact),
@@ -526,6 +526,50 @@ export function registerHermesRoutes(app: Express) {
       res.status(400).json({
         error: error instanceof Error ? error.message : "scaling refused",
       });
+    }
+  });
+
+  /**
+   * How much of her syrup replaces the sugar in a jelly (Ashley 2026-10-22). Read-only:
+   * resolves two approved recipes and calls swapSugar. Water ml counts as g (her rule
+   * 2026-10-23); any other unit is refused by name. Writes nothing.
+   */
+  app.post("/api/hermes/recipe/swap-sugar", async (req: Request, res: Response) => {
+    const identity = hermesIdentityFromRequest(req);
+    if (!identity) {
+      res.status(401).json({ error: "hermes service token required" });
+      return;
+    }
+    const { jelly, syrup, sugar_line } = req.body ?? {};
+    for (const [key, value] of [["jelly", jelly], ["syrup", syrup]] as const) {
+      if (typeof value !== "string" || !value.trim()) {
+        res.status(400).json({ error: `${key} (id or name) is required` });
+        return;
+      }
+    }
+
+    let approved: ApprovedFormula[];
+    try {
+      approved = (await beverage.listApprovedFormulas(identity)) as ApprovedFormula[];
+    } catch (error) {
+      res.status(502).json({ error: error instanceof Error ? error.message : "lookup failed" });
+      return;
+    }
+    const j = findApproved(approved, jelly);
+    if ("status" in j) {
+      res.status(j.status).json(j.body);
+      return;
+    }
+    const s = findApproved(approved, syrup);
+    if ("status" in s) {
+      res.status(s.status).json(s.body);
+      return;
+    }
+    try {
+      const line = typeof sugar_line === "string" && sugar_line.trim() ? sugar_line : undefined;
+      res.json(swapSugar(toNormalized(j.formula), toNormalized(s.formula), line));
+    } catch (error) {
+      res.status(409).json({ error: error instanceof Error ? error.message : "swap refused" });
     }
   });
 
