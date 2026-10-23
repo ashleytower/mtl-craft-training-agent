@@ -122,12 +122,47 @@ describe("swapSugar", () => {
     expect(swapSugar(CANVAS, COCONUT).syrup_g.exact).toBe("488");
   });
 
-  it("refuses a line with no weight (unit), naming it, and gives no number", () => {
-    const eggnog = formula("Eggnog", [
-      ["Eggs", "64", "unit"], ["Sugar", "2720", "gr"], ["Milk", "5678", "ml"],
+  // Ashley 2026-10-23: "Make Eggnog and Spiced Cran work in Brix too, use standard
+  // weights for the eggs and nutmeg". One large egg out of the shell 50 g (USDA FoodData
+  // Central, Grade A large, egg whole); one whole nutmeg 6 g (2-3 tsp grated, Illinois
+  // Extension, at 2.2 g/tsp ground, USDA). Both recipes copied line for line.
+  const EGGNOG = formula("Eggnog", [
+    ["Eggs", "64", "unit"], ["Nutmeg", "10", "unit"], ["Sugar", "2720", "gr"],
+    ["Cream 35%", "3630", "ml"], ["Brandy", "1870", "ml"], ["Rum Spiced", "1870", "ml"],
+    ["Milk", "5678", "ml"],
+  ]);
+  const SPICED_CRAN = formula("Spiced Cran", [
+    ["All spice ground", "30", "gr"], ["Salt", "25", "gr"], ["Cloves", "15", "gr"],
+    ["Cinnamon Sticks", "385", "gr"], ["Nutmeg", "15", "unit"], ["OJ", "1700", "ml"],
+    ["Orange peel", "1100", "gr"], ["Cranberry jelly", "1700", "gr"], ["Water", "9950", "ml"],
+    ["Sugar", "9950", "gr"], ["Cranberry juice", "12000", "gr"], ["Rosemary", "150", "gr"],
+  ]);
+
+  it("weighs eggs at 50 g and nutmeg at 6 g each: Eggnog, Spiced Cran", () => {
+    // 64 x 50 + 10 x 6 + the rest = 19028 g; 2720 / 19028 = 680/4757.
+    const nog = swapSugar(CANVAS, EGGNOG);
+    expect(nog.syrup_sugar_share.exact).toBe("680/4757");
+    expect(nog.syrup_g.exact).toBe("290177/340");
+    expect(nog.syrup_g.measurable).toBe("853.46");
+    // 15 x 6 + the rest = 37095 g; 9950 / 37095 = 1990/7419.
+    const cran = swapSugar(CANVAS, SPICED_CRAN);
+    expect(cran.syrup_sugar_share.exact).toBe("1990/7419");
+    expect(cran.syrup_g.exact).toBe("452559/995");
+  });
+
+  it("says which standard weights it used, and only those", () => {
+    expect(swapSugar(CANVAS, EGGNOG).assumption).toMatch(/1 egg as 50 g.*1 nutmeg as 6 g/);
+    expect(swapSugar(CANVAS, SPICED_CRAN).assumption).toMatch(/1 nutmeg as 6 g/);
+    expect(swapSugar(CANVAS, SPICED_CRAN).assumption).not.toMatch(/egg/);
+    expect(swapSugar(CANVAS, SIMPLE).assumption).not.toMatch(/egg|nutmeg/);
+  });
+
+  it("still refuses a counted line with no standard weight, naming it", () => {
+    const limes = formula("Lime Cordial", [
+      ["Limes", "12", "unit"], ["Sugar", "500", "gr"], ["Water", "500", "ml"],
     ]);
-    expect(() => swapSugar(CANVAS, eggnog)).toThrow(/Eggs 64 unit/);
-    expect(() => swapSugar(CANVAS, eggnog)).not.toThrow(/Milk/);
+    expect(() => swapSugar(CANVAS, limes)).toThrow(/Limes 12 unit/);
+    expect(() => swapSugar(CANVAS, limes)).not.toThrow(/Water/);
   });
 
   it("does not convert litres or kilos: only gr and ml are weighed", () => {

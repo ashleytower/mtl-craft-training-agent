@@ -71,9 +71,10 @@ const MANGO = approved("s2", "Mango Syrup", [
 ]);
 const GRENADINE = approved("s3", "Grenadine", [["Pomegranate", "500", "ml"], ["Sugar", "500", "gr"]]);
 const EGGNOG = approved("s4", "Eggnog", [["Eggs", "64", "unit"], ["Sugar", "2720", "gr"]]);
+const LIMES = approved("s5", "Lime Cordial", [["Limes", "12", "unit"], ["Sugar", "500", "gr"]]);
 
 beforeEach(() => {
-  listApprovedFormulas.mockReset().mockResolvedValue([CANVAS, MULE, SIMPLE, MANGO, GRENADINE, EGGNOG]);
+  listApprovedFormulas.mockReset().mockResolvedValue([CANVAS, MULE, SIMPLE, MANGO, GRENADINE, EGGNOG, LIMES]);
   Object.values(writers).forEach(w => w.mockReset());
 });
 
@@ -103,16 +104,20 @@ describe("POST /api/hermes/recipe/swap-sugar", () => {
     Object.values(writers).forEach(w => expect(w).not.toHaveBeenCalled());
   });
 
-  it("does Mango and Grenadine (ml counts as g) and refuses a line with no weight", async () => {
+  it("does Mango, Grenadine (ml counts as g) and Eggnog (50 g eggs), refuses limes", async () => {
     const mango = await harness()({ jelly: "j1", syrup: "Mango Syrup" });
     expect(mango.status).toBe(200);
     expect(mango.body.syrup_g.exact).toBe("366");
     const grenadine = await harness()({ jelly: "j1", syrup: "Grenadine" });
     expect(grenadine.status).toBe(200);
     expect(grenadine.body.syrup_g.exact).toBe("244");
-    const r = await harness()({ jelly: "j1", syrup: "Eggnog" });
+    const nog = await harness()({ jelly: "j1", syrup: "Eggnog" });
+    expect(nog.status).toBe(200);
+    // 64 x 50 + 2720 = 5920 g; 122 x 5920 / 2720 = 4514/17.
+    expect(nog.body.syrup_g.exact).toBe("4514/17");
+    const r = await harness()({ jelly: "j1", syrup: "Lime Cordial" });
     expect(r.status).toBe(409);
-    expect(r.body.error).toMatch(/Eggs 64 unit/);
+    expect(r.body.error).toMatch(/Limes 12 unit/);
   });
 
   it("asks which sugar line on a layered jelly, then uses the one named", async () => {
