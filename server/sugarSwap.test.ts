@@ -4,7 +4,9 @@ import type { NormalizedFormula } from "./beverageScaling";
 
 // Ashley 2026-10-22: when she wants to use her syrup in a jelly, Brix says how much.
 // Her rule for this (2026-10-23): count 1 ml of WATER as 1 g, then (same day) "count
-// 1 ml of juice as 1 g too so Brix can do my mango and pineapple syrups". Nothing else.
+// 1 ml of juice as 1 g too so Brix can do my mango and pineapple syrups", then "count
+// Grenadine (pomegranate) and Dragonfruit ml as grams too" ... "dont ask me this just do
+// it". So every ml line counts 1 ml = 1 g. Only lines with no weight (unit) are refused.
 // Every recipe below is a real approved recipe, copied line for line.
 
 function formula(name: string, lines: Array<[string, string, string]>): NormalizedFormula {
@@ -110,17 +112,27 @@ describe("swapSugar", () => {
     expect(mango.syrup_g.exact).toBe("366");
     expect(mango.added_besides_sugar_g.exact).toBe("244");
     expect(swapSugar(PALOMA, PINEAPPLE_SYRUP).syrup_g.exact).toBe("312");
-    expect(mango.assumption).toMatch(/water or juice/);
+    expect(mango.assumption).toMatch(/1 ml as 1 g/);
   });
 
-  it("refuses an ml line not named water or juice, naming it, and gives no number", () => {
-    expect(() => swapSugar(CANVAS, GRENADINE)).toThrow(/Pomegranate 500 ml/);
-    expect(() => swapSugar(CANVAS, COCONUT)).toThrow(/Coconut Milk 400 ml.*water and juice/);
+  it("counts every ml line as grams: Grenadine, Coconut Cream", () => {
+    expect(swapSugar(PALOMA, GRENADINE).syrup_sugar_share.exact).toBe("1/2");
+    expect(swapSugar(PALOMA, GRENADINE).syrup_g.exact).toBe("208");
+    expect(swapSugar(CANVAS, COCONUT).syrup_sugar_share.exact).toBe("1/4");
+    expect(swapSugar(CANVAS, COCONUT).syrup_g.exact).toBe("488");
   });
 
-  it("does not count a line that only contains the word water as water", () => {
-    const tonic = formula("Tonic Syrup", [["Sugar", "100", "gr"], ["Tonic water", "100", "ml"]]);
-    expect(() => swapSugar(CANVAS, tonic)).toThrow(/Tonic water.*100 ml/);
+  it("refuses a line with no weight (unit), naming it, and gives no number", () => {
+    const eggnog = formula("Eggnog", [
+      ["Eggs", "64", "unit"], ["Sugar", "2720", "gr"], ["Milk", "5678", "ml"],
+    ]);
+    expect(() => swapSugar(CANVAS, eggnog)).toThrow(/Eggs 64 unit/);
+    expect(() => swapSugar(CANVAS, eggnog)).not.toThrow(/Milk/);
+  });
+
+  it("does not convert litres or kilos: only gr and ml are weighed", () => {
+    const litres = formula("Litre Syrup", [["Sugar", "100", "gr"], ["Juice", "1", "l"]]);
+    expect(() => swapSugar(CANVAS, litres)).toThrow(/Juice 1 l/);
   });
 
   it("refuses a syrup with no Sugar line, and never reads Sugar syrup as sugar", () => {

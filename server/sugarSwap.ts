@@ -2,9 +2,10 @@
  * How much of one of her syrups replaces the sugar in a jelly recipe.
  *
  * Ashley 2026-10-22: "this is your syrup recipe ... try this amount". Her rule for
- * this one calculation (2026-10-23): 1 ml of water, and 1 ml of any line named
- * juice ("so Brix can do my mango and pineapple syrups"), counts as 1 g. Nothing
- * else is converted: any other ml line (milk, puree, "Pomegranate") is refused, by name.
+ * this one calculation (2026-10-23): 1 ml counts as 1 g, for every ml line (water,
+ * then juice, then "Grenadine (pomegranate) and Dragonfruit ... dont ask me this just
+ * do it"). Nothing else is converted: a line with no weight ("64 unit" eggs) or in
+ * another unit (l, kg) is refused, by name.
  *
  * The syrup's sugar share is Sugar g / every line's weight, as written. The fruit's
  * own sugar and anything strained out are not counted, so the answer is a starting
@@ -49,7 +50,7 @@ export type SugarSwap = {
 };
 
 const ASSUMPTION =
-  "Counts 1 ml of water or juice as 1 g. Does not count the fruit's own sugar, or anything " +
+  "Counts 1 ml as 1 g. Does not count the fruit's own sugar, or anything " +
   "strained out or cooked off, so treat it as a starting amount to test.";
 
 /** "Sugar" or "Sugar (<layer>)". Never "Sugar syrup", "Sugar, invert", "Brown sugar". */
@@ -78,13 +79,11 @@ function syrupShare(syrup: NormalizedFormula): Rational {
         : `${syrup.name} has ${sugar.length} Sugar lines; cannot tell which one.`
     );
   }
-  const mlAsGrams = (c: FormulaComponent) =>
-    canonicalUnit(c.unit) === "ml" && (named(c, "water") || /\bjuice\b/i.test(c.ingredientName));
-  const unweighable = syrup.components.filter(c => !isGrams(c) && !mlAsGrams(c));
+  const unweighable = syrup.components.filter(c => !isGrams(c) && canonicalUnit(c.unit) !== "ml");
   if (unweighable.length > 0) {
     throw new Error(
       `${syrup.name} has lines Brix cannot weigh: ${unweighable.map(show).join("; ")}. ` +
-        "Only water and juice count 1 ml as 1 g."
+        "Only gr and ml lines can be weighed (1 ml counts as 1 g)."
     );
   }
   const total = sum(syrup.components.map(c => parseRational(c.quantity, c.ingredientName)));
