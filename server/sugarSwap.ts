@@ -56,13 +56,13 @@ const ASSUMPTION =
 
 /**
  * Standard weight of one counted piece, by exact line name. Egg: USDA FoodData
- * Central, Grade A large, egg whole (out of the shell), 50 g. Nutmeg: one whole nut
- * grates to 2-3 tsp (Illinois Extension) at 2.2 g/tsp ground (USDA), about 6 g.
+ * Central, Grade A large, egg whole (out of the shell), 50 g. Nutmeg: 10 g a whole nut,
+ * Ashley's weight (2026-10-24: "10g nutmeg").
  */
 const PIECE_G = new Map<string, { g: bigint; said: string }>([
   ["egg", { g: 50n, said: "1 egg as 50 g" }],
   ["eggs", { g: 50n, said: "1 egg as 50 g" }],
-  ["nutmeg", { g: 6n, said: "1 nutmeg as 6 g" }],
+  ["nutmeg", { g: 10n, said: "1 nutmeg as 10 g" }],
 ]);
 
 /** "Sugar" or "Sugar (<layer>)". Never "Sugar syrup", "Sugar, invert", "Brown sugar". */

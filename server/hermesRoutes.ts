@@ -532,7 +532,7 @@ export function registerHermesRoutes(app: Express) {
   /**
    * How much of her syrup replaces the sugar in a jelly (Ashley 2026-10-22). Read-only:
    * resolves two approved recipes and calls swapSugar. Every ml counts as g, eggs 50 g
-   * and nutmeg 6 g each (her rules 2026-10-23); any other unit is refused by name.
+   * and nutmeg 10 g each (her rules 2026-10-23/24); any other unit is refused by name.
    * Writes nothing.
    */
   app.post("/api/hermes/recipe/swap-sugar", async (req: Request, res: Response) => {

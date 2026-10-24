@@ -124,8 +124,8 @@ describe("swapSugar", () => {
 
   // Ashley 2026-10-23: "Make Eggnog and Spiced Cran work in Brix too, use standard
   // weights for the eggs and nutmeg". One large egg out of the shell 50 g (USDA FoodData
-  // Central, Grade A large, egg whole); one whole nutmeg 6 g (2-3 tsp grated, Illinois
-  // Extension, at 2.2 g/tsp ground, USDA). Both recipes copied line for line.
+  // Central, Grade A large, egg whole); one whole nutmeg 10 g (Ashley 2026-10-24: "10g
+  // nutmeg"). Both recipes copied line for line.
   const EGGNOG = formula("Eggnog", [
     ["Eggs", "64", "unit"], ["Nutmeg", "10", "unit"], ["Sugar", "2720", "gr"],
     ["Cream 35%", "3630", "ml"], ["Brandy", "1870", "ml"], ["Rum Spiced", "1870", "ml"],
@@ -138,21 +138,21 @@ describe("swapSugar", () => {
     ["Sugar", "9950", "gr"], ["Cranberry juice", "12000", "gr"], ["Rosemary", "150", "gr"],
   ]);
 
-  it("weighs eggs at 50 g and nutmeg at 6 g each: Eggnog, Spiced Cran", () => {
-    // 64 x 50 + 10 x 6 + the rest = 19028 g; 2720 / 19028 = 680/4757.
+  it("weighs eggs at 50 g and nutmeg at 10 g each: Eggnog, Spiced Cran", () => {
+    // 64 x 50 + 10 x 10 + the rest = 19068 g; 2720 / 19068 = 680/4767.
     const nog = swapSugar(CANVAS, EGGNOG);
-    expect(nog.syrup_sugar_share.exact).toBe("680/4757");
-    expect(nog.syrup_g.exact).toBe("290177/340");
-    expect(nog.syrup_g.measurable).toBe("853.46");
-    // 15 x 6 + the rest = 37095 g; 9950 / 37095 = 1990/7419.
+    expect(nog.syrup_sugar_share.exact).toBe("680/4767");
+    expect(nog.syrup_g.exact).toBe("290787/340");
+    expect(nog.syrup_g.measurable).toBe("855.25");
+    // 15 x 10 + the rest = 37155 g; 9950 / 37155 = 1990/7431.
     const cran = swapSugar(CANVAS, SPICED_CRAN);
-    expect(cran.syrup_sugar_share.exact).toBe("1990/7419");
-    expect(cran.syrup_g.exact).toBe("452559/995");
+    expect(cran.syrup_sugar_share.exact).toBe("1990/7431");
+    expect(cran.syrup_g.exact).toBe("453291/995");
   });
 
   it("says which standard weights it used, and only those", () => {
-    expect(swapSugar(CANVAS, EGGNOG).assumption).toMatch(/1 egg as 50 g.*1 nutmeg as 6 g/);
-    expect(swapSugar(CANVAS, SPICED_CRAN).assumption).toMatch(/1 nutmeg as 6 g/);
+    expect(swapSugar(CANVAS, EGGNOG).assumption).toMatch(/1 egg as 50 g.*1 nutmeg as 10 g/);
+    expect(swapSugar(CANVAS, SPICED_CRAN).assumption).toMatch(/1 nutmeg as 10 g/);
     expect(swapSugar(CANVAS, SPICED_CRAN).assumption).not.toMatch(/egg/);
     expect(swapSugar(CANVAS, SIMPLE).assumption).not.toMatch(/egg|nutmeg/);
   });

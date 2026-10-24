@@ -167,7 +167,7 @@ suggest a new water amount. Say it is a starting amount to test (`assumption`).
 - A layered jelly with two Sugar lines comes back refused, listing them: ask which
   layer (one question), then rerun with `--sugar-line "<that exact line>"`.
 - Every ml line counts 1 ml as 1 g (her rule 2026-10-23: do not ask her about
-  this). Counted eggs (50 g each) and nutmeg (6 g each) get a standard weight
+  this). Counted eggs (50 g each) and nutmeg (10 g each) get a standard weight
   (her ask 2026-10-23); `assumption` says so, tell her. Any other counted line
   ("12 unit" limes) or l/kg is refused by name.
   Relay it; do not convert it yourself or pick another syrup.
